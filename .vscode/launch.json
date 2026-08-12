@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ODC: Discover",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "odc_api_sandbox",
+      "args": ["discover"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "ODC: Latest Revision",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "odc_api_sandbox",
+      "args": ["latest-revision"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "ODC: Build Publish Deploy",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "odc_api_sandbox",
+      "args": ["run-all"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
