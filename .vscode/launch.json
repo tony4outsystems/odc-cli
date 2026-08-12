@@ -35,7 +35,7 @@
       "justMyCode": true
     },
     {
-      "name": "ODC: Build Publish Deploy",
+      "name": "ODC: Build Deploy",
       "type": "debugpy",
       "request": "launch",
       "module": "odc_api_sandbox",

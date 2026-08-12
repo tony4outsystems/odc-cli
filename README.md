@@ -11,7 +11,7 @@ uv run odc-api-sandbox latest-revision
 uv run odc-api-sandbox run-all
 ```
 
-The `validate` command confirms that the configured asset and environment keys are visible to the API client, then prints a short summary of both objects. The `run-all` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, publishes the revision, then deploys it to the configured environment.
+The `validate` command confirms that the configured asset and environment keys are visible to the API client, then prints a short summary of both objects. The `run-all` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, then deploys it to the configured environment.
 
 Individual operations are also available:
 

@@ -405,20 +405,6 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     if build_details.get("status") != "Finished":
         raise OdcApiError(f"Build did not finish successfully: {build_details.get('status')}")
 
-    publish_response = client.publish(asset_key, revision, environment_key)
-    print_json({"publish_started": publish_response})
-    publish_key = require_key(publish_response.get("key"), "publish operation key")
-    publish_details = wait_for(
-        f"publish {publish_key}",
-        lambda: client.get_publish(publish_key),
-        OPERATION_TERMINAL_STATUSES,
-        interval_seconds=args.poll_interval,
-        timeout_seconds=args.timeout,
-    )
-    if publish_details.get("status") != "Finished":
-        raise OdcApiError(f"Publish did not finish successfully: {publish_details.get('status')}")
-    build_key = publish_details.get("buildKey") or build_key
-
     deploy_response = client.deploy(asset_key, revision, build_key, environment_key)
     print_json({"deploy_started": deploy_response})
     deploy_key = require_key(deploy_response.get("key"), "deployment operation key")
@@ -438,7 +424,6 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
             "environmentKey": environment_key,
             "revision": revision,
             "build": build_details,
-            "publish": publish_details,
             "deployment": deploy_details,
         }
     )
@@ -476,7 +461,7 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("--no-wait", action="store_true")
     deploy.set_defaults(handler=handle_deploy)
 
-    run_all = subparsers.add_parser("run-all", help="Build, publish, then deploy the configured asset.")
+    run_all = subparsers.add_parser("run-all", help="Build, then deploy the configured asset.")
     add_common_args(run_all)
     run_all.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
     run_all.set_defaults(handler=handle_run_all)
