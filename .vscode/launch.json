@@ -24,6 +24,17 @@
       "justMyCode": true
     },
     {
+      "name": "ODC: Validate",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "odc_api_sandbox",
+      "args": ["validate"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "ODC: Build Publish Deploy",
       "type": "debugpy",
       "request": "launch",

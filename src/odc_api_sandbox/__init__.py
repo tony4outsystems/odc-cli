@@ -14,6 +14,12 @@ from dotenv import load_dotenv
 
 BUILD_TERMINAL_STATUSES = {"Finished", "FinishedWithErrors", "Deleted", "ToBeDeleted"}
 OPERATION_TERMINAL_STATUSES = {"Finished", "FinishedWithError"}
+API_BASE_PATHS = {
+    "asset-repository": "/api/asset-repository/v1",
+    "builds": "/api/builds/v1",
+    "deployments": "/api/deployments/v1",
+    "portfolios": "/api/portfolios/v2",
+}
 
 
 class OdcApiError(RuntimeError):
@@ -111,6 +117,16 @@ class OdcClient:
             raise OdcApiError(f"Latest revision response did not include an integer revision: {revision}")
         return revision_number
 
+    def get_asset(self, asset_key: str) -> dict[str, Any]:
+        return self._request("GET", self.url("asset-repository", f"/assets/{asset_key}"))
+
+    def get_environment(self, environment_key: str) -> dict[str, Any]:
+        environments = self._request("GET", self.url("portfolios", "/environments"))
+        for environment in environments.get("results") or []:
+            if environment.get("key") == environment_key:
+                return environment
+        raise OdcApiError(f"Environment key was not found or is not visible: {environment_key}")
+
     def start_build(self, asset_key: str, revision: int, build_type: str) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -155,7 +171,8 @@ class OdcClient:
         return self._request("GET", self.url("deployments", f"/deployment-operations/{operation_key}"))
 
     def url(self, api: str, path: str) -> str:
-        return f"{self.settings.tenant_origin}/api/{api}/v1{path}"
+        base_path = API_BASE_PATHS[api]
+        return f"{self.settings.tenant_origin}{base_path}{path}"
 
     def _request(
         self,
@@ -214,20 +231,62 @@ def print_json(payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def compact_dict(payload: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+    return {field: payload.get(field) for field in fields if payload.get(field) is not None}
+
+
+def print_preflight_summary(asset: dict[str, Any], environment: dict[str, Any], revision: int) -> None:
+    print_json(
+        {
+            "preflight": {
+                "asset": compact_dict(
+                    asset,
+                    [
+                        "assetKey",
+                        "name",
+                        "assetType",
+                        "revision",
+                        "tag",
+                        "portfolioKey",
+                        "createdAt",
+                        "createdBy",
+                    ],
+                ),
+                "environment": compact_dict(
+                    environment,
+                    [
+                        "key",
+                        "name",
+                        "purpose",
+                        "defaultDomain",
+                        "region",
+                        "hosting",
+                        "status",
+                        "portfolioKey",
+                    ],
+                ),
+                "selectedRevision": revision,
+            }
+        }
+    )
+
+
+def preflight(client: OdcClient, asset_key: str, environment_key: str, revision: int | None) -> int:
+    asset = client.get_asset(asset_key)
+    environment = client.get_environment(environment_key)
+    resolved_revision = revision if revision is not None else asset.get("revision")
+    if not isinstance(resolved_revision, int):
+        resolved_revision = client.latest_revision(asset_key)
+    print_preflight_summary(asset, environment, resolved_revision)
+    return resolved_revision
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--asset-key", default=None)
     parser.add_argument("--environment-key", default=None)
     parser.add_argument("--revision", type=int, default=None)
     parser.add_argument("--poll-interval", type=float, default=10.0)
     parser.add_argument("--timeout", type=float, default=1800.0)
-
-
-def resolve_revision(client: OdcClient, asset_key: str, revision: int | None) -> int:
-    if revision is not None:
-        return revision
-    resolved = client.latest_revision(asset_key)
-    print(f"Using latest revision: {resolved}")
-    return resolved
 
 
 def require_key(value: str | None, label: str) -> str:
@@ -252,9 +311,16 @@ def handle_latest_revision(client: OdcClient, args: argparse.Namespace) -> None:
     print(client.latest_revision(asset_key))
 
 
+def handle_validate(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = args.asset_key or client.settings.asset_key
+    environment_key = args.environment_key or client.settings.environment_key
+    preflight(client, asset_key, environment_key, args.revision)
+
+
 def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
-    revision = resolve_revision(client, asset_key, args.revision)
+    environment_key = args.environment_key or client.settings.environment_key
+    revision = preflight(client, asset_key, environment_key, args.revision)
     response = client.start_build(asset_key, revision, args.build_type)
     print_json(response)
     build_key = require_key(response.get("buildKey"), "buildKey")
@@ -277,7 +343,7 @@ def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
 def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
     environment_key = args.environment_key or client.settings.environment_key
-    revision = resolve_revision(client, asset_key, args.revision)
+    revision = preflight(client, asset_key, environment_key, args.revision)
     response = client.publish(asset_key, revision, environment_key)
     print_json(response)
     operation_key = require_key(response.get("key"), "publish operation key")
@@ -300,7 +366,7 @@ def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any
 def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
     environment_key = args.environment_key or client.settings.environment_key
-    revision = resolve_revision(client, asset_key, args.revision)
+    revision = preflight(client, asset_key, environment_key, args.revision)
     build_key = require_key(args.build_key, "--build-key")
     response = client.deploy(asset_key, revision, build_key, environment_key)
     print_json(response)
@@ -324,7 +390,7 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
 def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
     environment_key = args.environment_key or client.settings.environment_key
-    revision = resolve_revision(client, asset_key, args.revision)
+    revision = preflight(client, asset_key, environment_key, args.revision)
 
     build_response = client.start_build(asset_key, revision, args.build_type)
     print_json({"build_started": build_response})
@@ -388,6 +454,10 @@ def build_parser() -> argparse.ArgumentParser:
     latest_revision = subparsers.add_parser("latest-revision", help="Print the latest asset revision.")
     latest_revision.add_argument("--asset-key", default=None)
     latest_revision.set_defaults(handler=handle_latest_revision)
+
+    validate = subparsers.add_parser("validate", help="Validate the configured asset and environment.")
+    add_common_args(validate)
+    validate.set_defaults(handler=handle_validate)
 
     build = subparsers.add_parser("build", help="Start a build operation.")
     add_common_args(build)
