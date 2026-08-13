@@ -44,6 +44,17 @@
       "envFile": "${workspaceFolder}/.env",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "ODC: Producer Graph",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "odc_api_sandbox",
+      "args": ["producer-graph", "--output", "output/producer-graph-vscode.mmd"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
     }
   ]
 }
