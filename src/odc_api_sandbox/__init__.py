@@ -180,7 +180,7 @@ class OdcClient:
         *,
         environment_key: str | None = None,
         max_depth: int = 0,
-        producer_type_filter: str = "All",
+        producer_type_filter: str = "Deployable",
     ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "maxDepth": max_depth,
@@ -605,7 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
     producer_graph.add_argument(
         "--producer-type-filter",
         choices=["Deployable", "Libraries", "All"],
-        default="All",
+        default="Deployable",
     )
     producer_graph.add_argument(
         "--output",
