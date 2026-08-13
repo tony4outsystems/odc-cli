@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -17,6 +19,7 @@ OPERATION_TERMINAL_STATUSES = {"Finished", "FinishedWithError"}
 API_BASE_PATHS = {
     "asset-repository": "/api/asset-repository/v1",
     "builds": "/api/builds/v1",
+    "dependency-management": "/api/dependency-management/v1",
     "deployments": "/api/deployments/v1",
     "portfolios": "/api/portfolios/v2",
 }
@@ -170,6 +173,31 @@ class OdcClient:
     def get_deployment(self, operation_key: str) -> dict[str, Any]:
         return self._request("GET", self.url("deployments", f"/deployment-operations/{operation_key}"))
 
+    def producer_graph(
+        self,
+        asset_key: str,
+        revision: int,
+        *,
+        environment_key: str | None = None,
+        max_depth: int = 0,
+        producer_type_filter: str = "All",
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "maxDepth": max_depth,
+            "producerTypeFilter": producer_type_filter,
+            "sort": "name",
+        }
+        if environment_key:
+            params["environmentKey"] = environment_key
+        return self._request(
+            "GET",
+            self.url(
+                "dependency-management",
+                f"/assets/{asset_key}/revisions/{revision}/producer-graph",
+            ),
+            params=params,
+        )
+
     def url(self, api: str, path: str) -> str:
         base_path = API_BASE_PATHS[api]
         return f"{self.settings.tenant_origin}{base_path}{path}"
@@ -182,12 +210,20 @@ class OdcClient:
         auth: bool = True,
         json_data: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         headers = {"Accept": "application/json"}
         if auth:
             headers["Authorization"] = f"Bearer {self.token()}"
 
-        response = self.http.request(method, url, headers=headers, json=json_data, data=data)
+        response = self.http.request(
+            method,
+            url,
+            headers=headers,
+            json=json_data,
+            data=data,
+            params=params,
+        )
         if response.status_code >= 400:
             raise OdcApiError(format_error(response))
         if not response.content:
@@ -233,6 +269,66 @@ def print_json(payload: Any) -> None:
 
 def compact_dict(payload: dict[str, Any], fields: list[str]) -> dict[str, Any]:
     return {field: payload.get(field) for field in fields if payload.get(field) is not None}
+
+
+def mermaid_node_id(asset_key: str, revision: int | None) -> str:
+    raw = f"{asset_key}:{revision if revision is not None else ''}"
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    return f"asset_{digest}"
+
+
+def mermaid_label(asset: dict[str, Any]) -> str:
+    name = asset.get("name") or asset.get("key") or "Unknown asset"
+    details = []
+    if asset.get("revision") is not None:
+        details.append(f"rev {asset['revision']}")
+    if asset.get("type"):
+        details.append(str(asset["type"]))
+    label = str(name)
+    if details:
+        label = f"{label}\\n{' / '.join(details)}"
+    return label.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def render_producer_graph_mermaid(root: dict[str, Any], producers: list[dict[str, Any]]) -> str:
+    nodes: dict[str, str] = {}
+    edges: set[tuple[str, str]] = set()
+
+    def add_node(asset: dict[str, Any]) -> str:
+        key = str(asset.get("key") or "unknown")
+        revision = asset.get("revision")
+        node_id = mermaid_node_id(key, revision if isinstance(revision, int) else None)
+        nodes[node_id] = mermaid_label(asset)
+        return node_id
+
+    def visit(parent: dict[str, Any], children: list[dict[str, Any]]) -> None:
+        parent_id = add_node(parent)
+        for child in children:
+            child_id = add_node(child)
+            edges.add((parent_id, child_id))
+            visit(child, child.get("producers") or [])
+
+    visit(root, producers)
+
+    lines = [
+        "---",
+        "title: Producer dependency graph",
+        "---",
+        "flowchart LR",
+    ]
+    for node_id in sorted(nodes):
+        lines.append(f'    {node_id}["{nodes[node_id]}"]')
+    for parent_id, child_id in sorted(edges):
+        lines.append(f"    {parent_id} --> {child_id}")
+    return "\n".join(lines) + "\n"
+
+
+def default_mermaid_output_path(asset_key: str, revision: int) -> Path:
+    safe_asset_key = "".join(
+        char if char.isalnum() or char in ("-", "_") else "_"
+        for char in asset_key
+    )
+    return Path(f"producer-graph-{safe_asset_key}-rev-{revision}.mmd")
 
 
 def print_preflight_summary(asset: dict[str, Any], environment: dict[str, Any], revision: int) -> None:
@@ -387,6 +483,37 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
     return details
 
 
+def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
+    revision = args.revision if args.revision is not None else client.latest_revision(asset_key)
+    asset = client.get_asset(asset_key)
+    root = {
+        "key": asset_key,
+        "name": asset.get("name"),
+        "revision": revision,
+        "type": asset.get("assetType") or asset.get("type"),
+    }
+    graph = client.producer_graph(
+        asset_key,
+        revision,
+        environment_key=args.environment_key,
+        max_depth=args.max_depth,
+        producer_type_filter=args.producer_type_filter,
+    )
+    producers = graph.get("results") or []
+    output_path = Path(args.output) if args.output else default_mermaid_output_path(asset_key, revision)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(render_producer_graph_mermaid(root, producers), encoding="utf-8")
+    print_json(
+        {
+            "assetKey": asset_key,
+            "revision": revision,
+            "topLevelProducerCount": len(producers),
+            "output": str(output_path),
+        }
+    )
+
+
 def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
     environment_key = args.environment_key or client.settings.environment_key
@@ -460,6 +587,32 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("--build-key", required=True)
     deploy.add_argument("--no-wait", action="store_true")
     deploy.set_defaults(handler=handle_deploy)
+
+    producer_graph = subparsers.add_parser(
+        "producer-graph",
+        help="Generate a Mermaid graph of all asset producers.",
+    )
+    producer_graph.add_argument("asset_key_arg", nargs="?", help="Asset key. Defaults to ODC_ASSET_KEY.")
+    producer_graph.add_argument("--asset-key", default=None)
+    producer_graph.add_argument("--revision", type=int, default=None)
+    producer_graph.add_argument("--environment-key", default=None)
+    producer_graph.add_argument(
+        "--max-depth",
+        type=int,
+        default=0,
+        help="Maximum producer depth. 0 means infinite.",
+    )
+    producer_graph.add_argument(
+        "--producer-type-filter",
+        choices=["Deployable", "Libraries", "All"],
+        default="All",
+    )
+    producer_graph.add_argument(
+        "--output",
+        default=None,
+        help="Mermaid output path. Defaults to producer-graph-<asset>-rev-<revision>.mmd.",
+    )
+    producer_graph.set_defaults(handler=handle_producer_graph)
 
     run_all = subparsers.add_parser("run-all", help="Build, then deploy the configured asset.")
     add_common_args(run_all)
