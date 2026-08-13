@@ -486,6 +486,7 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
     revision = args.revision if args.revision is not None else client.latest_revision(asset_key)
+    producer_type_filter = "All" if args.all_producers else args.producer_type_filter
     asset = client.get_asset(asset_key)
     root = {
         "key": asset_key,
@@ -498,7 +499,7 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
         revision,
         environment_key=args.environment_key,
         max_depth=args.max_depth,
-        producer_type_filter=args.producer_type_filter,
+        producer_type_filter=producer_type_filter,
     )
     producers = graph.get("results") or []
     output_path = Path(args.output) if args.output else default_mermaid_output_path(asset_key, revision)
@@ -507,6 +508,7 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     print_json(
         {
             "assetKey": asset_key,
+            "producerTypeFilter": producer_type_filter,
             "revision": revision,
             "topLevelProducerCount": len(producers),
             "output": str(output_path),
@@ -606,6 +608,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--producer-type-filter",
         choices=["Deployable", "Libraries", "All"],
         default="Deployable",
+        help="Producer type filter to send to the API. Defaults to Deployable.",
+    )
+    producer_graph.add_argument(
+        "--all-producers",
+        action="store_true",
+        help="Shortcut for --producer-type-filter All.",
     )
     producer_graph.add_argument(
         "--output",
