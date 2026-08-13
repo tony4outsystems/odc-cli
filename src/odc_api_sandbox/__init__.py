@@ -286,7 +286,7 @@ def mermaid_label(asset: dict[str, Any]) -> str:
         details.append(str(asset["type"]))
     label = str(name)
     if details:
-        label = f"{label}\\n{' / '.join(details)}"
+        label = f"{label}\n{' / '.join(details)}"
     return label.replace("\\", "\\\\").replace('"', '\\"')
 
 
