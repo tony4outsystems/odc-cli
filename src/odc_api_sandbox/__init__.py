@@ -25,6 +25,7 @@ API_BASE_PATHS = {
     "dependency-management": "/api/dependency-management/v1",
     "deployments": "/api/deployments/v1",
     "portfolios": "/api/portfolios/v2",
+    "identity": "/api/identity/v1",
 }
 GUID_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -217,6 +218,33 @@ class OdcClient:
             ),
             params=params,
         )
+
+    def get_user(self, user_key: str) -> dict[str, Any]:
+        return self._request("GET", self.url("identity", f"/users/{user_key}"))
+
+    def update_user(
+        self,
+        user_key: str,
+        *,
+        name: str | None = None,
+        is_active: bool | None = None,
+        photo_url: str | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if is_active is not None:
+            payload["isActive"] = is_active
+        if photo_url is not None:
+            payload["photoUrl"] = photo_url
+        self._request("PATCH", self.url("identity", f"/users/{user_key}"), json_data=payload)
+
+    def query_users(self, *, name_or_email_contains: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if name_or_email_contains:
+            params["nameOrEmailContains"] = name_or_email_contains
+        response = self._request("GET", self.url("identity", "/users"), params=params)
+        return response.get("results") or []
 
     def url(self, api: str, path: str) -> str:
         base_path = API_BASE_PATHS[api]
@@ -469,6 +497,36 @@ def resolve_environment_key(client: OdcClient, input_env: str) -> str:
         if len(matches) > 10:
             print(f"  ... and {len(matches) - 10} more", file=sys.stderr)
         sys.exit(1)
+
+
+def resolve_user_key(client: OdcClient, input_user: str) -> str:
+    if GUID_PATTERN.match(input_user):
+        return input_user
+
+    users = client.query_users(name_or_email_contains=input_user)
+    if not users:
+        raise OdcApiError(f"No users found matching '{input_user}'")
+
+    exact_email_matches = [u for u in users if u.get("email", "").lower() == input_user.lower()]
+    if len(exact_email_matches) == 1:
+        user_key = exact_email_matches[0].get("key")
+        return require_key(user_key, "user key")
+
+    exact_name_matches = [u for u in users if u.get("name", "").lower() == input_user.lower()]
+    if len(exact_name_matches) == 1:
+        user_key = exact_name_matches[0].get("key")
+        return require_key(user_key, "user key")
+
+    if len(users) == 1:
+        user_key = users[0].get("key")
+        return require_key(user_key, "user key")
+
+    print(f"error: No exact match for '{input_user}'. Did you mean:", file=sys.stderr)
+    for user in users[:10]:
+        print(f"  - {user.get('name', 'Unknown')} ({user.get('email', 'Unknown')})", file=sys.stderr)
+    if len(users) > 10:
+        print(f"  ... and {len(users) - 10} more", file=sys.stderr)
+    sys.exit(1)
 
 
 def print_dependency_summary(client: OdcClient, asset_key: str, revision: int, environment_key: str) -> None:
@@ -798,6 +856,31 @@ def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
         raise OdcApiError("One or more apps failed to deploy; see summary above.")
 
 
+def handle_get_user(client: OdcClient, args: argparse.Namespace) -> None:
+    user_identifier = require_key(args.user_key, "user key or email")
+    user_key = resolve_user_key(client, user_identifier)
+    user = client.get_user(user_key)
+    print_json(user)
+
+
+def handle_update_user(client: OdcClient, args: argparse.Namespace) -> None:
+    user_identifier = require_key(args.user_key, "user key or email")
+    user_key = resolve_user_key(client, user_identifier)
+    update_kwargs = {}
+    if args.name is not None:
+        update_kwargs["name"] = args.name
+    if args.is_active is not None:
+        update_kwargs["is_active"] = args.is_active
+    if args.photo_url is not None:
+        update_kwargs["photo_url"] = args.photo_url
+
+    if not update_kwargs:
+        raise OdcApiError("At least one field must be specified for update (--name, --is-active, or --photo-url)")
+
+    client.update_user(user_key, **update_kwargs)
+    print_json({"status": "success", "message": f"User {user_key} updated successfully"})
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Small ODC API client for build, publish, and deploy tests.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -900,6 +983,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     batch_deploy.set_defaults(handler=handle_batch_deploy)
+
+    get_user = subparsers.add_parser("get-user", help="Retrieve user information.")
+    get_user.add_argument("user_key", help="User key (UUID) or email address.")
+    get_user.set_defaults(handler=handle_get_user)
+
+    update_user = subparsers.add_parser("update-user", help="Update user details (name, active status, or photo URL).")
+    update_user.add_argument("user_key", help="User key (UUID) or email address.")
+    update_user.add_argument("--name", default=None, help="User's name.")
+    update_user.add_argument("--is-active", type=lambda x: x.lower() in ("true", "1", "yes"), default=None, help="User active status (true/false).")
+    update_user.add_argument("--photo-url", default=None, help="User's photo URL.")
+    update_user.set_defaults(handler=handle_update_user)
 
     return parser
 
