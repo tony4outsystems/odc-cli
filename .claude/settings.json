@@ -13,7 +13,9 @@
       "Bash(python3 -m pip install -e . -q)",
       "Bash(uv sync *)",
       "Bash(uv run *)",
-      "Bash(cat > *)"
+      "Bash(cat > *)",
+      "Bash(uv run python -c ' *)",
+      "Bash(rm -f /tmp/apps_test.txt)"
     ],
     "additionalDirectories": [
       "/tmp"

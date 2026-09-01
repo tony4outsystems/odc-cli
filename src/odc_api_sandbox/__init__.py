@@ -6,7 +6,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -272,7 +274,8 @@ def wait_for(
         details = fetch()
         status = details.get("status")
         if status != last_status:
-            print(f"{label}: {status}")
+            with _PRINT_LOCK:
+                print(f"{label}: {status}")
             last_status = status
         if status in terminal_statuses:
             return details
@@ -281,8 +284,12 @@ def wait_for(
         time.sleep(interval_seconds)
 
 
+_PRINT_LOCK = threading.Lock()
+
+
 def print_json(payload: Any) -> None:
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    with _PRINT_LOCK:
+        print(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def compact_dict(payload: dict[str, Any], fields: list[str]) -> dict[str, Any]:
@@ -467,12 +474,13 @@ def resolve_environment_key(client: OdcClient, input_env: str) -> str:
 def print_dependency_summary(client: OdcClient, asset_key: str, revision: int, environment_key: str) -> None:
     graph = client.producer_graph(asset_key, revision, environment_key=environment_key)
     producers = graph.get("results") or []
-    print(f"Dependencies ({len(producers)}):")
-    for producer in producers:
-        name = producer.get("name", "Unknown")
-        producer_type = producer.get("type", "Unknown")
-        status = producer.get("status", "Unknown")
-        print(f"  - {name} ({producer_type}) - {status}")
+    with _PRINT_LOCK:
+        print(f"Dependencies ({len(producers)}):")
+        for producer in producers:
+            name = producer.get("name", "Unknown")
+            producer_type = producer.get("type", "Unknown")
+            status = producer.get("status", "Unknown")
+            print(f"  - {name} ({producer_type}) - {status}")
 
 
 def preflight(client: OdcClient, asset_key: str, environment_key: str, revision: int | None) -> int:
@@ -649,11 +657,13 @@ def run_all_for_asset(
     resolved_revision = preflight(client, resolved_key, resolved_environment_key, revision)
     print_dependency_summary(client, resolved_key, resolved_revision, resolved_environment_key)
 
+    label_prefix = f"[{asset_key}] "
+
     build_response = client.start_build(resolved_key, resolved_revision, build_type)
     print_json({"build_started": build_response})
     build_key = require_key(build_response.get("buildKey"), "buildKey")
     build_details = wait_for(
-        f"build {build_key}",
+        f"{label_prefix}build {build_key}",
         lambda: client.get_build(build_key),
         BUILD_TERMINAL_STATUSES,
         interval_seconds=poll_interval,
@@ -666,7 +676,7 @@ def run_all_for_asset(
     print_json({"deploy_started": deploy_response})
     deploy_key = require_key(deploy_response.get("key"), "deployment operation key")
     deploy_details = wait_for(
-        f"deployment {deploy_key}",
+        f"{label_prefix}deployment {deploy_key}",
         lambda: client.get_deployment(deploy_key),
         OPERATION_TERMINAL_STATUSES,
         interval_seconds=poll_interval,
@@ -712,15 +722,46 @@ def read_apps_file(path: str) -> list[str]:
     return apps
 
 
+def _deploy_one(
+    client: OdcClient,
+    asset_key: str,
+    environment_key: str,
+    revision: int | None,
+    build_type: str,
+    poll_interval: float,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    with _PRINT_LOCK:
+        print(f"\n=== Deploying '{asset_key}' ===")
+    try:
+        result = run_all_for_asset(
+            client,
+            asset_key,
+            environment_key,
+            revision,
+            build_type,
+            poll_interval,
+            timeout_seconds,
+        )
+        return {"app": asset_key, "status": "success", "result": result}
+    except (OdcApiError, httpx.HTTPError) as exc:
+        with _PRINT_LOCK:
+            print(f"error: [{asset_key}] {exc}", file=sys.stderr)
+        return {"app": asset_key, "status": "failed", "error": str(exc)}
+
+
 def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
     apps = read_apps_file(args.apps_file)
     environment_key = args.environment_key or client.settings.environment_key
+    max_parallel = max(1, args.max_parallel)
+
+    # Force token acquisition once up front so concurrent workers don't race on it.
+    client.token()
 
     summary: list[dict[str, Any]] = []
-    for index, asset_key in enumerate(apps, start=1):
-        print(f"\n=== [{index}/{len(apps)}] Deploying '{asset_key}' ===")
-        try:
-            result = run_all_for_asset(
+    if max_parallel == 1 and not args.continue_on_error:
+        for asset_key in apps:
+            entry = _deploy_one(
                 client,
                 asset_key,
                 environment_key,
@@ -729,12 +770,26 @@ def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
                 args.poll_interval,
                 args.timeout,
             )
-            summary.append({"app": asset_key, "status": "success", "result": result})
-        except (OdcApiError, httpx.HTTPError) as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            summary.append({"app": asset_key, "status": "failed", "error": str(exc)})
-            if not args.continue_on_error:
+            summary.append(entry)
+            if entry["status"] == "failed":
                 break
+    else:
+        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            futures = {
+                executor.submit(
+                    _deploy_one,
+                    client,
+                    asset_key,
+                    environment_key,
+                    args.revision,
+                    args.build_type,
+                    args.poll_interval,
+                    args.timeout,
+                ): asset_key
+                for asset_key in apps
+            }
+            for future in as_completed(futures):
+                summary.append(future.result())
 
     print("\n=== Batch deploy summary ===")
     print_json(summary)
@@ -830,9 +885,19 @@ def build_parser() -> argparse.ArgumentParser:
     batch_deploy.add_argument("--timeout", type=float, default=1800.0)
     batch_deploy.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
     batch_deploy.add_argument(
+        "--max-parallel",
+        type=int,
+        default=5,
+        help="Maximum number of apps to build/deploy concurrently. Defaults to 5.",
+    )
+    batch_deploy.add_argument(
         "--continue-on-error",
         action="store_true",
-        help="Keep deploying remaining apps if one fails instead of stopping.",
+        help=(
+            "Keep deploying remaining apps if one fails instead of stopping. "
+            "Only fully honored when --max-parallel is 1; with concurrency, "
+            "in-flight apps are not cancelled on a failure either way."
+        ),
     )
     batch_deploy.set_defaults(handler=handle_batch_deploy)
 

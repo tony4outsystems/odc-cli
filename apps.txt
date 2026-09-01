@@ -1,0 +1,40 @@
+# Deployable apps in the organization, grouped by type
+# Generated from ODC asset-repository listing
+
+# Web Applications (26)
+
+# Inventory Management & Refund Portal
+My Insurance Backoffice
+# My Insurance Core
+My Insurance Portal
+
+Order Management
+
+Plateforme d'Expertise Technique
+
+# Smart Power Core
+Smart Power Portal
+SupplierPortal
+SupplierPortalBackoffice
+# SupplierPortalCore
+
+# Mobile Applications (9)
+Order Approval
+Smart Power
+#StGobainExpertPad
+
+# Agents (11)
+# Intake Agent
+#MyPODocumentIntakeAgent
+#NeoManufatoringCompany
+#Orchestrator Agent
+#Scheduler Agent
+#Triage Agent
+#Underwriter Agent
+
+# Workflows (5)
+#My Insurance New Policy
+#Order Fulfillment for OM
+#Permit Workflow
+#StGobainExpertiseDossier
+#Supplier Portal Invoicing
