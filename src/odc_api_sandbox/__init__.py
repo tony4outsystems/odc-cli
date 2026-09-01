@@ -54,7 +54,6 @@ def load_settings() -> Settings:
         "ODC_TENANT_URL",
         "ODC_CLIENT_ID",
         "ODC_CLIENT_SECRET",
-        "ODC_ASSET_KEY",
         "ODC_ENVIRONMENT_KEY",
     ]
     missing = [name for name in required if not os.environ.get(name)]
@@ -65,7 +64,7 @@ def load_settings() -> Settings:
         tenant_url=os.environ["ODC_TENANT_URL"],
         client_id=os.environ["ODC_CLIENT_ID"],
         client_secret=os.environ["ODC_CLIENT_SECRET"],
-        asset_key=os.environ["ODC_ASSET_KEY"],
+        asset_key=os.environ.get("ODC_ASSET_KEY", ""),
         environment_key=os.environ["ODC_ENVIRONMENT_KEY"],
         scope=os.environ.get("ODC_SCOPE"),
     )
@@ -146,7 +145,7 @@ class OdcClient:
             asset
             for asset in results
             if query_lower in asset.get("name", "").lower()
-            or query_lower in asset.get("key", "").lower()
+            or query_lower in asset.get("assetKey", "").lower()
         ]
 
     def start_build(self, asset_key: str, revision: int, build_type: str) -> dict[str, Any]:
@@ -399,12 +398,14 @@ def resolve_asset_key(client: OdcClient, input_key: str) -> str:
     ]
 
     if len(exact_matches) == 1:
-        return require_key(exact_matches[0].get("key"), "asset key")
+        asset = exact_matches[0]
+        key = asset.get("assetKey")
+        return require_key(key, "asset key")
     elif len(exact_matches) > 1:
         print("error: Multiple assets match the name (ambiguous):", file=sys.stderr)
         for asset in exact_matches:
             print(
-                f"  - {asset.get('name')} ({asset.get('key')})",
+                f"  - {asset.get('name')} ({asset.get('assetKey')})",
                 file=sys.stderr,
             )
         sys.exit(1)
@@ -415,7 +416,7 @@ def resolve_asset_key(client: OdcClient, input_key: str) -> str:
         )
         for asset in matches[:10]:
             print(
-                f"  - {asset.get('name')} ({asset.get('key')})",
+                f"  - {asset.get('name')} ({asset.get('assetKey')})",
                 file=sys.stderr,
             )
         if len(matches) > 10:

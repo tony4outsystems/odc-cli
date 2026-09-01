@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m odc_api_sandbox producer-graph supplierportal --all-producers)",
+      "Bash(python3 -m odc_api_sandbox producer-graph supplierportal --all-producers)",
+      "Bash(pip install *)",
+      "Bash(python3 -m pip install -e .)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
