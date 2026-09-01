@@ -635,48 +635,112 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     )
 
 
-def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key or client.settings.asset_key
+def run_all_for_asset(
+    client: OdcClient,
+    asset_key: str,
+    environment_key: str,
+    revision: int | None,
+    build_type: str,
+    poll_interval: float,
+    timeout_seconds: float,
+) -> dict[str, Any]:
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
-    revision = preflight(client, resolved_key, environment_key, args.revision)
-    print_dependency_summary(client, resolved_key, revision, environment_key)
+    resolved_environment_key = resolve_environment_key(client, environment_key)
+    resolved_revision = preflight(client, resolved_key, resolved_environment_key, revision)
+    print_dependency_summary(client, resolved_key, resolved_revision, resolved_environment_key)
 
-    build_response = client.start_build(resolved_key, revision, args.build_type)
+    build_response = client.start_build(resolved_key, resolved_revision, build_type)
     print_json({"build_started": build_response})
     build_key = require_key(build_response.get("buildKey"), "buildKey")
     build_details = wait_for(
         f"build {build_key}",
         lambda: client.get_build(build_key),
         BUILD_TERMINAL_STATUSES,
-        interval_seconds=args.poll_interval,
-        timeout_seconds=args.timeout,
+        interval_seconds=poll_interval,
+        timeout_seconds=timeout_seconds,
     )
     if build_details.get("status") != "Finished":
         raise OdcApiError(f"Build did not finish successfully: {build_details.get('status')}")
 
-    deploy_response = client.deploy(resolved_key, revision, build_key, environment_key)
+    deploy_response = client.deploy(resolved_key, resolved_revision, build_key, resolved_environment_key)
     print_json({"deploy_started": deploy_response})
     deploy_key = require_key(deploy_response.get("key"), "deployment operation key")
     deploy_details = wait_for(
         f"deployment {deploy_key}",
         lambda: client.get_deployment(deploy_key),
         OPERATION_TERMINAL_STATUSES,
-        interval_seconds=args.poll_interval,
-        timeout_seconds=args.timeout,
+        interval_seconds=poll_interval,
+        timeout_seconds=timeout_seconds,
     )
     if deploy_details.get("status") != "Finished":
         raise OdcApiError(f"Deployment did not finish successfully: {deploy_details.get('status')}")
 
-    print_json(
-        {
-            "assetKey": resolved_key,
-            "environmentKey": environment_key,
-            "revision": revision,
-            "build": build_details,
-            "deployment": deploy_details,
-        }
+    result = {
+        "assetKey": resolved_key,
+        "environmentKey": resolved_environment_key,
+        "revision": resolved_revision,
+        "build": build_details,
+        "deployment": deploy_details,
+    }
+    print_json(result)
+    return result
+
+
+def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = args.asset_key or client.settings.asset_key
+    environment_key = args.environment_key or client.settings.environment_key
+    run_all_for_asset(
+        client,
+        asset_key,
+        environment_key,
+        args.revision,
+        args.build_type,
+        args.poll_interval,
+        args.timeout,
     )
+
+
+def read_apps_file(path: str) -> list[str]:
+    apps_path = Path(path)
+    if not apps_path.is_file():
+        raise OdcApiError(f"Apps file not found: {path}")
+    lines = apps_path.read_text(encoding="utf-8").splitlines()
+    apps = [line.strip() for line in lines]
+    apps = [app for app in apps if app and not app.startswith("#")]
+    if not apps:
+        raise OdcApiError(f"Apps file is empty: {path}")
+    return apps
+
+
+def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
+    apps = read_apps_file(args.apps_file)
+    environment_key = args.environment_key or client.settings.environment_key
+
+    summary: list[dict[str, Any]] = []
+    for index, asset_key in enumerate(apps, start=1):
+        print(f"\n=== [{index}/{len(apps)}] Deploying '{asset_key}' ===")
+        try:
+            result = run_all_for_asset(
+                client,
+                asset_key,
+                environment_key,
+                args.revision,
+                args.build_type,
+                args.poll_interval,
+                args.timeout,
+            )
+            summary.append({"app": asset_key, "status": "success", "result": result})
+        except (OdcApiError, httpx.HTTPError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            summary.append({"app": asset_key, "status": "failed", "error": str(exc)})
+            if not args.continue_on_error:
+                break
+
+    print("\n=== Batch deploy summary ===")
+    print_json(summary)
+
+    if any(entry["status"] == "failed" for entry in summary):
+        raise OdcApiError("One or more apps failed to deploy; see summary above.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -747,6 +811,30 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(run_all)
     run_all.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
     run_all.set_defaults(handler=handle_run_all)
+
+    batch_deploy = subparsers.add_parser(
+        "batch-deploy",
+        help="Build, then deploy every app listed in a text file (one app name or key per line).",
+    )
+    batch_deploy.add_argument(
+        "apps_file",
+        help="Path to a text file with one app name/key per line. Blank lines and lines starting with # are ignored.",
+    )
+    batch_deploy.add_argument(
+        "--environment-key",
+        default=None,
+        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+    )
+    batch_deploy.add_argument("--revision", type=int, default=None)
+    batch_deploy.add_argument("--poll-interval", type=float, default=10.0)
+    batch_deploy.add_argument("--timeout", type=float, default=1800.0)
+    batch_deploy.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
+    batch_deploy.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Keep deploying remaining apps if one fails instead of stopping.",
+    )
+    batch_deploy.set_defaults(handler=handle_batch_deploy)
 
     return parser
 

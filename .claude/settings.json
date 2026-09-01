@@ -6,7 +6,17 @@
       "Bash(pip install *)",
       "Bash(python3 -m pip install -e .)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(chmod +x /Users/tony.lefebvre/projects/odc-api-sandbox/deploy_supplier_portal.py)",
+      "Bash(python deploy_supplier_portal.py production)",
+      "Bash(python3 deploy_supplier_portal.py production)",
+      "Bash(python3 -m pip install -e . -q)",
+      "Bash(uv sync *)",
+      "Bash(uv run *)",
+      "Bash(cat > *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }
