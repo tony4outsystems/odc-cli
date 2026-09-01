@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -23,6 +24,10 @@ API_BASE_PATHS = {
     "deployments": "/api/deployments/v1",
     "portfolios": "/api/portfolios/v2",
 }
+GUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class OdcApiError(RuntimeError):
@@ -129,6 +134,20 @@ class OdcClient:
             if environment.get("key") == environment_key:
                 return environment
         raise OdcApiError(f"Environment key was not found or is not visible: {environment_key}")
+
+    def list_assets(self) -> list[dict[str, Any]]:
+        response = self._request("GET", self.url("asset-repository", "/assets"))
+        return response.get("results") or []
+
+    def search_asset(self, query: str) -> list[dict[str, Any]]:
+        results = self.list_assets()
+        query_lower = query.lower()
+        return [
+            asset
+            for asset in results
+            if query_lower in asset.get("name", "").lower()
+            or query_lower in asset.get("key", "").lower()
+        ]
 
     def start_build(self, asset_key: str, revision: int, build_type: str) -> dict[str, Any]:
         return self._request(
@@ -367,6 +386,43 @@ def print_preflight_summary(asset: dict[str, Any], environment: dict[str, Any], 
     )
 
 
+def resolve_asset_key(client: OdcClient, input_key: str) -> str:
+    if GUID_PATTERN.match(input_key):
+        return input_key
+
+    matches = client.search_asset(input_key)
+    if not matches:
+        raise OdcApiError(f"No assets found matching '{input_key}'")
+
+    exact_matches = [
+        a for a in matches if a.get("name", "").lower() == input_key.lower()
+    ]
+
+    if len(exact_matches) == 1:
+        return require_key(exact_matches[0].get("key"), "asset key")
+    elif len(exact_matches) > 1:
+        print("error: Multiple assets match the name (ambiguous):", file=sys.stderr)
+        for asset in exact_matches:
+            print(
+                f"  - {asset.get('name')} ({asset.get('key')})",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+    else:
+        print(
+            f"error: No exact match for '{input_key}'. Did you mean:",
+            file=sys.stderr,
+        )
+        for asset in matches[:10]:
+            print(
+                f"  - {asset.get('name')} ({asset.get('key')})",
+                file=sys.stderr,
+            )
+        if len(matches) > 10:
+            print(f"  ... and {len(matches) - 10} more", file=sys.stderr)
+        sys.exit(1)
+
+
 def preflight(client: OdcClient, asset_key: str, environment_key: str, revision: int | None) -> int:
     asset = client.get_asset(asset_key)
     environment = client.get_environment(environment_key)
@@ -404,20 +460,23 @@ def handle_discover(client: OdcClient, _args: argparse.Namespace) -> None:
 
 def handle_latest_revision(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
-    print(client.latest_revision(asset_key))
+    resolved_key = resolve_asset_key(client, asset_key)
+    print(client.latest_revision(resolved_key))
 
 
 def handle_validate(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
     environment_key = args.environment_key or client.settings.environment_key
-    preflight(client, asset_key, environment_key, args.revision)
+    preflight(client, resolved_key, environment_key, args.revision)
 
 
 def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
     environment_key = args.environment_key or client.settings.environment_key
-    revision = preflight(client, asset_key, environment_key, args.revision)
-    response = client.start_build(asset_key, revision, args.build_type)
+    revision = preflight(client, resolved_key, environment_key, args.revision)
+    response = client.start_build(resolved_key, revision, args.build_type)
     print_json(response)
     build_key = require_key(response.get("buildKey"), "buildKey")
     if args.no_wait:
@@ -438,9 +497,10 @@ def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
 
 def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
     environment_key = args.environment_key or client.settings.environment_key
-    revision = preflight(client, asset_key, environment_key, args.revision)
-    response = client.publish(asset_key, revision, environment_key)
+    revision = preflight(client, resolved_key, environment_key, args.revision)
+    response = client.publish(resolved_key, revision, environment_key)
     print_json(response)
     operation_key = require_key(response.get("key"), "publish operation key")
     if args.no_wait:
@@ -461,10 +521,11 @@ def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any
 
 def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
     environment_key = args.environment_key or client.settings.environment_key
-    revision = preflight(client, asset_key, environment_key, args.revision)
+    revision = preflight(client, resolved_key, environment_key, args.revision)
     build_key = require_key(args.build_key, "--build-key")
-    response = client.deploy(asset_key, revision, build_key, environment_key)
+    response = client.deploy(resolved_key, revision, build_key, environment_key)
     print_json(response)
     operation_key = require_key(response.get("key"), "deployment operation key")
     if args.no_wait:
@@ -485,24 +546,26 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
 
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
-    revision = args.revision if args.revision is not None else client.latest_revision(asset_key)
+    asset_key = require_key(asset_key, "asset key (positional argument, --asset-key, or ODC_ASSET_KEY)")
+    resolved_key = resolve_asset_key(client, asset_key)
+    revision = args.revision if args.revision is not None else client.latest_revision(resolved_key)
     producer_type_filter = "All" if args.all_producers else args.producer_type_filter
-    asset = client.get_asset(asset_key)
+    asset = client.get_asset(resolved_key)
     root = {
-        "key": asset_key,
+        "key": resolved_key,
         "name": asset.get("name"),
         "revision": revision,
         "type": asset.get("assetType") or asset.get("type"),
     }
     graph = client.producer_graph(
-        asset_key,
+        resolved_key,
         revision,
         environment_key=args.environment_key,
         max_depth=args.max_depth,
         producer_type_filter=producer_type_filter,
     )
     producers = graph.get("results") or []
-    output_path = Path(args.output) if args.output else default_mermaid_output_path(asset_key, revision)
+    output_path = Path(args.output) if args.output else default_mermaid_output_path(resolved_key, revision)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_producer_graph_mermaid(root, producers), encoding="utf-8")
     print_json(
@@ -518,10 +581,11 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
 
 def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
     environment_key = args.environment_key or client.settings.environment_key
-    revision = preflight(client, asset_key, environment_key, args.revision)
+    revision = preflight(client, resolved_key, environment_key, args.revision)
 
-    build_response = client.start_build(asset_key, revision, args.build_type)
+    build_response = client.start_build(resolved_key, revision, args.build_type)
     print_json({"build_started": build_response})
     build_key = require_key(build_response.get("buildKey"), "buildKey")
     build_details = wait_for(
@@ -534,7 +598,7 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     if build_details.get("status") != "Finished":
         raise OdcApiError(f"Build did not finish successfully: {build_details.get('status')}")
 
-    deploy_response = client.deploy(asset_key, revision, build_key, environment_key)
+    deploy_response = client.deploy(resolved_key, revision, build_key, environment_key)
     print_json({"deploy_started": deploy_response})
     deploy_key = require_key(deploy_response.get("key"), "deployment operation key")
     deploy_details = wait_for(
@@ -549,7 +613,7 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
 
     print_json(
         {
-            "assetKey": asset_key,
+            "assetKey": resolved_key,
             "environmentKey": environment_key,
             "revision": revision,
             "build": build_details,
