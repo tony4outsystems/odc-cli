@@ -768,6 +768,64 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     )
 
 
+def build_dependency_plan(
+    client: OdcClient, asset_keys: list[str], environment_key: str
+) -> list[list[tuple[str, int | None]]]:
+    """Expand asset_keys with their producer dependencies into ordered deploy levels.
+
+    Each level is a list of (asset_key, revision) pairs that can be deployed in
+    parallel; every level must finish before the next one starts. A dependency
+    shared by multiple apps is only included once, at the earliest level all of
+    its consumers need it deployed by.
+    """
+    revisions: dict[str, int | None] = {}
+    producers_of: dict[str, set[str]] = {}
+
+    def record(node_key: str, revision: int | None) -> None:
+        if node_key not in producers_of:
+            producers_of[node_key] = set()
+            revisions[node_key] = revision
+        elif revision is not None and revisions.get(node_key) is None:
+            revisions[node_key] = revision
+
+    def visit_producer_node(node: dict[str, Any]) -> str:
+        node_key = require_key(node.get("key"), "producer key")
+        record(node_key, node.get("revision"))
+        for child in node.get("producers") or []:
+            child_key = visit_producer_node(child)
+            producers_of[node_key].add(child_key)
+        return node_key
+
+    for asset_key in asset_keys:
+        resolved_key = resolve_asset_key(client, asset_key)
+        record(resolved_key, None)
+        revision = revisions[resolved_key] or client.latest_revision(resolved_key)
+        graph = client.producer_graph(resolved_key, revision, environment_key=environment_key)
+        for producer in graph.get("results") or []:
+            child_key = visit_producer_node(producer)
+            producers_of[resolved_key].add(child_key)
+
+    levels: dict[str, int] = {}
+
+    def level_of(node_key: str) -> int:
+        if node_key in levels:
+            return levels[node_key]
+        levels[node_key] = 0  # guard against cycles
+        deps = producers_of.get(node_key) or set()
+        level = 1 + max((level_of(dep) for dep in deps), default=-1)
+        levels[node_key] = level
+        return level
+
+    for node_key in producers_of:
+        level_of(node_key)
+
+    max_level = max(levels.values(), default=-1)
+    plan: list[list[tuple[str, int | None]]] = [[] for _ in range(max_level + 1)]
+    for node_key, level in levels.items():
+        plan[level].append((node_key, revisions.get(node_key)))
+    return plan
+
+
 def read_apps_file(path: str) -> list[str]:
     apps_path = Path(path)
     if not apps_path.is_file():
@@ -810,44 +868,65 @@ def _deploy_one(
 
 def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
     apps = read_apps_file(args.apps_file)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
     max_parallel = max(1, args.max_parallel)
 
     # Force token acquisition once up front so concurrent workers don't race on it.
     client.token()
 
-    summary: list[dict[str, Any]] = []
-    if max_parallel == 1 and not args.continue_on_error:
-        for asset_key in apps:
-            entry = _deploy_one(
-                client,
-                asset_key,
-                environment_key,
-                args.revision,
-                args.build_type,
-                args.poll_interval,
-                args.timeout,
-            )
-            summary.append(entry)
-            if entry["status"] == "failed":
-                break
+    if args.skip_dependencies:
+        plan = [[(asset_key, args.revision) for asset_key in apps]]
     else:
-        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
-            futures = {
-                executor.submit(
-                    _deploy_one,
+        explicit_keys = {resolve_asset_key(client, asset_key) for asset_key in apps}
+        plan = [
+            # Only apply --revision to apps explicitly listed in the file; dependencies
+            # deploy at the revision resolved from the producer graph.
+            [(key, args.revision if key in explicit_keys else revision) for key, revision in level]
+            for level in build_dependency_plan(client, apps, environment_key)
+        ]
+        added = sum(1 for level in plan for key, _ in level if key not in explicit_keys)
+        if added:
+            print(f"Including {added} dependency app(s) not listed in {args.apps_file}.")
+
+    summary: list[dict[str, Any]] = []
+    stop = False
+    for level in plan:
+        if stop:
+            break
+        if max_parallel == 1 and not args.continue_on_error:
+            for asset_key, revision in level:
+                entry = _deploy_one(
                     client,
                     asset_key,
                     environment_key,
-                    args.revision,
+                    revision,
                     args.build_type,
                     args.poll_interval,
                     args.timeout,
-                ): asset_key
-                for asset_key in apps
-            }
-            for future in as_completed(futures):
-                summary.append(future.result())
+                )
+                summary.append(entry)
+                if entry["status"] == "failed":
+                    stop = True
+                    break
+        else:
+            with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+                futures = {
+                    executor.submit(
+                        _deploy_one,
+                        client,
+                        asset_key,
+                        environment_key,
+                        revision,
+                        args.build_type,
+                        args.poll_interval,
+                        args.timeout,
+                    ): asset_key
+                    for asset_key, revision in level
+                }
+                for future in as_completed(futures):
+                    summary.append(future.result())
+            if not args.continue_on_error and any(entry["status"] == "failed" for entry in summary):
+                stop = True
 
     print("\n=== Batch deploy summary ===")
     print_json(summary)
@@ -980,6 +1059,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Keep deploying remaining apps if one fails instead of stopping. "
             "Only fully honored when --max-parallel is 1; with concurrency, "
             "in-flight apps are not cancelled on a failure either way."
+        ),
+    )
+    batch_deploy.add_argument(
+        "--skip-dependencies",
+        action="store_true",
+        help=(
+            "Deploy only the apps listed in the file, without automatically including "
+            "their producer dependencies. Off by default: dependencies are resolved via "
+            "the producer graph, deduplicated across apps, and deployed before the apps "
+            "that need them."
         ),
     )
     batch_deploy.set_defaults(handler=handle_batch_deploy)
