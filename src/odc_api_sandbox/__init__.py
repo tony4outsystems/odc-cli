@@ -424,6 +424,57 @@ def resolve_asset_key(client: OdcClient, input_key: str) -> str:
         sys.exit(1)
 
 
+def resolve_environment_key(client: OdcClient, input_env: str) -> str:
+    if GUID_PATTERN.match(input_env):
+        return input_env
+
+    environments = client._request("GET", client.url("portfolios", "/environments"))
+    results = environments.get("results") or []
+
+    matches = [
+        e
+        for e in results
+        if input_env.lower() in e.get("name", "").lower()
+        or input_env.lower() in e.get("key", "").lower()
+    ]
+
+    exact_matches = [e for e in matches if e.get("name", "").lower() == input_env.lower()]
+
+    if len(exact_matches) == 1:
+        return require_key(exact_matches[0].get("key"), "environment key")
+    elif len(exact_matches) > 1:
+        print("error: Multiple environments match the name (ambiguous):", file=sys.stderr)
+        for env in exact_matches:
+            print(f"  - {env.get('name')} ({env.get('key')})", file=sys.stderr)
+        sys.exit(1)
+    elif len(matches) == 1:
+        return require_key(matches[0].get("key"), "environment key")
+    elif not matches:
+        print(f"error: No environments found matching '{input_env}'", file=sys.stderr)
+        print("Available environments:", file=sys.stderr)
+        for env in results:
+            print(f"  - {env.get('name')} ({env.get('key')})", file=sys.stderr)
+        sys.exit(1)
+    else:
+        print(f"error: No exact match for '{input_env}'. Did you mean:", file=sys.stderr)
+        for env in matches[:10]:
+            print(f"  - {env.get('name')} ({env.get('key')})", file=sys.stderr)
+        if len(matches) > 10:
+            print(f"  ... and {len(matches) - 10} more", file=sys.stderr)
+        sys.exit(1)
+
+
+def print_dependency_summary(client: OdcClient, asset_key: str, revision: int, environment_key: str) -> None:
+    graph = client.producer_graph(asset_key, revision, environment_key=environment_key)
+    producers = graph.get("results") or []
+    print(f"Dependencies ({len(producers)}):")
+    for producer in producers:
+        name = producer.get("name", "Unknown")
+        producer_type = producer.get("type", "Unknown")
+        status = producer.get("status", "Unknown")
+        print(f"  - {name} ({producer_type}) - {status}")
+
+
 def preflight(client: OdcClient, asset_key: str, environment_key: str, revision: int | None) -> int:
     asset = client.get_asset(asset_key)
     environment = client.get_environment(environment_key)
@@ -435,8 +486,12 @@ def preflight(client: OdcClient, asset_key: str, environment_key: str, revision:
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--asset-key", default=None)
-    parser.add_argument("--environment-key", default=None)
+    parser.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
+    parser.add_argument(
+        "--environment-key",
+        default=None,
+        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+    )
     parser.add_argument("--revision", type=int, default=None)
     parser.add_argument("--poll-interval", type=float, default=10.0)
     parser.add_argument("--timeout", type=float, default=1800.0)
@@ -475,7 +530,7 @@ def handle_validate(client: OdcClient, args: argparse.Namespace) -> None:
 def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.start_build(resolved_key, revision, args.build_type)
     print_json(response)
@@ -499,7 +554,7 @@ def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
 def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.publish(resolved_key, revision, environment_key)
     print_json(response)
@@ -523,7 +578,7 @@ def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any
 def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = args.asset_key or client.settings.asset_key
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
     revision = preflight(client, resolved_key, environment_key, args.revision)
     build_key = require_key(args.build_key, "--build-key")
     response = client.deploy(resolved_key, revision, build_key, environment_key)
@@ -583,8 +638,9 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
 def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
     revision = preflight(client, resolved_key, environment_key, args.revision)
+    print_dependency_summary(client, resolved_key, revision, environment_key)
 
     build_response = client.start_build(resolved_key, revision, args.build_type)
     print_json({"build_started": build_response})
