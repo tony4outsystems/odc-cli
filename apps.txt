@@ -7,21 +7,24 @@
 My Insurance Backoffice
 # My Insurance Core
 My Insurance Portal
-
 Order Management
 
-Plateforme d'Expertise Technique
+#Plateforme d'Expertise Technique
 
 # Smart Power Core
 Smart Power Portal
 SupplierPortal
 SupplierPortalBackoffice
-# SupplierPortalCore
+SupplierPortalCore
 
 # Mobile Applications (9)
 Order Approval
 Smart Power
 #StGobainExpertPad
+Field Services Mobile
+Home Banking Mobile
+Order Approval
+
 
 # Agents (11)
 # Intake Agent

@@ -27,6 +27,7 @@ class OdcClient:
         self.http = httpx.Client(timeout=httpx.Timeout(60.0))
         self._token: str | None = None
         self._discovery: dict[str, Any] | None = None
+        self._assets_cache: list[dict[str, Any]] | None = None
 
     def close(self) -> None:
         self.http.close()
@@ -86,6 +87,8 @@ class OdcClient:
         raise OdcApiError(f"Environment key was not found or is not visible: {environment_key}")
 
     def list_assets(self) -> list[dict[str, Any]]:
+        if self._assets_cache is not None:
+            return self._assets_cache
         assets: list[dict[str, Any]] = []
         offset = 0
         while True:
@@ -97,9 +100,11 @@ class OdcClient:
             assets.extend(response.get("results") or [])
             page = response.get("page") or {}
             next_offset = page.get("nextPageOffset")
-            if next_offset is None:
+            total_results = page.get("totalResults")
+            if next_offset is None or next_offset <= offset or len(assets) >= (total_results or len(assets)):
                 break
             offset = next_offset
+        self._assets_cache = assets
         return assets
 
     def search_asset(self, query: str) -> list[dict[str, Any]]:
