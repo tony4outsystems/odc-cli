@@ -84,6 +84,22 @@ Validate, resolve the latest revision, build (Release by default), wait for the 
 uv run odc-api-sandbox run-all --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
 ```
 
+### undeploy
+
+Undeploy an asset from an environment (defaults to the configured asset/environment; polls until the operation finishes, `--no-wait` to skip polling).
+
+```bash
+uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
+```
+
+### delete-app
+
+Permanently delete an asset from the asset repository.
+
+```bash
+uv run odc-api-sandbox delete-app --asset-key <asset-key>
+```
+
 ### producer-graph
 
 Generate a Mermaid graph of an asset's producer dependencies.

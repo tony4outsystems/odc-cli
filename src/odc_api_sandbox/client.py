@@ -160,6 +160,20 @@ class OdcClient:
     def get_deployment(self, operation_key: str) -> dict[str, Any]:
         return self._request("GET", self.url("deployments", f"/deployment-operations/{operation_key}"))
 
+    def undeploy(self, asset_key: str, environment_key: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            self.url("deployments", "/deployment-operations"),
+            json_data={
+                "operation": "Undeploy",
+                "assetKey": asset_key,
+                "environmentKey": environment_key,
+            },
+        )
+
+    def delete_asset(self, asset_key: str) -> None:
+        self._request("DELETE", self.url("asset-repository", f"/assets/{asset_key}"))
+
     def producer_graph(
         self,
         asset_key: str,

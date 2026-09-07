@@ -125,6 +125,36 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
     return details
 
 
+def handle_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+    asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
+    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
+    response = client.undeploy(resolved_key, environment_key)
+    print_json(response)
+    operation_key = require_key(response.get("key"), "deployment operation key")
+    if args.no_wait:
+        return response
+
+    details = wait_for(
+        f"undeploy {operation_key}",
+        lambda: client.get_deployment(operation_key),
+        OPERATION_TERMINAL_STATUSES,
+        interval_seconds=args.poll_interval,
+        timeout_seconds=args.timeout,
+    )
+    print_json(details)
+    if details.get("status") != "Finished":
+        raise OdcApiError(f"Undeploy did not finish successfully: {details.get('status')}")
+    return details
+
+
+def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = args.asset_key or client.settings.asset_key
+    resolved_key = resolve_asset_key(client, asset_key)
+    client.delete_asset(resolved_key)
+    print_json({"status": "success", "message": f"Asset {resolved_key} deleted successfully"})
+
+
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
     asset_key = require_key(asset_key, "asset key (positional argument, --asset-key, or ODC_ASSET_KEY)")
@@ -252,6 +282,22 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("--build-key", required=True)
     deploy.add_argument("--no-wait", action="store_true")
     deploy.set_defaults(handler=handle_deploy)
+
+    undeploy = subparsers.add_parser("undeploy", help="Undeploy an asset from an environment.")
+    undeploy.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
+    undeploy.add_argument(
+        "--environment-key",
+        default=None,
+        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+    )
+    undeploy.add_argument("--poll-interval", type=float, default=10.0)
+    undeploy.add_argument("--timeout", type=float, default=1800.0)
+    undeploy.add_argument("--no-wait", action="store_true")
+    undeploy.set_defaults(handler=handle_undeploy)
+
+    delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
+    delete_app.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
+    delete_app.set_defaults(handler=handle_delete_app)
 
     producer_graph = subparsers.add_parser(
         "producer-graph",
