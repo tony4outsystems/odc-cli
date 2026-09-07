@@ -86,6 +86,24 @@ class OdcClient:
                 return environment
         raise OdcApiError(f"Environment key was not found or is not visible: {environment_key}")
 
+    def list_deployed_assets(self, environment_key: str) -> list[dict[str, Any]]:
+        assets: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            response = self._request(
+                "GET",
+                self.url("portfolios", "/deployed-assets"),
+                params={"environmentKey": environment_key, "limit": 100, "offset": offset},
+            )
+            assets.extend(response.get("results") or [])
+            page = response.get("page") or {}
+            next_offset = page.get("nextPageOffset")
+            total_results = page.get("totalResults")
+            if next_offset is None or next_offset <= offset or len(assets) >= (total_results or len(assets)):
+                break
+            offset = next_offset
+        return assets
+
     def list_assets(self) -> list[dict[str, Any]]:
         if self._assets_cache is not None:
             return self._assets_cache
@@ -153,6 +171,17 @@ class OdcClient:
                 "assetKey": asset_key,
                 "buildKey": build_key,
                 "revision": revision,
+                "environmentKey": environment_key,
+            },
+        )
+
+    def undeploy(self, asset_key: str, environment_key: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            self.url("deployments", "/deployment-operations"),
+            json_data={
+                "operation": "Undeploy",
+                "assetKey": asset_key,
                 "environmentKey": environment_key,
             },
         )

@@ -150,6 +150,80 @@ def run_all_for_asset(
     return result
 
 
+def _undeploy_one(
+    client: OdcClient,
+    asset_key: str,
+    asset_name: str,
+    environment_key: str,
+    poll_interval: float,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    with _PRINT_LOCK:
+        print(f"\n=== Undeploying '{asset_name}' ===")
+    try:
+        response = client.undeploy(asset_key, environment_key)
+        operation_key = require_key(response.get("key"), "deployment operation key")
+        details = wait_for(
+            f"[{asset_name}] undeploy {operation_key}",
+            lambda: client.get_deployment(operation_key),
+            OPERATION_TERMINAL_STATUSES,
+            interval_seconds=poll_interval,
+            timeout_seconds=timeout_seconds,
+        )
+        if details.get("status") != "Finished":
+            raise OdcApiError(f"Undeploy did not finish successfully: {details.get('status')}")
+        return {"app": asset_name, "assetKey": asset_key, "status": "success", "result": details}
+    except (OdcApiError, httpx.HTTPError) as exc:
+        with _PRINT_LOCK:
+            print(f"error: [{asset_name}] {exc}", file=sys.stderr)
+        return {"app": asset_name, "assetKey": asset_key, "status": "failed", "error": str(exc)}
+
+
+def undeploy_all_in_environment(
+    client: OdcClient,
+    environment_key: str,
+    poll_interval: float,
+    timeout_seconds: float,
+    max_parallel: int,
+) -> list[dict[str, Any]]:
+    resolved_environment_key = resolve_environment_key(client, environment_key)
+    deployed_assets = client.list_deployed_assets(resolved_environment_key)
+    if not deployed_assets:
+        print(f"No deployed apps found in environment {resolved_environment_key}.")
+        return []
+
+    max_parallel = max(1, max_parallel)
+    client.token()
+
+    apps = []
+    for asset in deployed_assets:
+        asset_key = asset.get("key")
+        if not asset_key:
+            continue
+        deployments = asset.get("deployments") or []
+        name = next((d.get("name") for d in deployments if d.get("name")), None) or asset_key
+        apps.append((asset_key, name))
+
+    summary: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+        futures = {
+            executor.submit(
+                _undeploy_one,
+                client,
+                asset_key,
+                asset_name,
+                resolved_environment_key,
+                poll_interval,
+                timeout_seconds,
+            ): asset_key
+            for asset_key, asset_name in apps
+        }
+        for future in as_completed(futures):
+            summary.append(future.result())
+
+    return summary
+
+
 def build_dependency_plan(
     client: OdcClient, asset_keys: list[str], environment_key: str
 ) -> list[list[tuple[str, int | None]]]:

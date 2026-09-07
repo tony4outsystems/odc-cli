@@ -59,7 +59,7 @@ uv run odc-api-sandbox latest-revision --asset-key <asset-key>
 
 Individual operations, each defaulting to the configured asset/environment and polling until the operation finishes (`--no-wait` to skip polling):
 
-```bash
+```
 uv run odc-api-sandbox build --revision 1 --build-type Release
 uv run odc-api-sandbox publish --revision 1
 uv run odc-api-sandbox deploy --revision 1 --build-key <build-key>
@@ -142,6 +142,31 @@ Example with overrides:
 ```bash
 uv run odc-api-sandbox batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
+
+### undeploy
+
+Undeploy a single app from an environment.
+
+```bash
+uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
+```
+
+Accepts the same `--poll-interval`, `--timeout`, and `--no-wait` options as `build`/`publish`/`deploy`.
+
+### undeploy-all
+
+Undeploy every app currently deployed to an environment.
+
+```bash
+uv run odc-api-sandbox undeploy-all --environment-key <environment-key>
+```
+
+Options:
+
+- `--environment-key` — environment name or key (defaults to `ODC_ENVIRONMENT_KEY`)
+- `--poll-interval` — seconds between status polls (default `10`)
+- `--timeout` — seconds to wait per app before giving up (default `1800`)
+- `--max-parallel` — maximum apps to undeploy concurrently (default `3`)
 
 ### get-user
 

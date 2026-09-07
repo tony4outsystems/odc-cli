@@ -15,7 +15,15 @@
       "Bash(uv run *)",
       "Bash(cat > *)",
       "Bash(uv run python -c ' *)",
-      "Bash(rm -f /tmp/apps_test.txt)"
+      "Bash(rm -f /tmp/apps_test.txt)",
+      "Bash(tee /tmp/batch_deploy_output.log)",
+      "Bash(npx ctx7@latest library \"Outsystems Data Cloud API\" \"update users REST endpoint\")",
+      "Bash(python -m odc_api_sandbox update-user --help)",
+      "Bash(python3 -m odc_api_sandbox update-user --help)",
+      "Bash(.venv/bin/python -m odc_api_sandbox update-user --help)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/odc_api_sandbox/__init__.py'\\).read\\(\\)\\)\")",
+      "Bash(env)",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "/tmp"

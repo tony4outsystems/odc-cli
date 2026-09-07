@@ -13,7 +13,7 @@ from .mermaid import default_mermaid_output_path, render_producer_graph_mermaid
 from .resolve import resolve_asset_key, resolve_environment_key, resolve_user_key
 from .settings import load_settings
 from .utils import print_json, require_key
-from .workflows import batch_deploy, preflight, run_all_for_asset, wait_for
+from .workflows import batch_deploy, preflight, run_all_for_asset, undeploy_all_in_environment, wait_for
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -155,6 +155,23 @@ def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
     print_json({"status": "success", "message": f"Asset {resolved_key} deleted successfully"})
 
 
+def handle_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
+    environment_key = args.environment_key or client.settings.environment_key
+    summary = undeploy_all_in_environment(
+        client,
+        environment_key,
+        args.poll_interval,
+        args.timeout,
+        args.max_parallel,
+    )
+
+    print("\n=== Undeploy-all summary ===")
+    print_json(summary)
+
+    if any(entry["status"] == "failed" for entry in summary):
+        raise OdcApiError("One or more apps failed to undeploy; see summary above.")
+
+
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
     asset_key = require_key(asset_key, "asset key (positional argument, --asset-key, or ODC_ASSET_KEY)")
@@ -283,21 +300,33 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("--no-wait", action="store_true")
     deploy.set_defaults(handler=handle_deploy)
 
-    undeploy = subparsers.add_parser("undeploy", help="Undeploy an asset from an environment.")
-    undeploy.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
-    undeploy.add_argument(
-        "--environment-key",
-        default=None,
-        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
-    )
-    undeploy.add_argument("--poll-interval", type=float, default=10.0)
-    undeploy.add_argument("--timeout", type=float, default=1800.0)
+    undeploy = subparsers.add_parser("undeploy", help="Undeploy a single app from an environment.")
+    add_common_args(undeploy)
     undeploy.add_argument("--no-wait", action="store_true")
     undeploy.set_defaults(handler=handle_undeploy)
 
     delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
     delete_app.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
     delete_app.set_defaults(handler=handle_delete_app)
+
+    undeploy_all = subparsers.add_parser(
+        "undeploy-all",
+        help="Undeploy every app currently deployed to an environment.",
+    )
+    undeploy_all.add_argument(
+        "--environment-key",
+        default=None,
+        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+    )
+    undeploy_all.add_argument("--poll-interval", type=float, default=10.0)
+    undeploy_all.add_argument("--timeout", type=float, default=1800.0)
+    undeploy_all.add_argument(
+        "--max-parallel",
+        type=int,
+        default=3,
+        help="Maximum number of apps to undeploy concurrently. Defaults to 3.",
+    )
+    undeploy_all.set_defaults(handler=handle_undeploy_all)
 
     producer_graph = subparsers.add_parser(
         "producer-graph",
