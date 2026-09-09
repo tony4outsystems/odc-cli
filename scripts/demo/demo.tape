@@ -19,12 +19,12 @@ Sleep 500ms
 Enter
 Sleep 3s
 
-Type "odc validate --app eGovPortal --env Sandbox"
+Type "odc validate --app eGovPortal --env Test"
 Sleep 500ms
 Enter
 Sleep 4s
 
-Type "odc deploy --app eGovPortal --env Sandbox"
+Type "odc deploy --app eGovPortal --env Test"
 Sleep 500ms
 Enter
 Sleep 20s
