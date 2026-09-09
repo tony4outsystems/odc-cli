@@ -28,6 +28,24 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     add_polling_args(parser)
 
 
+def add_parallel_args(parser: argparse.ArgumentParser, verb: str) -> None:
+    parser.add_argument(
+        "--max-parallel",
+        type=int,
+        default=3,
+        help=f"Maximum number of apps to {verb} concurrently. Defaults to 3.",
+    )
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help=(
+            "Keep going on remaining apps if one fails instead of stopping. "
+            "Only fully honored when --max-parallel is 1; with concurrency, "
+            "in-flight apps are not cancelled on a failure either way."
+        ),
+    )
+
+
 def handle_discover(client: OdcClient, _args: argparse.Namespace) -> None:
     discovery = client.discover()
     print_json(
@@ -125,7 +143,7 @@ def handle_internal_deploy(client: OdcClient, args: argparse.Namespace) -> dict[
     return details
 
 
-def handle_internal_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+def handle_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
     environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
@@ -169,7 +187,7 @@ def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
     print_json({"status": "success", "message": f"Asset {resolved_key} deleted successfully"})
 
 
-def handle_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
+def handle_dangerous_batch_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
     environment_key = require_key(args.environment_key, "--environment-key")
     summary = undeploy_all_in_environment(
         client,
@@ -177,9 +195,10 @@ def handle_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
         args.poll_interval,
         args.timeout,
         args.max_parallel,
+        args.continue_on_error,
     )
 
-    print("\n=== Undeploy-all summary ===")
+    print("\n=== Batch undeploy-all summary ===")
     print_json(summary)
 
     if any(entry["status"] == "failed" for entry in summary):
@@ -319,13 +338,10 @@ def build_parser() -> argparse.ArgumentParser:
     internal_deploy.add_argument("--no-wait", action="store_true")
     internal_deploy.set_defaults(handler=handle_internal_deploy)
 
-    internal_undeploy = subparsers.add_parser(
-        "internal-undeploy",
-        help="Undeploy a single app from an environment. Intermediate step; prefer `undeploy-all`.",
-    )
-    add_common_args(internal_undeploy)
-    internal_undeploy.add_argument("--no-wait", action="store_true")
-    internal_undeploy.set_defaults(handler=handle_internal_undeploy)
+    undeploy = subparsers.add_parser("undeploy", help="Undeploy a single app from an environment.")
+    add_common_args(undeploy)
+    undeploy.add_argument("--no-wait", action="store_true")
+    undeploy.set_defaults(handler=handle_undeploy)
 
     list_environments = subparsers.add_parser("list-environments", help="List environments visible to the API client.")
     list_environments.set_defaults(handler=handle_list_environments)
@@ -334,23 +350,18 @@ def build_parser() -> argparse.ArgumentParser:
     delete_app.add_argument("--asset-key", default=None, help="Asset name or key.")
     delete_app.set_defaults(handler=handle_delete_app)
 
-    undeploy_all = subparsers.add_parser(
-        "undeploy-all",
-        help="Undeploy every app currently deployed to an environment.",
+    dangerous_batch_undeploy_all = subparsers.add_parser(
+        "dangerous-batch-undeploy-all",
+        help="Undeploy every app currently deployed to an environment. Irreversible; double-check --environment-key.",
     )
-    undeploy_all.add_argument(
+    dangerous_batch_undeploy_all.add_argument(
         "--environment-key",
         default=None,
         help="Environment name or key.",
     )
-    add_polling_args(undeploy_all)
-    undeploy_all.add_argument(
-        "--max-parallel",
-        type=int,
-        default=3,
-        help="Maximum number of apps to undeploy concurrently. Defaults to 3.",
-    )
-    undeploy_all.set_defaults(handler=handle_undeploy_all)
+    add_polling_args(dangerous_batch_undeploy_all)
+    add_parallel_args(dangerous_batch_undeploy_all, verb="undeploy")
+    dangerous_batch_undeploy_all.set_defaults(handler=handle_dangerous_batch_undeploy_all)
 
     producer_graph = subparsers.add_parser(
         "producer-graph",
@@ -407,21 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_polling_args(batch_deploy_parser)
     batch_deploy_parser.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
-    batch_deploy_parser.add_argument(
-        "--max-parallel",
-        type=int,
-        default=3,
-        help="Maximum number of apps to build/deploy concurrently. Defaults to 3.",
-    )
-    batch_deploy_parser.add_argument(
-        "--continue-on-error",
-        action="store_true",
-        help=(
-            "Keep deploying remaining apps if one fails instead of stopping. "
-            "Only fully honored when --max-parallel is 1; with concurrency, "
-            "in-flight apps are not cancelled on a failure either way."
-        ),
-    )
+    add_parallel_args(batch_deploy_parser, verb="build/deploy")
     batch_deploy_parser.add_argument(
         "--skip-dependencies",
         action="store_true",

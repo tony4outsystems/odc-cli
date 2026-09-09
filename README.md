@@ -29,7 +29,9 @@ The `validate` command confirms that the given asset and environment keys are vi
 
 ## Commands
 
-### discover
+### Inspection
+
+#### discover
 
 Fetch OIDC discovery metadata (issuer, token endpoint, supported scopes).
 
@@ -37,7 +39,7 @@ Fetch OIDC discovery metadata (issuer, token endpoint, supported scopes).
 uv run odc-api-sandbox discover
 ```
 
-### validate
+#### validate
 
 Confirm the given asset and environment are visible to the API client.
 
@@ -45,7 +47,7 @@ Confirm the given asset and environment are visible to the API client.
 uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
 ```
 
-### latest-revision
+#### latest-revision
 
 Print the latest revision number for an asset.
 
@@ -53,37 +55,7 @@ Print the latest revision number for an asset.
 uv run odc-api-sandbox latest-revision --asset-key <asset-key>
 ```
 
-### internal-build / internal-publish / internal-deploy / internal-undeploy
-
-Raw single-step operations against the build/publish/deploy/undeploy APIs. These are the building blocks `deploy`, `batch-deploy`, and `undeploy-all` are made of — reach for them only when you need to drive one step in isolation (e.g. deploy a build that already exists). Each requires `--asset-key`/`--environment-key` and polls until the operation finishes (`--no-wait` to skip polling):
-
-```
-uv run odc-api-sandbox internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
-uv run odc-api-sandbox internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
-uv run odc-api-sandbox internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
-uv run odc-api-sandbox internal-undeploy --asset-key <asset-key> --environment-key <environment-key>
-```
-
-Common options for `internal-build`, `internal-publish`, `internal-deploy`, `internal-undeploy`, `validate`, and `deploy`:
-
-- `--asset-key` — asset name or key (required)
-- `--environment-key` — environment name or key (required)
-- `--revision` — asset revision (defaults to the latest revision)
-- `--poll-interval` — seconds between status polls (default `10`)
-- `--timeout` — seconds to wait before giving up (default `1800`)
-- `--no-wait` — return after starting the operation instead of polling (internal-build/internal-publish/internal-deploy/internal-undeploy only)
-- `--build-type` — `Debug` or `Release` (default `Release`; internal-build/deploy only)
-- `internal-deploy` also requires `--build-key <build-key>`
-
-### deploy
-
-Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
-
-```bash
-uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
-```
-
-### list-environments
+#### list-environments
 
 List environments visible to the API client (name, key, type).
 
@@ -91,15 +63,7 @@ List environments visible to the API client (name, key, type).
 uv run odc-api-sandbox list-environments
 ```
 
-### delete-app
-
-Permanently delete an asset from the asset repository.
-
-```bash
-uv run odc-api-sandbox delete-app --asset-key <asset-key>
-```
-
-### producer-graph
+#### producer-graph
 
 Generate a Mermaid graph of an asset's producer dependencies.
 
@@ -115,7 +79,25 @@ uv run odc-api-sandbox producer-graph <asset-key> --max-depth 2 --output graph.m
 - `--all-producers` — shortcut for `--producer-type-filter All`
 - `--output` — output path; defaults to `producer-graph-<asset>-rev-<revision>.mmd`
 
-### batch-deploy
+#### get-user
+
+Retrieve user information by user key (UUID) or email address.
+
+```bash
+uv run odc-api-sandbox get-user <user-key-or-email>
+```
+
+### Deploying
+
+#### deploy
+
+Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
+
+```bash
+uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
+```
+
+#### batch-deploy
 
 Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [apps.txt](apps.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
@@ -128,12 +110,9 @@ By default, each app's producer dependencies are resolved via the producer graph
 Options:
 
 - `--environment-key` — environment name or key (required)
-- `--poll-interval` — seconds between status polls (default `10`)
-- `--timeout` — seconds to wait per app before giving up (default `1800`)
 - `--build-type` — `Debug` or `Release` (default `Release`)
-- `--max-parallel` — maximum apps to build/deploy concurrently (default `5`)
-- `--continue-on-error` — keep deploying remaining apps if one fails, instead of stopping. Only fully honored when `--max-parallel 1`; with concurrency, in-flight apps are not cancelled on a failure either way
 - `--skip-dependencies` — deploy only the apps listed in the file, without automatically including their producer dependencies
+- see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
 
 Example with overrides:
 
@@ -141,33 +120,69 @@ Example with overrides:
 uv run odc-api-sandbox batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
 
-### undeploy-all
+### Undeploying
 
-Undeploy every app currently deployed to an environment.
+#### undeploy
+
+Undeploy a single app from an environment.
 
 ```bash
-uv run odc-api-sandbox undeploy-all --environment-key <environment-key>
+uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
+```
+
+#### dangerous-batch-undeploy-all
+
+**Irreversible.** Undeploys every app currently deployed to an environment. Double-check `--environment-key` before running this.
+
+```bash
+uv run odc-api-sandbox dangerous-batch-undeploy-all --environment-key <environment-key>
 ```
 
 Options:
 
 - `--environment-key` — environment name or key (required)
-- `--poll-interval` — seconds between status polls (default `10`)
-- `--timeout` — seconds to wait per app before giving up (default `1800`)
-- `--max-parallel` — maximum apps to undeploy concurrently (default `3`)
+- see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
 
-### get-user
+### Asset management
 
-Retrieve user information by user key (UUID) or email address.
+#### delete-app
+
+Permanently delete an asset from the asset repository.
 
 ```bash
-uv run odc-api-sandbox get-user <user-key-or-email>
+uv run odc-api-sandbox delete-app --asset-key <asset-key>
 ```
 
-### update-user
+#### update-user
 
 Update a user's name, active status, or photo URL. At least one of `--name`, `--is-active`, or `--photo-url` is required.
 
 ```bash
 uv run odc-api-sandbox update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-url https://example.com/photo.jpg
 ```
+
+### Internal single-step operations
+
+`internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset-key`/`--environment-key` and polls until the operation finishes (`--no-wait` to skip polling):
+
+```bash
+uv run odc-api-sandbox internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
+uv run odc-api-sandbox internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
+uv run odc-api-sandbox internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
+```
+
+- `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)
+- `internal-deploy` also requires `--build-key <build-key>`
+
+### Shared polling and parallel options
+
+Every command that starts and waits on an operation (`validate`, `deploy`, `internal-build`, `internal-publish`, `internal-deploy`, `undeploy`, `batch-deploy`, `dangerous-batch-undeploy-all`) accepts:
+
+- `--poll-interval` — seconds between status polls (default `10`)
+- `--timeout` — seconds to wait before giving up (default `1800`)
+- `--no-wait` — return after starting the operation instead of polling (`internal-build`/`internal-publish`/`internal-deploy`/`undeploy` only)
+
+Commands that run multiple assets in parallel (`batch-deploy`, `dangerous-batch-undeploy-all`) additionally accept:
+
+- `--max-parallel` — maximum apps to process concurrently (default `3`)
+- `--continue-on-error` — keep going on remaining apps if one fails, instead of stopping. Only fully honored when `--max-parallel 1`; with concurrency, in-flight apps are not cancelled on a failure either way

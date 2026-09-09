@@ -189,6 +189,7 @@ def undeploy_all_in_environment(
     poll_interval: float,
     timeout_seconds: float,
     max_parallel: int,
+    continue_on_error: bool,
 ) -> list[dict[str, Any]]:
     resolved_environment_key = resolve_environment_key(client, environment_key)
     deployed_assets = client.list_deployed_assets(resolved_environment_key)
@@ -209,21 +210,30 @@ def undeploy_all_in_environment(
         apps.append((asset_key, name))
 
     summary: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max_parallel) as executor:
-        futures = {
-            executor.submit(
-                _undeploy_one,
-                client,
-                asset_key,
-                asset_name,
-                resolved_environment_key,
-                poll_interval,
-                timeout_seconds,
-            ): asset_key
-            for asset_key, asset_name in apps
-        }
-        for future in as_completed(futures):
-            summary.append(future.result())
+    if max_parallel == 1 and not continue_on_error:
+        for asset_key, asset_name in apps:
+            entry = _undeploy_one(
+                client, asset_key, asset_name, resolved_environment_key, poll_interval, timeout_seconds
+            )
+            summary.append(entry)
+            if entry["status"] == "failed":
+                break
+    else:
+        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            futures = {
+                executor.submit(
+                    _undeploy_one,
+                    client,
+                    asset_key,
+                    asset_name,
+                    resolved_environment_key,
+                    poll_interval,
+                    timeout_seconds,
+                ): asset_key
+                for asset_key, asset_name in apps
+            }
+            for future in as_completed(futures):
+                summary.append(future.result())
 
     return summary
 
