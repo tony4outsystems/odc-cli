@@ -31,7 +31,7 @@ go build -o bin/odc ./cmd/odc
 ./bin/odc --help
 ```
 
-During development, use `go run ./cmd/odc ...`. The binary has no Python or third-party Go runtime dependencies.
+During development, use `go run ./cmd/odc ...`. The CLI uses [Cobra](https://github.com/spf13/cobra) for command and flag parsing. The compiled binary needs no separate runtime. Run `odc completion --help` for shell completion setup.
 
 ## Setup
 

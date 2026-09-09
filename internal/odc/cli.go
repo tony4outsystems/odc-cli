@@ -1,8 +1,6 @@
 package odc
 
 import (
-	"errors"
-	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -10,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 var commands = []string{"discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
@@ -23,30 +23,47 @@ func member(value string, values ...string) bool {
 	}
 	return false
 }
-func usage() {
-	fmt.Println("OutSystems ODC CLI\n\nUsage: odc <command> [options]\n\nCommands:")
-	for _, command := range commands {
-		fmt.Println("  " + command)
-	}
-	fmt.Println("\nUse odc <command> --help for command options.")
-}
+
+// parseArgs uses a fresh command tree so repeated invocations cannot retain flags.
 func parseArgs(args []string) (string, Options, []string, error) {
+	var selected string
+	var options Options
+	var positionals []string
+	var jsonOutput bool
+	var color string
+	root := &cobra.Command{
+		Use:           "odc <command>",
+		Short:         "OutSystems ODC CLI",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return errorf("A command is required; use odc --help")
+		},
+		Args: cobra.NoArgs,
+	}
+	root.SetOut(os.Stdout)
+	root.SetErr(os.Stderr)
+	root.SetArgs(args)
+	root.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Print JSON results (progress goes to stderr).")
+	root.PersistentFlags().StringVar(&color, "color", "auto", "Color mode: auto, always, or never; auto respects NO_COLOR.")
+	for _, name := range commands {
+		root.AddCommand(newCLICommand(name, func(cmd string, o Options, pos []string) error {
+			o.JSON, o.Color = jsonOutput, color
+			if !member(o.Color, "auto", "always", "never") {
+				return errorf("--color must be auto, always, or never")
+			}
+			selected, options, positionals = cmd, o, pos
+			return nil
+		}))
+	}
+	err := root.Execute()
+	return selected, options, positionals, err
+}
+
+func newCLICommand(cmd string, accept func(string, Options, []string) error) *cobra.Command {
 	o := Options{Updates: object{}}
-	if len(args) == 0 {
-		return "", o, nil, errorf("A command is required; use odc --help")
-	}
-	cmd := args[0]
-	if cmd == "--help" || cmd == "-h" || cmd == "help" {
-		usage()
-		return "", o, nil, nil
-	}
-	if !member(cmd, commands...) {
-		return "", o, nil, errorf("Unknown command %q; use odc --help", cmd)
-	}
-	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
-	fs.SetOutput(os.Stdout)
-	fs.BoolVar(&o.JSON, "json", false, "Print JSON results (progress goes to stderr).")
-	fs.StringVar(&o.Color, "color", "auto", "Color mode: auto, always, or never; auto respects NO_COLOR.")
+	command := &cobra.Command{Use: cmd}
+	fs := command.Flags()
 	positionalName := ""
 	switch cmd {
 	case "get-app", "producer-graph":
@@ -56,9 +73,8 @@ func parseArgs(args []string) (string, Options, []string, error) {
 	case "batch-deploy":
 		positionalName = "<apps-file>"
 	}
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: odc %s %s [options]\n", cmd, positionalName)
-		fs.PrintDefaults()
+	if positionalName != "" {
+		command.Use += " " + positionalName
 	}
 	common := member(cmd, "validate", "deploy", "internal-build", "internal-publish", "internal-deploy", "undeploy")
 	batch := member(cmd, "batch-deploy", "dangerous-batch-undeploy-all")
@@ -126,84 +142,49 @@ func parseArgs(args []string) (string, Options, []string, error) {
 			return nil
 		})
 	}
-	// Go's flag package stops at the first positional argument. Reorder only
-	// positional arguments, preserving each option and its value together.
-	flags := []string{}
-	positionals := []string{}
-	for i := 1; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			positionals = append(positionals, args[i+1:]...)
-			break
+	command.RunE = func(_ *cobra.Command, positionals []string) error {
+		if positionalName == "" && len(positionals) > 0 || len(positionals) > 1 {
+			return errorf("Unexpected positional arguments for %s", cmd)
 		}
-		if !strings.HasPrefix(a, "-") || a == "-" {
-			positionals = append(positionals, a)
-			continue
+		if member(cmd, "get-user", "update-user", "batch-deploy") && len(positionals) != 1 {
+			return errorf("%s requires %s", cmd, positionalName)
 		}
-		flags = append(flags, a)
-		name, _, hasValue := strings.Cut(strings.TrimLeft(a, "-"), "=")
-		f := fs.Lookup(name)
-		if f == nil || hasValue {
-			continue
+		if member(cmd, "get-app", "producer-graph") && len(positionals) == 1 {
+			o.Asset = positionals[0]
 		}
-		isBool := false
-		if b, ok := f.Value.(interface{ IsBoolFlag() bool }); ok {
-			isBool = b.IsBoolFlag()
+		if common || member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph") {
+			if o.Asset == "" {
+				return errorf("--asset or an asset positional argument is required")
+			}
 		}
-		if !isBool && i+1 < len(args) {
-			i++
-			flags = append(flags, args[i])
+		if (common || batch) && o.Env == "" {
+			return errorf("--env is required")
 		}
-	}
-	if e := fs.Parse(flags); e != nil {
-		if errors.Is(e, flag.ErrHelp) {
-			return "", o, nil, nil
+		if cmd == "internal-deploy" && o.BuildKey == "" {
+			return errorf("--build-key is required")
 		}
-		return "", o, nil, e
-	}
-	if positionalName == "" && len(positionals) > 0 || len(positionals) > 1 {
-		return "", o, nil, errorf("Unexpected positional arguments for %s", cmd)
-	}
-	if member(cmd, "get-user", "update-user", "batch-deploy") && len(positionals) != 1 {
-		return "", o, nil, errorf("%s requires %s", cmd, positionalName)
-	}
-	if member(cmd, "get-app", "producer-graph") && len(positionals) == 1 {
-		o.Asset = positionals[0]
-	}
-	if common || member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph") {
-		if o.Asset == "" {
-			return "", o, nil, errorf("--asset or an asset positional argument is required")
+		if !member(o.BuildType, "Debug", "Release") {
+			return errorf("--build-type must be Debug or Release")
 		}
+		if cmd == "producer-graph" && (!member(o.Filter, "Deployable", "Libraries", "All") || o.MaxDepth < 0) {
+			return errorf("Use a nonnegative --max-depth and --producer-type-filter Deployable, Libraries, or All")
+		}
+		if o.AssetType != "" && !member(o.AssetType, assetTypes...) {
+			return errorf("Invalid --type %q", o.AssetType)
+		}
+		if cmd == "update-user" && len(o.Updates) == 0 {
+			return errorf("At least one field must be specified for update (--name, --is-active, or --photo-url)")
+		}
+		maxSeconds := float64(math.MaxInt64) / float64(time.Second)
+		if math.IsNaN(interval) || math.IsInf(interval, 0) || interval < 0 || interval >= maxSeconds || math.IsNaN(timeout) || math.IsInf(timeout, 0) || timeout <= 0 || timeout >= maxSeconds {
+			return errorf("--poll-interval must be finite and nonnegative; --timeout must be finite and positive")
+		}
+		o.Interval = time.Duration(interval * float64(time.Second))
+		o.Timeout = time.Duration(timeout * float64(time.Second))
+		o.MaxParallel = max(1, o.MaxParallel)
+		return accept(cmd, o, positionals)
 	}
-	if (common || batch) && o.Env == "" {
-		return "", o, nil, errorf("--env is required")
-	}
-	if cmd == "internal-deploy" && o.BuildKey == "" {
-		return "", o, nil, errorf("--build-key is required")
-	}
-	if !member(o.BuildType, "Debug", "Release") {
-		return "", o, nil, errorf("--build-type must be Debug or Release")
-	}
-	if cmd == "producer-graph" && (!member(o.Filter, "Deployable", "Libraries", "All") || o.MaxDepth < 0) {
-		return "", o, nil, errorf("Use a nonnegative --max-depth and --producer-type-filter Deployable, Libraries, or All")
-	}
-	if o.AssetType != "" && !member(o.AssetType, assetTypes...) {
-		return "", o, nil, errorf("Invalid --type %q", o.AssetType)
-	}
-	if cmd == "update-user" && len(o.Updates) == 0 {
-		return "", o, nil, errorf("At least one field must be specified for update (--name, --is-active, or --photo-url)")
-	}
-	if !member(o.Color, "auto", "always", "never") {
-		return "", o, nil, errorf("--color must be auto, always, or never")
-	}
-	maxSeconds := float64(math.MaxInt64) / float64(time.Second)
-	if math.IsNaN(interval) || math.IsInf(interval, 0) || interval < 0 || interval >= maxSeconds || math.IsNaN(timeout) || math.IsInf(timeout, 0) || timeout <= 0 || timeout >= maxSeconds {
-		return "", o, nil, errorf("--poll-interval must be finite and nonnegative; --timeout must be finite and positive")
-	}
-	o.Interval = time.Duration(interval * float64(time.Second))
-	o.Timeout = time.Duration(timeout * float64(time.Second))
-	o.MaxParallel = max(1, o.MaxParallel)
-	return cmd, o, positionals, nil
+	return command
 }
 func Run(args []string) error {
 	cmd, o, pos, e := parseArgs(args)

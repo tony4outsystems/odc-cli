@@ -160,3 +160,49 @@ func TestResolution(t *testing.T) {
 		t.Fatalf("UUID: %q %v", key, e)
 	}
 }
+
+func TestCobraArgumentParsing(t *testing.T) {
+	for _, args := range [][]string{
+		{"--json", "--color", "never", "get-app", "App"},
+		{"get-app", "--json", "App", "--color=never"},
+		{"get-app", "App", "--color", "never", "--json"},
+	} {
+		cmd, o, pos, err := parseArgs(args)
+		if err != nil || cmd != "get-app" || o.Asset != "App" || !o.JSON || o.Color != "never" || len(pos) != 1 {
+			t.Fatalf("parseArgs(%v) = %q, %+v, %v, %v", args, cmd, o, pos, err)
+		}
+	}
+	_, o, pos, err := parseArgs([]string{"get-app", "--", "--json"})
+	if err != nil || o.Asset != "--json" || o.JSON || len(pos) != 1 {
+		t.Fatalf("flag terminator: %+v, %v, %v", o, pos, err)
+	}
+	_, o, _, err = parseArgs([]string{"list-apps"})
+	if err != nil || o.JSON || o.Color != "auto" {
+		t.Fatalf("flags leaked between invocations: %+v, %v", o, err)
+	}
+	for _, args := range [][]string{
+		{"get-app", "App", "--env", "Sandbox"},
+		{"get-app", "App", "extra"},
+		{"get-app", "App", "--asset"},
+	} {
+		if _, _, _, err := parseArgs(args); err == nil {
+			t.Errorf("accepted invalid args %v", args)
+		}
+	}
+}
+
+func TestCobraHelpAndCompletion(t *testing.T) {
+	for _, args := range [][]string{
+		{"help"},
+		{"help", "deploy"},
+		{"deploy", "-h"},
+		{"completion", "--help"},
+		{"completion", "bash"},
+	} {
+		// Help and completion must not select an API command or load credentials.
+		cmd, _, _, err := parseArgs(args)
+		if err != nil || cmd != "" {
+			t.Errorf("parseArgs(%v): command=%q, error=%v", args, cmd, err)
+		}
+	}
+}
