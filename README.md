@@ -92,6 +92,14 @@ Undeploy an asset from an environment (defaults to the configured asset/environm
 uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
 ```
 
+### list-environments
+
+List environments visible to the API client (name, key, type).
+
+```bash
+uv run odc-api-sandbox list-environments
+```
+
 ### delete-app
 
 Permanently delete an asset from the asset repository.

@@ -148,6 +148,20 @@ def handle_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, An
     return details
 
 
+def handle_list_environments(client: OdcClient, _args: argparse.Namespace) -> None:
+    environments = client.list_environments()
+    print_json(
+        [
+            {
+                "name": environment.get("name"),
+                "key": environment.get("key"),
+                "type": environment.get("type") or environment.get("stage"),
+            }
+            for environment in environments
+        ]
+    )
+
+
 def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = args.asset_key or client.settings.asset_key
     resolved_key = resolve_asset_key(client, asset_key)
@@ -304,6 +318,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(undeploy)
     undeploy.add_argument("--no-wait", action="store_true")
     undeploy.set_defaults(handler=handle_undeploy)
+
+    list_environments = subparsers.add_parser("list-environments", help="List environments visible to the API client.")
+    list_environments.set_defaults(handler=handle_list_environments)
 
     delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
     delete_app.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")

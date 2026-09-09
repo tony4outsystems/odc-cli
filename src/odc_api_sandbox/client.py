@@ -86,6 +86,10 @@ class OdcClient:
                 return environment
         raise OdcApiError(f"Environment key was not found or is not visible: {environment_key}")
 
+    def list_environments(self) -> list[dict[str, Any]]:
+        environments = self._request("GET", self.url("portfolios", "/environments"))
+        return environments.get("results") or []
+
     def list_deployed_assets(self, environment_key: str) -> list[dict[str, Any]]:
         assets: list[dict[str, Any]] = []
         offset = 0
