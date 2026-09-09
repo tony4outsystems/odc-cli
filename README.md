@@ -33,6 +33,8 @@ The `validate` command confirms that the given asset and environment keys are vi
 
 ## Commands
 
+In the usage examples below, arguments in `[brackets]` are optional (with a default or a resolved fallback); everything else is required.
+
 ### Inspection
 
 #### discover
@@ -48,8 +50,10 @@ uv run odc discover
 Confirm the given asset and environment are visible to the API client.
 
 ```bash
-uv run odc validate --asset <asset-name-or-key> --env <environment-name-or-key> --revision <revision>
+uv run odc validate --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
 ```
+
+- `--revision` — defaults to the asset's current revision (falls back to the latest if that isn't available)
 
 #### latest-revision
 
@@ -72,9 +76,7 @@ uv run odc list-environments
 List assets visible to the API client (name, key, type).
 
 ```bash
-uv run odc list-apps
-uv run odc list-apps --type WebApplication
-uv run odc list-apps --search eGov
+uv run odc list-apps [--type WebApplication] [--search eGov]
 ```
 
 - `--type` — filter by asset type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
@@ -93,7 +95,7 @@ uv run odc get-app <asset-name-or-key>
 Generate a Mermaid graph of an asset's producer dependencies.
 
 ```bash
-uv run odc producer-graph <asset-name-or-key> --max-depth 2 --output graph.mmd
+uv run odc producer-graph <asset-name-or-key> [--max-depth 2] [--output graph.mmd]
 ```
 
 - `asset_key` — positional (also settable via `--asset`); name or key
@@ -119,15 +121,18 @@ uv run odc get-user <user-key-or-email>
 Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-uv run odc deploy --asset <asset-name-or-key> --env <environment-name-or-key> --revision <revision>
+uv run odc deploy --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
 ```
+
+- `--revision` — defaults to the latest revision
+- `--build-type` — `Debug` or `Release` (default `Release`)
 
 #### batch-deploy
 
 Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [examples/10-clicks-demos.txt](examples/10-clicks-demos.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
 ```bash
-uv run odc batch-deploy examples/10-clicks-demos.txt --env <environment-name-or-key>
+uv run odc batch-deploy examples/10-clicks-demos.txt --env <environment-name-or-key> [--build-type Release] [--skip-dependencies]
 ```
 
 By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies always deploy at the revision resolved from the producer graph, regardless of any pinned revision on the apps that depend on them.
@@ -191,11 +196,12 @@ uv run odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --
 `internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset`/`--env` and polls until the operation finishes (`--no-wait` to skip polling):
 
 ```bash
-uv run odc internal-build --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1 --build-type Release
-uv run odc internal-publish --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1
-uv run odc internal-deploy --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1 --build-key <build-key>
+uv run odc internal-build --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1] [--build-type Release]
+uv run odc internal-publish --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1]
+uv run odc internal-deploy --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1] --build-key <build-key>
 ```
 
+- `--revision` — defaults to the asset's current revision (falls back to the latest if that isn't available)
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)
 - `internal-deploy` also requires `--build-key <build-key>`
 
