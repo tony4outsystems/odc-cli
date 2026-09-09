@@ -10,27 +10,30 @@ import (
 	"testing"
 )
 
-const assetKey = "11111111-1111-1111-1111-111111111111"
+const appKey = "11111111-1111-1111-1111-111111111111"
 const envKey = "22222222-2222-2222-2222-222222222222"
 const userKey = "33333333-3333-3333-3333-333333333333"
 
 func TestAllCommands(t *testing.T) {
 	dir := t.TempDir()
 	apps := filepath.Join(dir, "apps.txt")
-	if e := os.WriteFile(apps, []byte(assetKey+"@4\n"), 0600); e != nil {
+	if e := os.WriteFile(apps, []byte(appKey+"@4\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
 	cases := [][]string{
-		{"discover"}, {"list-environments"}, {"list-apps", "--search", "App", "--type", "WebApplication"}, {"latest-revision", "--asset", "App"}, {"get-app", "App"}, {"delete-app", "--asset", "App"},
+		{"list-deployed-apps", "--env", "Sandbox", "--search", "App"},
+		{"list-revisions", "App"}, {"get-revision", "--app", "App", "--revision", "4"},
+		{"analyze-deployment", "App", "--env", "Sandbox"}, {"analyze-deletion", "App"},
+		{"discover"}, {"list-environments"}, {"list-apps", "--search", "App", "--type", "WebApplication"}, {"latest-revision", "--app", "App"}, {"get-app", "App"}, {"delete-app", "--app", "App"},
 		{"get-user", "person@example.com"}, {"update-user", "person@example.com", "--name", "New Name", "--is-active", "false", "--photo-url", ""},
 		{"producer-graph", "App", "--env", "Sandbox", "--all-producers", "--output", filepath.Join(dir, "graphs", "app.mmd")},
-		{"validate", "--asset", "App", "--env", "Sandbox"}, {"deploy", "--asset", "App", "--env", "Sandbox"},
+		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
 		{"dangerous-batch-undeploy-all", "--env", "Sandbox"},
 	}
 	for _, cmd := range []string{"internal-build", "internal-publish", "internal-deploy", "undeploy"} {
 		for _, noWait := range []bool{false, true} {
-			args := []string{cmd, "--asset", "App", "--env", "Sandbox"}
+			args := []string{cmd, "--app", "App", "--env", "Sandbox"}
 			if cmd == "internal-deploy" {
 				args = append(args, "--build-key", "build")
 			}
@@ -51,11 +54,11 @@ func TestAllCommands(t *testing.T) {
 				case p == "/identity/.well-known/openid-configuration":
 					return jsonResponse(200, `{"issuer":"test","token_endpoint":"https://tenant.example/token","scopes_supported":[]}`), nil
 				case p == "/api/asset-repository/v1/assets":
-					return jsonResponse(200, `{"results":[{"name":"App","assetKey":"`+assetKey+`","assetType":"WebApplication"}]}`), nil
+					return jsonResponse(200, `{"results":[{"name":"App","assetKey":"`+appKey+`","assetType":"WebApplication"}]}`), nil
 				case p == "/api/portfolios/v2/environments":
 					return jsonResponse(200, `{"results":[{"name":"Sandbox","key":"`+envKey+`","stage":"Development"}]}`), nil
 				case p == "/api/portfolios/v2/deployed-assets":
-					return jsonResponse(200, `{"results":[{"key":"`+assetKey+`","deployments":[{"name":"App"}]}]}`), nil
+					return jsonResponse(200, `{"results":[{"key":"`+appKey+`","deployments":[{"name":"App"}]}]}`), nil
 				case p == "/api/identity/v1/users":
 					return jsonResponse(200, `{"results":[{"key":"`+userKey+`","email":"person@example.com","name":"Person"}]}`), nil
 				case p == "/api/identity/v1/users/"+userKey:
@@ -71,16 +74,24 @@ func TestAllCommands(t *testing.T) {
 						return jsonResponse(204, ""), nil
 					}
 					return jsonResponse(200, `{"key":"`+userKey+`"}`), nil
+				case strings.HasSuffix(p, "/revisions"):
+					return jsonResponse(200, `{"results":[{"revision":4}]}`), nil
+				case strings.HasSuffix(p, "/revisions/4"):
+					return jsonResponse(200, `{"revision":4}`), nil
+				case strings.HasSuffix(p, "-analyses"):
+					return jsonResponse(201, `{"analysisKey":"analysis"}`), nil
+				case strings.HasSuffix(p, "-analyses/analysis"):
+					return jsonResponse(200, `{"processStatus":"Finished","report":{}}`), nil
 				case strings.HasSuffix(p, "/latest-revision"):
 					return jsonResponse(200, `{"revision":4}`), nil
 				case strings.HasSuffix(p, "/producer-graph"):
 					return jsonResponse(200, `{"results":[]}`), nil
-				case p == "/api/asset-repository/v1/assets/"+assetKey:
+				case p == "/api/asset-repository/v1/assets/"+appKey:
 					if r.Method == "DELETE" {
 						mutations++
 						return jsonResponse(204, ""), nil
 					}
-					return jsonResponse(200, `{"assetKey":"`+assetKey+`","name":"App","revision":3,"assetType":"WebApplication"}`), nil
+					return jsonResponse(200, `{"assetKey":"`+appKey+`","name":"App","revision":3,"assetType":"WebApplication"}`), nil
 				case strings.HasSuffix(p, "-operations") && r.Method == "POST":
 					mutations++
 					return jsonResponse(200, `{"buildKey":"build","key":"operation"}`), nil
@@ -123,7 +134,7 @@ func TestAllCommands(t *testing.T) {
 	}
 }
 func TestCLIValidationAndHelp(t *testing.T) {
-	for _, args := range [][]string{{}, {"unknown"}, {"deploy"}, {"internal-deploy", "--asset", "a", "--env", "e"}, {"list-apps", "--type", "wrong"}, {"get-user"}, {"update-user", "person"}, {"update-user", "person", "--is-active", "wrong"}, {"deploy", "--asset", "a", "--env", "e", "--timeout", "NaN"}, {"producer-graph", "app", "--revision", "x"}, {"discover", "extra"}, {"discover", "--unknown"}} {
+	for _, args := range [][]string{{}, {"unknown"}, {"deploy"}, {"internal-deploy", "--app", "a", "--env", "e"}, {"list-apps", "--type", "wrong"}, {"get-user"}, {"update-user", "person"}, {"update-user", "person", "--is-active", "wrong"}, {"deploy", "--app", "a", "--env", "e", "--timeout", "NaN"}, {"producer-graph", "app", "--revision", "x"}, {"discover", "extra"}, {"discover", "--unknown"}} {
 		if _, _, _, e := parseArgs(args); e == nil {
 			t.Errorf("accepted %v", args)
 		}
@@ -146,21 +157,21 @@ func TestResolution(t *testing.T) {
 		return jsonResponse(200, `{"results":[{"key":"sandbox","name":"Sandbox"},{"key":"production","name":"Production"}]}`), nil
 	})
 	c.token = "test-token"
-	c.assets = []object{{"assetKey": "a", "name": "App"}, {"assetKey": "b", "name": "Apple"}}
-	if key, e := c.Resolve("app", "asset"); e != nil || key != "a" {
+	c.apps = []object{{"assetKey": "a", "name": "App"}, {"assetKey": "b", "name": "Apple"}}
+	if key, e := c.Resolve("app", "app"); e != nil || key != "a" {
 		t.Fatalf("exact: %q %v", key, e)
 	}
-	if _, e := c.Resolve("Ap", "asset"); e == nil || !strings.Contains(e.Error(), "Did you mean") {
+	if _, e := c.Resolve("Ap", "app"); e == nil || !strings.Contains(e.Error(), "Did you mean") {
 		t.Fatalf("partial: %v", e)
 	}
-	c.assets = append(c.assets, object{"assetKey": "c", "name": "APP"})
-	if _, e := c.Resolve("app", "asset"); e == nil || !strings.Contains(e.Error(), "ambiguous") {
+	c.apps = append(c.apps, object{"assetKey": "c", "name": "APP"})
+	if _, e := c.Resolve("app", "app"); e == nil || !strings.Contains(e.Error(), "ambiguous") {
 		t.Fatalf("ambiguous: %v", e)
 	}
 	if key, e := c.Resolve("Sand", "environment"); e != nil || key != "sandbox" {
 		t.Fatalf("environment partial: %q %v", key, e)
 	}
-	if key, e := c.Resolve(assetKey, "asset"); e != nil || key != assetKey {
+	if key, e := c.Resolve(appKey, "app"); e != nil || key != appKey {
 		t.Fatalf("UUID: %q %v", key, e)
 	}
 }
@@ -172,12 +183,12 @@ func TestCobraArgumentParsing(t *testing.T) {
 		{"get-app", "App", "--color", "never", "--json"},
 	} {
 		cmd, o, pos, err := parseArgs(args)
-		if err != nil || cmd != "get-app" || o.Asset != "App" || !o.JSON || o.Color != "never" || len(pos) != 1 {
+		if err != nil || cmd != "get-app" || o.App != "App" || !o.JSON || o.Color != "never" || len(pos) != 1 {
 			t.Fatalf("parseArgs(%v) = %q, %+v, %v, %v", args, cmd, o, pos, err)
 		}
 	}
 	_, o, pos, err := parseArgs([]string{"get-app", "--", "--json"})
-	if err != nil || o.Asset != "--json" || o.JSON || len(pos) != 1 {
+	if err != nil || o.App != "--json" || o.JSON || len(pos) != 1 {
 		t.Fatalf("flag terminator: %+v, %v, %v", o, pos, err)
 	}
 	_, o, _, err = parseArgs([]string{"list-apps"})
@@ -187,7 +198,7 @@ func TestCobraArgumentParsing(t *testing.T) {
 	for _, args := range [][]string{
 		{"get-app", "App", "--env", "Sandbox"},
 		{"get-app", "App", "extra"},
-		{"get-app", "App", "--asset"},
+		{"get-app", "App", "--app"},
 	} {
 		if _, _, _, err := parseArgs(args); err == nil {
 			t.Errorf("accepted invalid args %v", args)

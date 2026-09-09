@@ -19,8 +19,8 @@ func (c *Client) Resolve(input, kind string) (string, error) {
 	var e error
 	keyField := "key"
 	switch kind {
-	case "asset":
-		items, e = c.ListAssets()
+	case "app":
+		items, e = c.ListApps()
 		keyField = "assetKey"
 	case "environment":
 		items, e = c.ListEnvironments()
@@ -56,7 +56,7 @@ func (c *Client) Resolve(input, kind string) (string, error) {
 	if len(exact) == 1 {
 		return requireString(exact[0][keyField], kind+" key")
 	}
-	if len(exact) == 0 && kind != "asset" && len(matches) == 1 {
+	if len(exact) == 0 && kind != "app" && len(matches) == 1 {
 		return requireString(matches[0][keyField], kind+" key")
 	}
 	message := fmt.Sprintf("No exact match for %q. Did you mean:", input)

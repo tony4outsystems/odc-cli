@@ -38,6 +38,7 @@ func paint(s, code string, color bool) string {
 }
 
 func label(s string) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "asset", "app"), "Asset", "App")
 	var b strings.Builder
 	var prev rune
 	for i, r := range s {

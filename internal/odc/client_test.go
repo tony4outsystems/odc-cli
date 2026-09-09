@@ -59,9 +59,9 @@ func TestAuthenticationPaginationAndCache(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			assets, e := c.ListAssets()
-			if e != nil || len(assets) != 2 {
-				t.Errorf("ListAssets: %v, %v", assets, e)
+			apps, e := c.ListApps()
+			if e != nil || len(apps) != 2 {
+				t.Errorf("ListAssets: %v, %v", apps, e)
 			}
 		}()
 	}

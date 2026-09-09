@@ -106,7 +106,7 @@ func TestParallelBoundAndStopOnFailure(t *testing.T) {
 		t.Fatalf("did not continue: %d", len(results))
 	}
 }
-func TestDependencyPlanPinsAndSkipsPlatformAssets(t *testing.T) {
+func TestDependencyPlanPinsAndSkipsPlatformApps(t *testing.T) {
 	c := testClient(func(r *http.Request) (*http.Response, error) {
 		if strings.Contains(r.URL.Path, "producer-graph") {
 			if !strings.Contains(r.URL.Path, "/revisions/9/") || r.URL.Query().Get("producerTypeFilter") != "All" {
@@ -117,7 +117,7 @@ func TestDependencyPlanPinsAndSkipsPlatformAssets(t *testing.T) {
 		return nil, fmt.Errorf("unexpected request: %s", r.URL)
 	})
 	c.token = "test-token"
-	c.assets = []object{{"name": "App", "assetKey": "app"}, {"assetKey": "dep"}, {"assetKey": "platform", "createdBy": "00000000-0000-0000-0000-000000000000"}}
+	c.apps = []object{{"name": "App", "assetKey": "app"}, {"assetKey": "dep"}, {"assetKey": "platform", "createdBy": "00000000-0000-0000-0000-000000000000"}}
 	n := 9
 	plan, e := c.DependencyPlan([]App{{"App", &n}}, "env")
 	if e != nil {
@@ -126,7 +126,7 @@ func TestDependencyPlanPinsAndSkipsPlatformAssets(t *testing.T) {
 	if len(plan) != 2 || plan[0][0].Key != "dep" || *plan[0][0].Revision != 4 || plan[1][0].Key != "app" || *plan[1][0].Revision != 9 {
 		t.Fatalf("plan=%v", plan)
 	}
-	c.assets = append(c.assets, object{"name": "Dependency", "assetKey": "dep"})
+	c.apps = append(c.apps, object{"name": "Dependency", "assetKey": "dep"})
 	conflict := 8
 	if _, e = c.DependencyPlan([]App{{"App", &n}, {"Dependency", &conflict}}, "env"); e == nil || !strings.Contains(e.Error(), "Conflicting revisions") {
 		t.Fatalf("expected revision conflict: %v", e)
@@ -152,7 +152,7 @@ func TestFailedBuildNeverDeploys(t *testing.T) {
 		}
 	})
 	c.token = "test-token"
-	_, e := c.DeployAsset(assetKey, envKey, nil, Options{BuildType: "Release", Timeout: time.Second})
+	_, e := c.DeployApp(appKey, envKey, nil, Options{BuildType: "Release", Timeout: time.Second})
 	if e == nil || deployed {
 		t.Fatalf("failed build: deployed=%v error=%v", deployed, e)
 	}

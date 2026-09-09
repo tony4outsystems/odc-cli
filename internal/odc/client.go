@@ -27,8 +27,8 @@ type Client struct {
 	authMu    sync.Mutex
 	discovery object
 	token     string
-	assetsMu  sync.Mutex
-	assets    []object
+	appsMu    sync.Mutex
+	apps      []object
 }
 
 func NewClient(s Settings) *Client {
@@ -213,7 +213,7 @@ func (c *Client) LatestRevision(key string) (int, error) {
 	}
 	return n, nil
 }
-func (c *Client) GetAsset(key string) (object, error) {
+func (c *Client) GetApp(key string) (object, error) {
 	return c.call("GET", "asset-repository", "/assets/"+esc(key), nil, nil)
 }
 func (c *Client) ListEnvironments() ([]object, error) {
@@ -256,23 +256,23 @@ func (c *Client) paginated(api, path string, q url.Values) ([]object, error) {
 	}
 	return out, nil
 }
-func (c *Client) ListAssets() ([]object, error) {
-	c.assetsMu.Lock()
-	defer c.assetsMu.Unlock()
-	if c.assets != nil {
-		return c.assets, nil
+func (c *Client) ListApps() ([]object, error) {
+	c.appsMu.Lock()
+	defer c.appsMu.Unlock()
+	if c.apps != nil {
+		return c.apps, nil
 	}
 	items, e := c.paginated("asset-repository", "/assets", nil)
 	if e == nil {
-		c.assets = items
+		c.apps = items
 	}
 	return items, e
 }
-func (c *Client) ListDeployedAssets(env string) ([]object, error) {
+func (c *Client) ListDeployedApps(env string) ([]object, error) {
 	return c.paginated("portfolios", "/deployed-assets", url.Values{"environmentKey": {env}})
 }
 func (c *Client) IsPlatformProvided(key string) (bool, error) {
-	items, e := c.ListAssets()
+	items, e := c.ListApps()
 	if e != nil {
 		return false, e
 	}

@@ -8,22 +8,22 @@ import (
 	"unicode"
 )
 
-func mermaidNodeID(asset object) string {
+func mermaidNodeID(app object) string {
 	revision := ""
-	if n, ok := integer(asset["revision"]); ok {
+	if n, ok := integer(app["revision"]); ok {
 		revision = fmt.Sprint(n)
 	}
-	key := str(first(asset["key"], "unknown"))
+	key := str(first(app["key"], "unknown"))
 	digest := sha1.Sum([]byte(key + ":" + revision))
-	return fmt.Sprintf("asset_%x", digest[:6])
+	return fmt.Sprintf("app_%x", digest[:6])
 }
-func mermaidLabel(asset object) string {
-	label := fmt.Sprint(first(asset["name"], asset["key"], "Unknown asset"))
+func mermaidLabel(app object) string {
+	label := fmt.Sprint(first(app["name"], app["key"], "Unknown app"))
 	details := []string{}
-	if asset["revision"] != nil {
-		details = append(details, fmt.Sprintf("rev %v", asset["revision"]))
+	if app["revision"] != nil {
+		details = append(details, fmt.Sprintf("rev %v", app["revision"]))
 	}
-	if s := str(asset["type"]); s != "" {
+	if s := str(app["type"]); s != "" {
 		details = append(details, s)
 	}
 	if len(details) > 0 {

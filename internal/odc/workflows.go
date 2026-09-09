@@ -12,14 +12,14 @@ import (
 )
 
 type Options struct {
-	JSON                                                               bool
-	Color                                                              string
-	Asset, Env, BuildType, BuildKey, Filter, Output, Search, AssetType string
-	Revision                                                           *int
-	Interval, Timeout                                                  time.Duration
-	MaxParallel, MaxDepth                                              int
-	NoWait, ContinueOnError, SkipDependencies, AllProducers            bool
-	Updates                                                            object
+	JSON                                                           bool
+	Color                                                          string
+	App, Env, BuildType, BuildKey, Filter, Output, Search, AppType string
+	Revision                                                       *int
+	Interval, Timeout                                              time.Duration
+	MaxParallel, MaxDepth                                          int
+	NoWait, ContinueOnError, SkipDependencies, AllProducers        bool
+	Updates                                                        object
 }
 
 func printlnLocked(format string, args ...any) {
@@ -56,7 +56,7 @@ func WaitFor(label string, fetch func() (object, error), build bool, interval, t
 	}
 }
 func (c *Client) Preflight(key, env string, revision *int) (int, error) {
-	asset, e := c.GetAsset(key)
+	app, e := c.GetApp(key)
 	if e != nil {
 		return 0, e
 	}
@@ -64,7 +64,7 @@ func (c *Client) Preflight(key, env string, revision *int) (int, error) {
 	if e != nil {
 		return 0, e
 	}
-	n, ok := integer(asset["revision"])
+	n, ok := integer(app["revision"])
 	if revision != nil {
 		n = *revision
 	} else if !ok {
@@ -74,7 +74,7 @@ func (c *Client) Preflight(key, env string, revision *int) (int, error) {
 		}
 	}
 	e = PrintResult(object{"preflight": object{
-		"asset":       compactMap(asset, []string{"assetKey", "name", "assetType", "revision", "tag", "portfolioKey", "createdAt", "createdBy"}),
+		"app":         compactMap(app, []string{"assetKey", "name", "assetType", "revision", "tag", "portfolioKey", "createdAt", "createdBy"}),
 		"environment": compactMap(environment, []string{"key", "name", "purpose", "defaultDomain", "region", "hosting", "status", "portfolioKey"}), "selectedRevision": n}})
 	return n, e
 }
@@ -101,8 +101,8 @@ func (c *Client) waitOperation(response object, kind string, o Options) (object,
 	}
 	return d, nil
 }
-func (c *Client) DeployAsset(input, env string, revision *int, o Options) (object, error) {
-	key, e := c.Resolve(input, "asset")
+func (c *Client) DeployApp(input, env string, revision *int, o Options) (object, error) {
+	key, e := c.Resolve(input, "app")
 	if e != nil {
 		return nil, e
 	}
@@ -217,7 +217,7 @@ func (c *Client) DependencyPlan(apps []App, env string) ([][]App, error) {
 			deps[key] = map[string]bool{}
 		}
 		if old := revisions[key]; old != nil && rev != nil && *old != *rev {
-			return errorf("Conflicting revisions for asset %s: %d and %d", key, *old, *rev)
+			return errorf("Conflicting revisions for app %s: %d and %d", key, *old, *rev)
 		}
 		if rev != nil {
 			revisions[key] = rev
@@ -226,7 +226,7 @@ func (c *Client) DependencyPlan(apps []App, env string) ([][]App, error) {
 	}
 	resolved := []App{}
 	for _, app := range apps {
-		key, e := c.Resolve(app.Key, "asset")
+		key, e := c.Resolve(app.Key, "app")
 		if e != nil {
 			return nil, e
 		}
@@ -311,7 +311,7 @@ func dependencyLevels(revisions map[string]*int, deps map[string]map[string]bool
 			return n, nil
 		}
 		if visiting[key] {
-			return 0, errorf("Dependency cycle detected at asset %s", key)
+			return 0, errorf("Dependency cycle detected at app %s", key)
 		}
 		visiting[key] = true
 		level := 0
@@ -408,7 +408,7 @@ func (c *Client) BatchDeploy(path string, o Options) ([]object, error) {
 		}
 		explicit := map[string]bool{}
 		for _, app := range apps {
-			key, e := c.Resolve(app.Key, "asset")
+			key, e := c.Resolve(app.Key, "app")
 			if e != nil {
 				return nil, e
 			}
@@ -430,7 +430,7 @@ func (c *Client) BatchDeploy(path string, o Options) ([]object, error) {
 	for _, level := range plan {
 		summary = append(summary, runParallel(level, o, func(app App) object {
 			printlnLocked("\n=== Deploying '%s' ===", app.Key)
-			result, e := c.DeployAsset(app.Key, env, app.Revision, o)
+			result, e := c.DeployApp(app.Key, env, app.Revision, o)
 			return resultEntry(app.Key, result, e)
 		})...)
 		if !o.ContinueOnError && hasFailed(summary) {
@@ -444,19 +444,19 @@ func (c *Client) UndeployAll(o Options) ([]object, error) {
 	if e != nil {
 		return nil, e
 	}
-	assets, e := c.ListDeployedAssets(env)
+	deployed, e := c.ListDeployedApps(env)
 	if e != nil {
 		return nil, e
 	}
 	apps := []App{}
 	names := map[string]string{}
-	for _, asset := range assets {
-		key := str(asset["key"])
+	for _, app := range deployed {
+		key := str(app["key"])
 		if key == "" {
 			continue
 		}
 		name := key
-		for _, d := range objects(asset["deployments"]) {
+		for _, d := range objects(app["deployments"]) {
 			if str(d["name"]) != "" {
 				name = str(d["name"])
 				break

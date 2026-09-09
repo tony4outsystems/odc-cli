@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commands = []string{"login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
-var assetTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
+var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
+var appTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
 func member(value string, values ...string) bool {
 	for _, v := range values {
@@ -63,14 +63,21 @@ func parseArgs(args []string) (string, Options, []string, error) {
 func newCLICommand(cmd string, accept func(string, Options, []string) error) *cobra.Command {
 	o := Options{Updates: object{}}
 	command := &cobra.Command{Use: cmd}
+	command.Short = map[string]string{
+		"list-deployed-apps": "List deployed apps in an environment, optionally filtered by name or key.",
+		"list-revisions":     "List all revisions of an app.",
+		"get-revision":       "Retrieve a specific app revision.",
+		"analyze-deployment": "Analyze the impact of deploying an app revision.",
+		"analyze-deletion":   "Analyze the impact of deleting an app.",
+	}[cmd]
 	fs := command.Flags()
 	positionalName := ""
 	switch cmd {
 	case "login":
 		positionalName = "<tenant-url> <client-id>"
 		command.Short = "Save credentials in ~/.odc/config.json (prompts for client secret)."
-	case "get-app", "producer-graph":
-		positionalName = "[asset-name-or-key]"
+	case "get-app", "producer-graph", "list-revisions", "get-revision", "analyze-deployment", "analyze-deletion":
+		positionalName = "[app-name-or-key]"
 	case "get-user", "update-user":
 		positionalName = "<user-key-or-email>"
 	case "batch-deploy":
@@ -79,16 +86,18 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	if positionalName != "" {
 		command.Use += " " + positionalName
 	}
+	analysis := member(cmd, "analyze-deployment", "analyze-deletion")
+	appCommand := member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph", "list-revisions", "get-revision") || analysis
 	common := member(cmd, "validate", "deploy", "internal-build", "internal-publish", "internal-deploy", "undeploy")
 	batch := member(cmd, "batch-deploy", "dangerous-batch-undeploy-all")
-	if common || member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph") {
-		fs.StringVar(&o.Asset, "asset", "", "Asset name or key.")
+	if common || appCommand {
+		fs.StringVar(&o.App, "app", "", "App name or key.")
 	}
-	if common || batch || cmd == "producer-graph" {
+	if common || batch || member(cmd, "producer-graph", "list-deployed-apps", "analyze-deployment") {
 		fs.StringVar(&o.Env, "env", "", "Environment name or key.")
 	}
-	if common || cmd == "producer-graph" {
-		fs.Func("revision", "Asset revision (defaults to current; graph defaults to latest).", func(value string) error {
+	if common || member(cmd, "producer-graph", "get-revision", "analyze-deployment") {
+		fs.Func("revision", "App revision (required for get-revision; graph and analysis default to latest; otherwise current).", func(value string) error {
 			n, e := strconv.Atoi(value)
 			if e != nil || n < 1 {
 				return errorf("revision must be a positive integer")
@@ -98,7 +107,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		})
 	}
 	interval, timeout := 10.0, 1800.0
-	if common || batch {
+	if common || batch || analysis {
 		fs.Float64Var(&interval, "poll-interval", 10, "Seconds between status polls.")
 		fs.Float64Var(&timeout, "timeout", 1800, "Seconds to wait before giving up.")
 	}
@@ -106,7 +115,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	if member(cmd, "deploy", "internal-build", "batch-deploy") {
 		fs.StringVar(&o.BuildType, "build-type", "Release", "Debug or Release.")
 	}
-	if member(cmd, "internal-build", "internal-publish", "internal-deploy", "undeploy") {
+	if analysis || member(cmd, "internal-build", "internal-publish", "internal-deploy", "undeploy") {
 		fs.BoolVar(&o.NoWait, "no-wait", false, "Return after starting the operation.")
 	}
 	if cmd == "internal-deploy" {
@@ -127,7 +136,9 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		fs.StringVar(&o.Output, "output", "", "Mermaid output file.")
 	}
 	if cmd == "list-apps" {
-		fs.StringVar(&o.AssetType, "type", "", "Asset type: "+strings.Join(assetTypes, ", "))
+		fs.StringVar(&o.AppType, "type", "", "App type: "+strings.Join(appTypes, ", "))
+	}
+	if member(cmd, "list-apps", "list-deployed-apps") {
 		fs.StringVar(&o.Search, "search", "", "Name/key substring, case-insensitive.")
 	}
 	if cmd == "update-user" {
@@ -158,16 +169,19 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		if member(cmd, "get-user", "update-user", "batch-deploy") && len(positionals) != 1 {
 			return errorf("%s requires %s", cmd, positionalName)
 		}
-		if member(cmd, "get-app", "producer-graph") && len(positionals) == 1 {
-			o.Asset = positionals[0]
+		if member(cmd, "get-app", "producer-graph", "list-revisions", "get-revision", "analyze-deployment", "analyze-deletion") && len(positionals) == 1 {
+			o.App = positionals[0]
 		}
-		if common || member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph") {
-			if o.Asset == "" {
-				return errorf("--asset or an asset positional argument is required")
+		if common || appCommand {
+			if o.App == "" {
+				return errorf("--app or an app positional argument is required")
 			}
 		}
-		if (common || batch) && o.Env == "" {
+		if (common || batch || member(cmd, "list-deployed-apps", "analyze-deployment")) && o.Env == "" {
 			return errorf("--env is required")
+		}
+		if cmd == "get-revision" && o.Revision == nil {
+			return errorf("--revision is required")
 		}
 		if cmd == "internal-deploy" && o.BuildKey == "" {
 			return errorf("--build-key is required")
@@ -178,8 +192,8 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		if cmd == "producer-graph" && (!member(o.Filter, "Deployable", "Libraries", "All") || o.MaxDepth < 0) {
 			return errorf("Use a nonnegative --max-depth and --producer-type-filter Deployable, Libraries, or All")
 		}
-		if o.AssetType != "" && !member(o.AssetType, assetTypes...) {
-			return errorf("Invalid --type %q", o.AssetType)
+		if o.AppType != "" && !member(o.AppType, appTypes...) {
+			return errorf("Invalid --type %q", o.AppType)
 		}
 		if cmd == "update-user" && len(o.Updates) == 0 {
 			return errorf("At least one field must be specified for update (--name, --is-active, or --photo-url)")
@@ -230,8 +244,18 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			out = append(out, object{"name": item["name"], "key": item["key"], "type": first(item["type"], item["stage"])})
 		}
 		return PrintResult(out)
+	case "list-deployed-apps":
+		env, e := c.Resolve(o.Env, "environment")
+		if e != nil {
+			return e
+		}
+		items, e := c.ListDeployedApps(env)
+		if e != nil {
+			return e
+		}
+		return PrintResult(deployedAppRows(items, env, o.Search))
 	case "list-apps":
-		items, e := c.ListAssets()
+		items, e := c.ListApps()
 		if e != nil {
 			return e
 		}
@@ -241,7 +265,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			if o.Search != "" && !contains(item["name"], o.Search) && !contains(item["assetKey"], o.Search) {
 				continue
 			}
-			if o.AssetType != "" && !strings.EqualFold(str(kind), o.AssetType) {
+			if o.AppType != "" && !strings.EqualFold(str(kind), o.AppType) {
 				continue
 			}
 			out = append(out, object{"name": item["name"], "key": item["assetKey"], "type": kind})
@@ -264,7 +288,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		}
 		return PrintResult(object{"status": "success", "message": fmt.Sprintf("User %s updated successfully", key)})
 	case "deploy":
-		_, e := c.DeployAsset(o.Asset, o.Env, o.Revision, o)
+		_, e := c.DeployApp(o.App, o.Env, o.Revision, o)
 		return e
 	case "batch-deploy", "dangerous-batch-undeploy-all":
 		var summary []object
@@ -288,11 +312,25 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		}
 		return nil
 	}
-	key, e := c.Resolve(o.Asset, "asset")
+	key, e := c.Resolve(o.App, "app")
 	if e != nil {
 		return e
 	}
 	switch cmd {
+	case "list-revisions":
+		d, e := c.ListRevisions(key)
+		if e != nil {
+			return e
+		}
+		return PrintResult(d)
+	case "get-revision":
+		d, e := c.GetRevision(key, *o.Revision)
+		if e != nil {
+			return e
+		}
+		return PrintResult(d)
+	case "analyze-deletion", "analyze-deployment":
+		return c.analyze(key, cmd, o)
 	case "latest-revision":
 		n, e := c.LatestRevision(key)
 		if e != nil {
@@ -300,7 +338,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		}
 		return PrintResult(n)
 	case "get-app":
-		d, e := c.GetAsset(key)
+		d, e := c.GetApp(key)
 		if e != nil {
 			return e
 		}
@@ -309,7 +347,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		if _, e = c.call("DELETE", "asset-repository", "/assets/"+esc(key), nil, nil); e != nil {
 			return e
 		}
-		return PrintResult(object{"status": "success", "message": fmt.Sprintf("Asset %s deleted successfully", key)})
+		return PrintResult(object{"status": "success", "message": fmt.Sprintf("App %s deleted successfully", key)})
 	case "producer-graph":
 		return c.writeGraph(key, o)
 	}
@@ -389,7 +427,7 @@ func (c *Client) writeGraph(key string, o Options) error {
 			return e
 		}
 	}
-	asset, e := c.GetAsset(key)
+	app, e := c.GetApp(key)
 	if e != nil {
 		return e
 	}
@@ -402,7 +440,7 @@ func (c *Client) writeGraph(key string, o Options) error {
 		return e
 	}
 	producers := objects(g["results"])
-	root := object{"key": key, "name": asset["name"], "revision": rev, "type": first(asset["assetType"], asset["type"])}
+	root := object{"key": key, "name": app["name"], "revision": rev, "type": first(app["assetType"], app["type"])}
 	output := o.Output
 	if output == "" {
 		output = defaultMermaidPath(key, rev)
@@ -413,5 +451,5 @@ func (c *Client) writeGraph(key string, o Options) error {
 	if e = os.WriteFile(output, []byte(RenderProducerGraph(root, producers)), 0644); e != nil {
 		return e
 	}
-	return PrintResult(object{"assetKey": o.Asset, "producerTypeFilter": filter, "revision": rev, "topLevelProducerCount": len(producers), "output": output})
+	return PrintResult(object{"assetKey": o.App, "producerTypeFilter": filter, "revision": rev, "topLevelProducerCount": len(producers), "output": output})
 }
