@@ -10,7 +10,7 @@ Auth is read from environment variables, loaded from a `.env` file in the projec
 - `ODC_CLIENT_ID`
 - `ODC_CLIENT_SECRET`
 
-Asset and environment are not read from `.env` — pass `--asset-key`/`--environment-key` explicitly to each command that needs them.
+Asset and environment are not read from `.env` — pass `--asset`/`--env` explicitly to each command that needs them. Either one accepts a name or a key; a name is resolved to its key via the API, and if it doesn't match exactly, the CLI prints close matches and stops.
 
 ### Getting your tenant URL, client ID, and client secret
 
@@ -24,9 +24,9 @@ Asset and environment are not read from `.env` — pass `--asset-key`/`--environ
 
 ```bash
 uv run odc discover
-uv run odc validate --asset-key <asset-key> --environment-key <environment-key>
-uv run odc latest-revision --asset-key <asset-key>
-uv run odc deploy --asset-key <asset-key> --environment-key <environment-key>
+uv run odc validate --asset <asset-name-or-key> --env <environment-name-or-key>
+uv run odc latest-revision --asset <asset-name-or-key>
+uv run odc deploy --asset <asset-name-or-key> --env <environment-name-or-key>
 ```
 
 The `validate` command confirms that the given asset and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, then deploys it to the given environment.
@@ -48,7 +48,7 @@ uv run odc discover
 Confirm the given asset and environment are visible to the API client.
 
 ```bash
-uv run odc validate --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
+uv run odc validate --asset <asset-name-or-key> --env <environment-name-or-key> --revision <revision>
 ```
 
 #### latest-revision
@@ -56,7 +56,7 @@ uv run odc validate --asset-key <asset-key> --environment-key <environment-key> 
 Print the latest revision number for an asset.
 
 ```bash
-uv run odc latest-revision --asset-key <asset-key>
+uv run odc latest-revision --asset <asset-name-or-key>
 ```
 
 #### list-environments
@@ -72,12 +72,12 @@ uv run odc list-environments
 Generate a Mermaid graph of an asset's producer dependencies.
 
 ```bash
-uv run odc producer-graph <asset-key> --max-depth 2 --output graph.mmd
+uv run odc producer-graph <asset-name-or-key> --max-depth 2 --output graph.mmd
 ```
 
-- `asset_key` — positional (also settable via `--asset-key`)
+- `asset_key` — positional (also settable via `--asset`); name or key
 - `--revision` — defaults to the latest revision
-- `--environment-key` — environment context for resolving producers
+- `--env` — environment context for resolving producers
 - `--max-depth` — maximum producer depth to traverse; `0` (default) means infinite
 - `--producer-type-filter` — `Deployable` (default), `Libraries`, or `All`
 - `--all-producers` — shortcut for `--producer-type-filter All`
@@ -98,7 +98,7 @@ uv run odc get-user <user-key-or-email>
 Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-uv run odc deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
+uv run odc deploy --asset <asset-name-or-key> --env <environment-name-or-key> --revision <revision>
 ```
 
 #### batch-deploy
@@ -106,14 +106,14 @@ uv run odc deploy --asset-key <asset-key> --environment-key <environment-key> --
 Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [examples/10-clicks-demos.txt](examples/10-clicks-demos.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
 ```bash
-uv run odc batch-deploy examples/10-clicks-demos.txt --environment-key <environment-key>
+uv run odc batch-deploy examples/10-clicks-demos.txt --env <environment-name-or-key>
 ```
 
 By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies always deploy at the revision resolved from the producer graph, regardless of any pinned revision on the apps that depend on them.
 
 Options:
 
-- `--environment-key` — environment name or key (required)
+- `--env` — environment name or key (required)
 - `--build-type` — `Debug` or `Release` (default `Release`)
 - `--skip-dependencies` — deploy only the apps listed in the file, without automatically including their producer dependencies
 - see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
@@ -121,7 +121,7 @@ Options:
 Example with overrides:
 
 ```bash
-uv run odc batch-deploy examples/10-clicks-demos.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
+uv run odc batch-deploy examples/10-clicks-demos.txt --env <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
 
 ### Undeploying
@@ -131,20 +131,20 @@ uv run odc batch-deploy examples/10-clicks-demos.txt --environment-key <env> --b
 Undeploy a single app from an environment.
 
 ```bash
-uv run odc undeploy --asset-key <asset-key> --environment-key <environment-key>
+uv run odc undeploy --asset <asset-name-or-key> --env <environment-name-or-key>
 ```
 
 #### dangerous-batch-undeploy-all
 
-**Irreversible.** Undeploys every app currently deployed to an environment. Double-check `--environment-key` before running this.
+**Irreversible.** Undeploys every app currently deployed to an environment. Double-check `--env` before running this.
 
 ```bash
-uv run odc dangerous-batch-undeploy-all --environment-key <environment-key>
+uv run odc dangerous-batch-undeploy-all --env <environment-name-or-key>
 ```
 
 Options:
 
-- `--environment-key` — environment name or key (required)
+- `--env` — environment name or key (required)
 - see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
 
 ### Asset management
@@ -154,7 +154,7 @@ Options:
 Permanently delete an asset from the asset repository.
 
 ```bash
-uv run odc delete-app --asset-key <asset-key>
+uv run odc delete-app --asset <asset-name-or-key>
 ```
 
 #### update-user
@@ -167,12 +167,12 @@ uv run odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --
 
 ### Internal single-step operations
 
-`internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset-key`/`--environment-key` and polls until the operation finishes (`--no-wait` to skip polling):
+`internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset`/`--env` and polls until the operation finishes (`--no-wait` to skip polling):
 
 ```bash
-uv run odc internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
-uv run odc internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
-uv run odc internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
+uv run odc internal-build --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1 --build-type Release
+uv run odc internal-publish --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1
+uv run odc internal-deploy --asset <asset-name-or-key> --env <environment-name-or-key> --revision 1 --build-key <build-key>
 ```
 
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)

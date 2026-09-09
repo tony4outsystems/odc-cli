@@ -22,8 +22,8 @@ def add_polling_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--asset-key", default=None, help="Asset name or key.")
-    parser.add_argument("--environment-key", default=None, help="Environment name or key.")
+    parser.add_argument("--asset", default=None, help="Asset name or key.")
+    parser.add_argument("--env", default=None, help="Environment name or key.")
     parser.add_argument("--revision", type=int, default=None)
     add_polling_args(parser)
 
@@ -58,22 +58,22 @@ def handle_discover(client: OdcClient, _args: argparse.Namespace) -> None:
 
 
 def handle_latest_revision(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
     print(client.latest_revision(resolved_key))
 
 
 def handle_validate(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = require_key(args.environment_key, "--environment-key")
+    environment_key = resolve_environment_key(client, require_key(args.env, "--env"))
     preflight(client, resolved_key, environment_key, args.revision)
 
 
 def handle_internal_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
+    environment_key = resolve_environment_key(client, require_key(args.env, "--env"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.start_build(resolved_key, revision, args.build_type)
     print_json(response)
@@ -95,9 +95,9 @@ def handle_internal_build(client: OdcClient, args: argparse.Namespace) -> dict[s
 
 
 def handle_internal_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
+    environment_key = resolve_environment_key(client, require_key(args.env, "--env"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.publish(resolved_key, revision, environment_key)
     print_json(response)
@@ -119,9 +119,9 @@ def handle_internal_publish(client: OdcClient, args: argparse.Namespace) -> dict
 
 
 def handle_internal_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
+    environment_key = resolve_environment_key(client, require_key(args.env, "--env"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     build_key = require_key(args.build_key, "--build-key")
     response = client.deploy(resolved_key, revision, build_key, environment_key)
@@ -144,9 +144,9 @@ def handle_internal_deploy(client: OdcClient, args: argparse.Namespace) -> dict[
 
 
 def handle_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
+    environment_key = resolve_environment_key(client, require_key(args.env, "--env"))
     response = client.undeploy(resolved_key, environment_key)
     print_json(response)
     operation_key = require_key(response.get("key"), "deployment operation key")
@@ -181,14 +181,14 @@ def handle_list_environments(client: OdcClient, _args: argparse.Namespace) -> No
 
 
 def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = require_key(args.asset_key, "--asset-key")
+    asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
     client.delete_asset(resolved_key)
     print_json({"status": "success", "message": f"Asset {resolved_key} deleted successfully"})
 
 
 def handle_dangerous_batch_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
-    environment_key = require_key(args.environment_key, "--environment-key")
+    environment_key = require_key(args.env, "--env")
     summary = undeploy_all_in_environment(
         client,
         environment_key,
@@ -206,8 +206,9 @@ def handle_dangerous_batch_undeploy_all(client: OdcClient, args: argparse.Namesp
 
 
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = require_key(args.asset_key_arg or args.asset_key, "asset key (positional argument or --asset-key)")
+    asset_key = require_key(args.asset_key_arg or args.asset, "asset key (positional argument or --asset)")
     resolved_key = resolve_asset_key(client, asset_key)
+    resolved_environment_key = resolve_environment_key(client, args.env) if args.env else None
     revision = args.revision if args.revision is not None else client.latest_revision(resolved_key)
     producer_type_filter = "All" if args.all_producers else args.producer_type_filter
     asset = client.get_asset(resolved_key)
@@ -220,7 +221,7 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     graph = client.producer_graph(
         resolved_key,
         revision,
-        environment_key=args.environment_key,
+        environment_key=resolved_environment_key,
         max_depth=args.max_depth,
         producer_type_filter=producer_type_filter,
     )
@@ -240,8 +241,8 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
 
 
 def handle_deploy(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = require_key(args.asset_key, "--asset-key")
-    environment_key = require_key(args.environment_key, "--environment-key")
+    asset_key = require_key(args.asset, "--asset")
+    environment_key = require_key(args.env, "--env")
     run_all_for_asset(
         client,
         asset_key,
@@ -254,7 +255,7 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> None:
 
 
 def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
-    environment_key = require_key(args.environment_key, "--environment-key")
+    environment_key = require_key(args.env, "--env")
     summary = batch_deploy(
         client,
         args.apps_file,
@@ -307,7 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
     discover.set_defaults(handler=handle_discover)
 
     latest_revision = subparsers.add_parser("latest-revision", help="Print the latest asset revision.")
-    latest_revision.add_argument("--asset-key", default=None)
+    latest_revision.add_argument("--asset", default=None)
     latest_revision.set_defaults(handler=handle_latest_revision)
 
     validate = subparsers.add_parser("validate", help="Validate the configured asset and environment.")
@@ -347,15 +348,15 @@ def build_parser() -> argparse.ArgumentParser:
     list_environments.set_defaults(handler=handle_list_environments)
 
     delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
-    delete_app.add_argument("--asset-key", default=None, help="Asset name or key.")
+    delete_app.add_argument("--asset", default=None, help="Asset name or key.")
     delete_app.set_defaults(handler=handle_delete_app)
 
     dangerous_batch_undeploy_all = subparsers.add_parser(
         "dangerous-batch-undeploy-all",
-        help="Undeploy every app currently deployed to an environment. Irreversible; double-check --environment-key.",
+        help="Undeploy every app currently deployed to an environment. Irreversible; double-check --env.",
     )
     dangerous_batch_undeploy_all.add_argument(
-        "--environment-key",
+        "--env",
         default=None,
         help="Environment name or key.",
     )
@@ -368,9 +369,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a Mermaid graph of all asset producers.",
     )
     producer_graph.add_argument("asset_key_arg", nargs="?", help="Asset key.")
-    producer_graph.add_argument("--asset-key", default=None)
+    producer_graph.add_argument("--asset", default=None)
     producer_graph.add_argument("--revision", type=int, default=None)
-    producer_graph.add_argument("--environment-key", default=None)
+    producer_graph.add_argument("--env", default=None)
     producer_graph.add_argument(
         "--max-depth",
         type=int,
@@ -412,7 +413,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     batch_deploy_parser.add_argument(
-        "--environment-key",
+        "--env",
         default=None,
         help="Environment name or key.",
     )
