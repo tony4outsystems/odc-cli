@@ -113,6 +113,10 @@ func TestAllCommands(t *testing.T) {
 		})
 	}
 	for _, cmd := range commands {
+		if cmd == "login" {
+			// Login saves local settings rather than calling execute; covered in login_test.go.
+			continue
+		}
 		if !covered[cmd] {
 			t.Errorf("command not covered: %s", cmd)
 		}

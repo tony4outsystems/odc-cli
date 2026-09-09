@@ -2,6 +2,7 @@ package odc
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,11 @@ import (
 	"strings"
 )
 
-type Settings struct{ TenantURL, ClientID, ClientSecret string }
+type Settings struct {
+	TenantURL    string `json:"tenant_url"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
 
 func (s Settings) TenantOrigin() string { return strings.TrimRight(s.TenantURL, "/") }
 func LoadSettings() (Settings, error) {
@@ -38,10 +43,7 @@ func loadEnvironment() error {
 		path := filepath.Join(dir, ".env")
 		_, e = os.Stat(path)
 		if e == nil {
-			if e = loadDotEnv(path); e != nil {
-				return e
-			}
-			break
+			return loadDotEnv(path)
 		}
 		if !os.IsNotExist(e) {
 			return e
@@ -51,6 +53,28 @@ func loadEnvironment() error {
 			break
 		}
 		dir = parent
+	}
+	path, e := configPath()
+	if e != nil {
+		return e
+	}
+	data, e := os.ReadFile(path)
+	if os.IsNotExist(e) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	var s Settings
+	if e = json.Unmarshal(data, &s); e != nil {
+		return fmt.Errorf("Invalid configuration in %s", path)
+	}
+	for key, value := range map[string]string{"ODC_TENANT_URL": s.TenantURL, "ODC_CLIENT_ID": s.ClientID, "ODC_CLIENT_SECRET": s.ClientSecret} {
+		if _, exists := os.LookupEnv(key); !exists {
+			if e = os.Setenv(key, value); e != nil {
+				return e
+			}
+		}
 	}
 	return nil
 }

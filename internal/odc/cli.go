@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commands = []string{"discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
+var commands = []string{"login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
 var assetTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
 func member(value string, values ...string) bool {
@@ -66,6 +66,9 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	fs := command.Flags()
 	positionalName := ""
 	switch cmd {
+	case "login":
+		positionalName = "<tenant-url> <client-id>"
+		command.Short = "Save credentials in ~/.odc/config.json (prompts for client secret)."
 	case "get-app", "producer-graph":
 		positionalName = "[asset-name-or-key]"
 	case "get-user", "update-user":
@@ -143,6 +146,12 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		})
 	}
 	command.RunE = func(_ *cobra.Command, positionals []string) error {
+		if cmd == "login" {
+			if len(positionals) != 2 {
+				return errorf("login requires <tenant-url> <client-id>")
+			}
+			return accept(cmd, o, positionals)
+		}
 		if positionalName == "" && len(positionals) > 0 || len(positionals) > 1 {
 			return errorf("Unexpected positional arguments for %s", cmd)
 		}
@@ -192,6 +201,9 @@ func Run(args []string) error {
 		return e
 	}
 	outputJSON, outputColor = o.JSON, o.Color
+	if cmd == "login" {
+		return login(pos[0], pos[1], promptSecret)
+	}
 	s, e := LoadSettings()
 	if e != nil {
 		return e
