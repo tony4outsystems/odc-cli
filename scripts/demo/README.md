@@ -6,7 +6,7 @@ running it:
 
 - Run `go install ./cmd/odc` from the repository root and ensure `$(go env GOPATH)/bin` is on your `PATH`.
 
-- Edit the `--asset`/`--env` values in `demo.tape` to point at assets and an
+- Edit the `--app`/`--env` values in `demo.tape` to point at apps and an
   environment you're OK deploying to publicly (the last command really runs
   `deploy`, not a simulation).
 - Prefer a sandbox/non-production environment — the recording performs a
