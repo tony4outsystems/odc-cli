@@ -67,6 +67,27 @@ List environments visible to the API client (name, key, type).
 uv run odc list-environments
 ```
 
+#### list-apps
+
+List assets visible to the API client (name, key, type).
+
+```bash
+uv run odc list-apps
+uv run odc list-apps --type WebApplication
+uv run odc list-apps --search eGov
+```
+
+- `--type` — filter by asset type, e.g. `WebApplication`, `Agent`, `ExtensionLibrary`
+- `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
+
+#### get-app
+
+Retrieve a single asset by name or key.
+
+```bash
+uv run odc get-app <asset-name-or-key>
+```
+
 #### producer-graph
 
 Generate a Mermaid graph of an asset's producer dependencies.

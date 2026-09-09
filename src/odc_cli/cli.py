@@ -180,6 +180,28 @@ def handle_list_environments(client: OdcClient, _args: argparse.Namespace) -> No
     )
 
 
+def handle_list_apps(client: OdcClient, args: argparse.Namespace) -> None:
+    assets = client.search_asset(args.search) if args.search else client.list_assets()
+    if args.type:
+        assets = [a for a in assets if (a.get("assetType") or a.get("type") or "").lower() == args.type.lower()]
+    print_json(
+        [
+            {
+                "name": asset.get("name"),
+                "key": asset.get("assetKey"),
+                "type": asset.get("assetType") or asset.get("type"),
+            }
+            for asset in assets
+        ]
+    )
+
+
+def handle_get_app(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = require_key(args.asset_key_arg or args.asset, "asset key (positional argument or --asset)")
+    resolved_key = resolve_asset_key(client, asset_key)
+    print_json(client.get_asset(resolved_key))
+
+
 def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
     asset_key = require_key(args.asset, "--asset")
     resolved_key = resolve_asset_key(client, asset_key)
@@ -346,6 +368,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_environments = subparsers.add_parser("list-environments", help="List environments visible to the API client.")
     list_environments.set_defaults(handler=handle_list_environments)
+
+    list_apps = subparsers.add_parser("list-apps", help="List assets visible to the API client.")
+    list_apps.add_argument("--type", default=None, help="Filter by asset type, e.g. WebApplication, Agent.")
+    list_apps.add_argument("--search", default=None, help="Filter by a name/key substring (case-insensitive).")
+    list_apps.set_defaults(handler=handle_list_apps)
+
+    get_app = subparsers.add_parser("get-app", help="Retrieve a single asset by name or key.")
+    get_app.add_argument("asset_key_arg", nargs="?", help="Asset name or key.")
+    get_app.add_argument("--asset", default=None, help="Asset name or key.")
+    get_app.set_defaults(handler=handle_get_app)
 
     delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
     delete_app.add_argument("--asset", default=None, help="Asset name or key.")
