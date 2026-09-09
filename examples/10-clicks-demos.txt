@@ -24,7 +24,6 @@ SupplierPortalCore
 # Mobile Applications (9)
 Order Approval
 Smart Power
-#StGobainExpertPad
 Field Services Mobile
 Home Banking Mobile
 Order Approval
@@ -32,8 +31,6 @@ Order Approval
 
 # Agents (11)
 # Intake Agent
-#MyPODocumentIntakeAgent
-#NeoManufatoringCompany
 #Orchestrator Agent
 #Scheduler Agent
 #Triage Agent
@@ -43,5 +40,4 @@ Order Approval
 #My Insurance New Policy
 #Order Fulfillment for OM
 #Permit Workflow
-#StGobainExpertiseDossier
 #Supplier Portal Invoicing
