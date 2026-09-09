@@ -140,13 +140,13 @@ odc list-apps [--type WebApplication] [--search eGov]
 
 #### list-deployed-apps
 
-List apps deployed to an environment, including their deployed revision, tag, URL, and deployment details.
+List apps deployed across all visible environments, including their deployed revision, tag, URL, and deployment details.
 
 ```bash
-odc list-deployed-apps --env <environment-name-or-key> [--search <name-or-key-substring>]
+odc list-deployed-apps [--env <environment-name-or-key>] [--search <name-or-key-substring>]
 ```
 
-`--search` matches app names or keys case-insensitively. Only deployments in the selected environment are returned; all result pages are fetched.
+`--search` matches app names or keys case-insensitively. Omit `--env` to include all visible environments, or supply it to filter to one environment. Each row includes its environment key; all result pages are fetched.
 
 #### list-revisions / get-revision
 

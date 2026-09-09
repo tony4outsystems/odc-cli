@@ -64,7 +64,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	o := Options{Updates: object{}}
 	command := &cobra.Command{Use: cmd}
 	command.Short = map[string]string{
-		"list-deployed-apps": "List deployed apps in an environment, optionally filtered by name or key.",
+		"list-deployed-apps": "List deployed apps, optionally filtered by environment, name or key.",
 		"list-revisions":     "List all revisions of an app.",
 		"get-revision":       "Retrieve a specific app revision.",
 		"analyze-deployment": "Analyze the impact of deploying an app revision.",
@@ -177,7 +177,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 				return errorf("--app or an app positional argument is required")
 			}
 		}
-		if (common || batch || member(cmd, "list-deployed-apps", "analyze-deployment")) && o.Env == "" {
+		if (common || batch || cmd == "analyze-deployment") && o.Env == "" {
 			return errorf("--env is required")
 		}
 		if cmd == "get-revision" && o.Revision == nil {
@@ -245,9 +245,13 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		}
 		return PrintResult(out)
 	case "list-deployed-apps":
-		env, e := c.Resolve(o.Env, "environment")
-		if e != nil {
-			return e
+		env := ""
+		if o.Env != "" {
+			var e error
+			env, e = c.Resolve(o.Env, "environment")
+			if e != nil {
+				return e
+			}
 		}
 		items, e := c.ListDeployedApps(env)
 		if e != nil {

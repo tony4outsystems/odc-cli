@@ -18,13 +18,13 @@ func TestDeployedAppSearchAndEnvironment(t *testing.T) {
 		env, search string
 		count       int
 	}{
-		{"prod", "", 1}, {"prod", "PORT", 1}, {"prod", "abc", 1}, {"prod", "Different", 0}, {"missing", "", 0},
+		{"", "", 2}, {"", "abc", 2}, {"", "PORT", 1}, {"", "Different", 1}, {"prod", "", 1}, {"prod", "PORT", 1}, {"prod", "abc", 1}, {"prod", "Different", 0}, {"missing", "", 0},
 	} {
 		rows := deployedAppRows(items, tc.env, tc.search)
 		if len(rows) != tc.count {
 			t.Fatalf("%+v: %v", tc, rows)
 		}
-		if len(rows) > 0 && rows[0]["revision"] != 3 {
+		if tc.env == "prod" && len(rows) > 0 && rows[0]["revision"] != 3 {
 			t.Fatalf("wrong deployment: %v", rows)
 		}
 	}
@@ -119,7 +119,7 @@ func TestRevisionPagination(t *testing.T) {
 
 func TestInspectionRequiredFlags(t *testing.T) {
 	for _, args := range [][]string{
-		{"list-deployed-apps"}, {"list-revisions"}, {"get-revision", "App"},
+		{"list-revisions"}, {"get-revision", "App"},
 		{"get-revision", "App", "--revision", "0"}, {"analyze-deployment", "App"},
 		{"analyze-deletion"}, {"get-app", "--asset", "App"},
 	} {
@@ -130,5 +130,37 @@ func TestInspectionRequiredFlags(t *testing.T) {
 	_, o, _, err := parseArgs([]string{"analyze-deletion", "--app", "App", "--no-wait"})
 	if err != nil || !o.NoWait || !strings.EqualFold(o.App, "App") {
 		t.Fatalf("%+v %v", o, err)
+	}
+}
+
+func TestListDeployedAppsOptionalEnvironment(t *testing.T) {
+	for _, env := range []string{"", envKey} {
+		args := []string{"list-deployed-apps", "--search", "Portal"}
+		if env != "" {
+			args = append(args, "--env", env)
+		}
+		cmd, o, pos, err := parseArgs(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		c := testClient(func(r *http.Request) (*http.Response, error) {
+			calls++
+			if r.URL.Path != "/api/portfolios/v2/deployed-assets" {
+				t.Fatalf("unexpected request: %s", r.URL)
+			}
+			q := r.URL.Query()
+			if q.Get("environmentKey") != env || q.Has("environmentKey") != (env != "") {
+				t.Fatalf("incorrect environment filter: %s", r.URL)
+			}
+			return jsonResponse(200, `{"results":[]}`), nil
+		})
+		c.token = "test"
+		if err := execute(c, cmd, o, pos); err != nil {
+			t.Fatal(err)
+		}
+		if calls != 1 {
+			t.Fatalf("calls=%d", calls)
+		}
 	}
 }

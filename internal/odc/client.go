@@ -269,7 +269,11 @@ func (c *Client) ListApps() ([]object, error) {
 	return items, e
 }
 func (c *Client) ListDeployedApps(env string) ([]object, error) {
-	return c.paginated("portfolios", "/deployed-assets", url.Values{"environmentKey": {env}})
+	q := url.Values{}
+	if env != "" {
+		q.Set("environmentKey", env)
+	}
+	return c.paginated("portfolios", "/deployed-assets", q)
 }
 func (c *Client) IsPlatformProvided(key string) (bool, error) {
 	items, e := c.ListApps()

@@ -17,13 +17,13 @@ func deployedAppRows(items []object, env, search string) []object {
 	rows := []object{}
 	for _, app := range items {
 		for _, deployment := range objects(app["deployments"]) {
-			if str(deployment["environmentKey"]) != env {
+			if env != "" && str(deployment["environmentKey"]) != env {
 				continue
 			}
 			if search != "" && !contains(app["key"], search) && !contains(deployment["name"], search) {
 				continue
 			}
-			row := compactMap(deployment, []string{"name", "revision", "tag", "url", "environmentKey", "deploymentKey", "deploymentDateTime"})
+			row := compactMap(deployment, []string{"name", "revision", "tag", "url", "environmentKey", "deploymentDateTime"})
 			row["key"], row["type"] = app["key"], app["type"]
 			rows = append(rows, row)
 		}
