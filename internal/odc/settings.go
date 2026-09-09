@@ -13,27 +13,8 @@ type Settings struct{ TenantURL, ClientID, ClientSecret string }
 
 func (s Settings) TenantOrigin() string { return strings.TrimRight(s.TenantURL, "/") }
 func LoadSettings() (Settings, error) {
-	dir, e := os.Getwd()
-	if e != nil {
+	if e := loadEnvironment(); e != nil {
 		return Settings{}, e
-	}
-	for {
-		path := filepath.Join(dir, ".env")
-		_, e = os.Stat(path)
-		if e == nil {
-			if e = loadDotEnv(path); e != nil {
-				return Settings{}, e
-			}
-			break
-		}
-		if !os.IsNotExist(e) {
-			return Settings{}, e
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
 	}
 	required := []string{"ODC_TENANT_URL", "ODC_CLIENT_ID", "ODC_CLIENT_SECRET"}
 	missing := []string{}
@@ -46,6 +27,32 @@ func LoadSettings() (Settings, error) {
 		return Settings{}, errorf("Missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 	return Settings{os.Getenv(required[0]), os.Getenv(required[1]), os.Getenv(required[2])}, nil
+}
+
+func loadEnvironment() error {
+	dir, e := os.Getwd()
+	if e != nil {
+		return e
+	}
+	for {
+		path := filepath.Join(dir, ".env")
+		_, e = os.Stat(path)
+		if e == nil {
+			if e = loadDotEnv(path); e != nil {
+				return e
+			}
+			break
+		}
+		if !os.IsNotExist(e) {
+			return e
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return nil
 }
 
 var envReference = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}`)

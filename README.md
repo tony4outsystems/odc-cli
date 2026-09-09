@@ -266,10 +266,9 @@ Commands that run multiple assets in parallel (`batch-deploy`, `dangerous-batch-
 
 * Claude skill
 * Readme: Terminal session demo
-* readme with odc executable
-
+* cli autocompletion
 * Support Portfolio
 
 
 Tech
-- migrate to Go
+- Settings in user home directory
