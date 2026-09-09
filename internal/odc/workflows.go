@@ -12,6 +12,8 @@ import (
 )
 
 type Options struct {
+	JSON                                                               bool
+	Color                                                              string
 	Asset, Env, BuildType, BuildKey, Filter, Output, Search, AssetType string
 	Revision                                                           *int
 	Interval, Timeout                                                  time.Duration
@@ -23,7 +25,11 @@ type Options struct {
 func printlnLocked(format string, args ...any) {
 	printMu.Lock()
 	defer printMu.Unlock()
-	fmt.Printf(format+"\n", args...)
+	w := os.Stdout
+	if outputJSON {
+		w = os.Stderr
+	}
+	fmt.Fprintf(w, format+"\n", args...)
 }
 func WaitFor(label string, fetch func() (object, error), build bool, interval, timeout time.Duration) (object, error) {
 	deadline := time.Now().Add(timeout)
@@ -67,7 +73,7 @@ func (c *Client) Preflight(key, env string, revision *int) (int, error) {
 			return 0, e
 		}
 	}
-	e = PrintJSON(object{"preflight": object{
+	e = PrintResult(object{"preflight": object{
 		"asset":       compactMap(asset, []string{"assetKey", "name", "assetType", "revision", "tag", "portfolioKey", "createdAt", "createdBy"}),
 		"environment": compactMap(environment, []string{"key", "name", "purpose", "defaultDomain", "region", "hosting", "status", "portfolioKey"}), "selectedRevision": n}})
 	return n, e
@@ -126,17 +132,15 @@ func (c *Client) DeployAsset(input, env string, revision *int, o Options) (objec
 			producers = append(producers, p)
 		}
 	}
-	printMu.Lock()
-	fmt.Printf("Dependencies (%d):\n", len(producers))
+	printlnLocked("Dependencies (%d):", len(producers))
 	for _, p := range producers {
-		fmt.Printf("  - %v (%v) - %v\n", first(p["name"], "Unknown"), first(p["type"], "Unknown"), first(p["status"], "Unknown"))
+		printlnLocked("  - %v (%v) - %v", first(p["name"], "Unknown"), first(p["type"], "Unknown"), first(p["status"], "Unknown"))
 	}
-	printMu.Unlock()
 	b, e := c.StartBuild(key, rev, o.BuildType)
 	if e != nil {
 		return nil, e
 	}
-	if e = PrintJSON(object{"build_started": b}); e != nil {
+	if e = PrintResult(object{"build_started": b}); e != nil {
 		return nil, e
 	}
 	buildKey, e := requireString(b["buildKey"], "buildKey")
@@ -151,7 +155,7 @@ func (c *Client) DeployAsset(input, env string, revision *int, o Options) (objec
 	if e != nil {
 		return nil, e
 	}
-	if e = PrintJSON(object{"deploy_started": d}); e != nil {
+	if e = PrintResult(object{"deploy_started": d}); e != nil {
 		return nil, e
 	}
 	deployment, e := c.waitOperation(d, "deployment", o)
@@ -159,7 +163,7 @@ func (c *Client) DeployAsset(input, env string, revision *int, o Options) (objec
 		return nil, e
 	}
 	result := object{"assetKey": key, "environmentKey": env, "revision": rev, "build": build, "deployment": deployment}
-	return result, PrintJSON(result)
+	return result, PrintResult(result)
 }
 
 type App struct {

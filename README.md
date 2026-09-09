@@ -62,6 +62,19 @@ odc deploy --asset <asset-name-or-key> --env <environment-name-or-key>
 
 The `validate` command confirms that the given asset and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, selects the current asset revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
 
+## Output
+
+Results use readable tables and labeled fields by default. Terminal output includes colored headings and status values; redirected output is plain text.
+
+- `--json` prints JSON for scripts. Commands with multiple stages emit successive JSON values, with progress messages on stderr.
+- `--color auto|always|never` controls ANSI colors (default `auto`). Automatic color respects `NO_COLOR` and `TERM=dumb`.
+
+```bash
+odc list-apps
+odc get-app MyApp --color always
+odc list-apps --json > apps.json
+```
+
 ## Commands
 
 In the usage examples below, arguments in `[brackets]` are optional (with a default or a resolved fallback); everything else is required.
@@ -252,7 +265,6 @@ Commands that run multiple assets in parallel (`batch-deploy`, `dangerous-batch-
 ## TODO
 
 * Claude skill
-* Better stylish outputs
 * Readme: Terminal session demo
 * readme with odc executable
 

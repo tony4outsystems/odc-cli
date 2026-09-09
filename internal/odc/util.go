@@ -1,7 +1,6 @@
 package odc
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -9,15 +8,10 @@ import (
 
 var printMu sync.Mutex
 
-func PrintJSON(payload any) error {
+func PrintResult(payload any) error {
 	printMu.Lock()
 	defer printMu.Unlock()
-	encoded, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(encoded))
-	return nil
+	return writeResult(os.Stdout, payload, outputJSON, colorEnabled())
 }
 
 func compactMap(payload map[string]any, fields []string) map[string]any {

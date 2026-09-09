@@ -45,6 +45,8 @@ func parseArgs(args []string) (string, Options, []string, error) {
 	}
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	fs.SetOutput(os.Stdout)
+	fs.BoolVar(&o.JSON, "json", false, "Print JSON results (progress goes to stderr).")
+	fs.StringVar(&o.Color, "color", "auto", "Color mode: auto, always, or never; auto respects NO_COLOR.")
 	positionalName := ""
 	switch cmd {
 	case "get-app", "producer-graph":
@@ -191,6 +193,9 @@ func parseArgs(args []string) (string, Options, []string, error) {
 	if cmd == "update-user" && len(o.Updates) == 0 {
 		return "", o, nil, errorf("At least one field must be specified for update (--name, --is-active, or --photo-url)")
 	}
+	if !member(o.Color, "auto", "always", "never") {
+		return "", o, nil, errorf("--color must be auto, always, or never")
+	}
 	maxSeconds := float64(math.MaxInt64) / float64(time.Second)
 	if math.IsNaN(interval) || math.IsInf(interval, 0) || interval < 0 || interval >= maxSeconds || math.IsNaN(timeout) || math.IsInf(timeout, 0) || timeout <= 0 || timeout >= maxSeconds {
 		return "", o, nil, errorf("--poll-interval must be finite and nonnegative; --timeout must be finite and positive")
@@ -205,6 +210,7 @@ func Run(args []string) error {
 	if e != nil || cmd == "" {
 		return e
 	}
+	outputJSON, outputColor = o.JSON, o.Color
 	s, e := LoadSettings()
 	if e != nil {
 		return e
@@ -220,7 +226,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		if e != nil {
 			return e
 		}
-		return PrintJSON(object{"issuer": d["issuer"], "token_endpoint": d["token_endpoint"], "scopes_supported": d["scopes_supported"]})
+		return PrintResult(object{"issuer": d["issuer"], "token_endpoint": d["token_endpoint"], "scopes_supported": d["scopes_supported"]})
 	case "list-environments":
 		items, e := c.ListEnvironments()
 		if e != nil {
@@ -230,7 +236,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		for _, item := range items {
 			out = append(out, object{"name": item["name"], "key": item["key"], "type": first(item["type"], item["stage"])})
 		}
-		return PrintJSON(out)
+		return PrintResult(out)
 	case "list-apps":
 		items, e := c.ListAssets()
 		if e != nil {
@@ -247,7 +253,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			}
 			out = append(out, object{"name": item["name"], "key": item["assetKey"], "type": kind})
 		}
-		return PrintJSON(out)
+		return PrintResult(out)
 	case "get-user", "update-user":
 		key, e := c.Resolve(pos[0], "user")
 		if e != nil {
@@ -258,12 +264,12 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			if e != nil {
 				return e
 			}
-			return PrintJSON(d)
+			return PrintResult(d)
 		}
 		if _, e = c.call("PATCH", "identity", "/users/"+esc(key), o.Updates, nil); e != nil {
 			return e
 		}
-		return PrintJSON(object{"status": "success", "message": fmt.Sprintf("User %s updated successfully", key)})
+		return PrintResult(object{"status": "success", "message": fmt.Sprintf("User %s updated successfully", key)})
 	case "deploy":
 		_, e := c.DeployAsset(o.Asset, o.Env, o.Revision, o)
 		return e
@@ -281,7 +287,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			return e
 		}
 		printlnLocked("\n=== Batch %s summary ===", label)
-		if e = PrintJSON(summary); e != nil {
+		if e = PrintResult(summary); e != nil {
 			return e
 		}
 		if hasFailed(summary) {
@@ -299,19 +305,18 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		if e != nil {
 			return e
 		}
-		printlnLocked("%d", n)
-		return nil
+		return PrintResult(n)
 	case "get-app":
 		d, e := c.GetAsset(key)
 		if e != nil {
 			return e
 		}
-		return PrintJSON(d)
+		return PrintResult(d)
 	case "delete-app":
 		if _, e = c.call("DELETE", "asset-repository", "/assets/"+esc(key), nil, nil); e != nil {
 			return e
 		}
-		return PrintJSON(object{"status": "success", "message": fmt.Sprintf("Asset %s deleted successfully", key)})
+		return PrintResult(object{"status": "success", "message": fmt.Sprintf("Asset %s deleted successfully", key)})
 	case "producer-graph":
 		return c.writeGraph(key, o)
 	}
@@ -324,7 +329,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		if e != nil {
 			return e
 		}
-		if e = PrintJSON(d); e != nil {
+		if e = PrintResult(d); e != nil {
 			return e
 		}
 		d, e = c.waitOperation(d, "undeploy", o)
@@ -332,7 +337,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			return e
 		}
 		if !o.NoWait {
-			return PrintJSON(d)
+			return PrintResult(d)
 		}
 		return nil
 	}
@@ -361,7 +366,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 	if e != nil {
 		return e
 	}
-	if e = PrintJSON(d); e != nil {
+	if e = PrintResult(d); e != nil {
 		return e
 	}
 	d, e = c.waitOperation(d, kind, o)
@@ -369,7 +374,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		return e
 	}
 	if !o.NoWait {
-		return PrintJSON(d)
+		return PrintResult(d)
 	}
 	return nil
 }
@@ -415,5 +420,5 @@ func (c *Client) writeGraph(key string, o Options) error {
 	if e = os.WriteFile(output, []byte(RenderProducerGraph(root, producers)), 0644); e != nil {
 		return e
 	}
-	return PrintJSON(object{"assetKey": o.Asset, "producerTypeFilter": filter, "revision": rev, "topLevelProducerCount": len(producers), "output": output})
+	return PrintResult(object{"assetKey": o.Asset, "producerTypeFilter": filter, "revision": rev, "topLevelProducerCount": len(producers), "output": output})
 }
