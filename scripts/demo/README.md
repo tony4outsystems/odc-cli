@@ -1,16 +1,23 @@
 # Regenerating the README demo
 
-`odc` is a fake binary (never calls the real API) that prints canned output
-for the three commands in `run_demo.sh`. To regenerate `demo.svg` at the repo
-root after changing the script:
+`demo.tape` drives the real `odc` CLI via `uv run odc ...` against a real
+tenant (through your `.env`) — it is not a fake/canned recording. Before
+running it:
+
+- Edit the `--asset`/`--env` values in `demo.tape` to point at assets and an
+  environment you're OK deploying to publicly (the last command really runs
+  `deploy`, not a simulation).
+- Prefer a sandbox/non-production environment — the recording performs a
+  real build and deploy.
+
+To regenerate `demo.gif` at the repo root:
 
 ```bash
-brew install asciinema
-npm install -g svg-term-cli   # or use npx
-
-TERM=xterm-256color asciinema rec scripts/demo/demo.cast \
-  --command "bash scripts/demo/run_demo.sh" \
-  --output-format asciicast-v2 --overwrite
-
-svg-term --in scripts/demo/demo.cast --out demo.svg --window
+brew install charmbracelet/tap/vhs
+cd /path/to/repo/root
+vhs scripts/demo/demo.tape
 ```
+
+VHS drives a real terminal and screenshots it via headless Chrome, so it
+needs a real desktop session — it won't produce output in a fully headless
+CI/sandbox environment.

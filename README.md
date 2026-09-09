@@ -2,7 +2,7 @@
 
 Small Python CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
-![odc demo](demo.svg)
+![odc demo](demo.gif)
 
 ## Install
 
