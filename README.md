@@ -10,10 +10,6 @@ Auth is read from environment variables, loaded from a `.env` file in the projec
 - `ODC_CLIENT_ID`
 - `ODC_CLIENT_SECRET`
 
-Optional:
-
-- `ODC_SCOPE` — OAuth scope override
-
 Asset and environment are not read from `.env` — pass `--asset-key`/`--environment-key` explicitly to each command that needs them.
 
 ### Getting your tenant URL, client ID, and client secret
@@ -107,10 +103,10 @@ uv run odc deploy --asset-key <asset-key> --environment-key <environment-key> --
 
 #### batch-deploy
 
-Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [apps.txt](apps.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
+Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [examples/10-clicks-demos.txt](examples/10-clicks-demos.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
 ```bash
-uv run odc batch-deploy apps.txt --environment-key <environment-key>
+uv run odc batch-deploy examples/10-clicks-demos.txt --environment-key <environment-key>
 ```
 
 By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies always deploy at the revision resolved from the producer graph, regardless of any pinned revision on the apps that depend on them.
@@ -125,7 +121,7 @@ Options:
 Example with overrides:
 
 ```bash
-uv run odc batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
+uv run odc batch-deploy examples/10-clicks-demos.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
 
 ### Undeploying

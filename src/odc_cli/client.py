@@ -57,8 +57,6 @@ class OdcClient:
                 "client_id": self.settings.client_id,
                 "client_secret": self.settings.client_secret,
             }
-            if self.settings.scope:
-                data["scope"] = self.settings.scope
 
             response = self._request("POST", token_endpoint, data=data, auth=False)
             access_token = response.get("access_token")

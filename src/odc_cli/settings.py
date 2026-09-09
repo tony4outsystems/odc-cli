@@ -13,7 +13,6 @@ class Settings:
     tenant_url: str
     client_id: str
     client_secret: str
-    scope: str | None = None
 
     @property
     def tenant_origin(self) -> str:
@@ -31,5 +30,4 @@ def load_settings() -> Settings:
         tenant_url=os.environ["ODC_TENANT_URL"],
         client_id=os.environ["ODC_CLIENT_ID"],
         client_secret=os.environ["ODC_CLIENT_SECRET"],
-        scope=os.environ.get("ODC_SCOPE"),
     )
