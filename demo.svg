@@ -43,24 +43,24 @@
   <text x="380" y="21" text-anchor="middle" class="title">odc — zsh</text>
 
   <g transform="translate(20, 65)" font-size="15">
-    <!-- discover -->
-    <text class="loop" style="--in:0.3s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc discover</tspan><tspan class="cursor" dx="4">▊</tspan></text>
-
-    <text y="26" class="loop out-dim" style="--in:1.6s">Discovering tenant OIDC metadata...</text>
-    <text y="48" class="loop ok" style="--in:3.2s">✓ issuer: https://acme.outsystems.dev</text>
-
     <!-- list-apps -->
-    <text y="82" class="loop" style="--in:4.6s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc list-apps --search eGov</tspan><tspan class="cursor" dx="4">▊</tspan></text>
+    <text class="loop" style="--in:0.3s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc list-apps --search eGov</tspan><tspan class="cursor" dx="4">▊</tspan></text>
 
-    <text y="108" class="loop out" style="--in:5.5s">name              key        type</text>
-    <text y="128" class="loop out-dim" style="--in:5.5s">eGovPortal        3f9a-21e   WebApplication</text>
-    <text y="148" class="loop out-dim" style="--in:5.5s">eGovCore          8b1c-77d   LowCodeLibrary</text>
+    <text y="26" class="loop out" style="--in:1.2s">name              key        type</text>
+    <text y="46" class="loop out-dim" style="--in:1.2s">eGovPortal        3f9a-21e   WebApplication</text>
+    <text y="66" class="loop out-dim" style="--in:1.2s">eGovCore          8b1c-77d   LowCodeLibrary</text>
+
+    <!-- validate -->
+    <text y="100" class="loop" style="--in:3.2s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc validate --asset eGovPortal --env Production</tspan><tspan class="cursor" dx="4">▊</tspan></text>
+
+    <text y="126" class="loop out-dim" style="--in:4.5s">Resolving asset and environment...</text>
+    <text y="146" class="loop ok" style="--in:5.4s">✓ eGovPortal (rev 14) is visible in Production</text>
 
     <!-- deploy -->
-    <text y="182" class="loop" style="--in:7.5s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc deploy --asset eGovPortal --env Production</tspan><tspan class="cursor" dx="4">▊</tspan></text>
+    <text y="180" class="loop" style="--in:7.2s"><tspan class="prompt">$</tspan><tspan class="cmd" dx="8">odc deploy --asset eGovPortal --env Production</tspan><tspan class="cursor" dx="4">▊</tspan></text>
 
-    <text y="208" class="loop out-dim" style="--in:8.8s">Building revision 14 (Release)...</text>
-    <text y="228" class="loop out-dim" style="--in:9.1s">Deploying to Production...</text>
-    <text y="248" class="loop ok" style="--in:9.4s">✓ eGovPortal rev 14 deployed to Production</text>
+    <text y="206" class="loop out-dim" style="--in:8.5s">Building revision 14 (Release)...</text>
+    <text y="226" class="loop out-dim" style="--in:8.8s">Deploying to Production...</text>
+    <text y="246" class="loop ok" style="--in:9.1s">✓ eGovPortal rev 14 deployed to Production</text>
   </g>
 </svg>
