@@ -2,6 +2,8 @@
 
 Small Python CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
+![odc demo](demo.svg)
+
 ## Install
 
 If you have [`uv`](https://docs.astral.sh/uv/) installed, run commands directly from GitHub without cloning:
