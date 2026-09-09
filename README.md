@@ -1,6 +1,6 @@
-# ODC API Sandbox
+# OutSystems ODC CLI
 
-Small Python client for testing the ODC APIs described in `api-specs/`.
+Small Python CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
 ## Setup
 
@@ -19,10 +19,10 @@ Asset and environment are not read from `.env` — pass `--asset-key`/`--environ
 ## Quick start
 
 ```bash
-uv run odc-api-sandbox discover
-uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <environment-key>
-uv run odc-api-sandbox latest-revision --asset-key <asset-key>
-uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key>
+uv run odc discover
+uv run odc validate --asset-key <asset-key> --environment-key <environment-key>
+uv run odc latest-revision --asset-key <asset-key>
+uv run odc deploy --asset-key <asset-key> --environment-key <environment-key>
 ```
 
 The `validate` command confirms that the given asset and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, then deploys it to the given environment.
@@ -36,7 +36,7 @@ The `validate` command confirms that the given asset and environment keys are vi
 Fetch OIDC discovery metadata (issuer, token endpoint, supported scopes).
 
 ```bash
-uv run odc-api-sandbox discover
+uv run odc discover
 ```
 
 #### validate
@@ -44,7 +44,7 @@ uv run odc-api-sandbox discover
 Confirm the given asset and environment are visible to the API client.
 
 ```bash
-uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
+uv run odc validate --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
 ```
 
 #### latest-revision
@@ -52,7 +52,7 @@ uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <envir
 Print the latest revision number for an asset.
 
 ```bash
-uv run odc-api-sandbox latest-revision --asset-key <asset-key>
+uv run odc latest-revision --asset-key <asset-key>
 ```
 
 #### list-environments
@@ -60,7 +60,7 @@ uv run odc-api-sandbox latest-revision --asset-key <asset-key>
 List environments visible to the API client (name, key, type).
 
 ```bash
-uv run odc-api-sandbox list-environments
+uv run odc list-environments
 ```
 
 #### producer-graph
@@ -68,7 +68,7 @@ uv run odc-api-sandbox list-environments
 Generate a Mermaid graph of an asset's producer dependencies.
 
 ```bash
-uv run odc-api-sandbox producer-graph <asset-key> --max-depth 2 --output graph.mmd
+uv run odc producer-graph <asset-key> --max-depth 2 --output graph.mmd
 ```
 
 - `asset_key` — positional (also settable via `--asset-key`)
@@ -84,7 +84,7 @@ uv run odc-api-sandbox producer-graph <asset-key> --max-depth 2 --output graph.m
 Retrieve user information by user key (UUID) or email address.
 
 ```bash
-uv run odc-api-sandbox get-user <user-key-or-email>
+uv run odc get-user <user-key-or-email>
 ```
 
 ### Deploying
@@ -94,7 +94,7 @@ uv run odc-api-sandbox get-user <user-key-or-email>
 Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
+uv run odc deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
 ```
 
 #### batch-deploy
@@ -102,7 +102,7 @@ uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environ
 Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [apps.txt](apps.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
 ```bash
-uv run odc-api-sandbox batch-deploy apps.txt --environment-key <environment-key>
+uv run odc batch-deploy apps.txt --environment-key <environment-key>
 ```
 
 By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies always deploy at the revision resolved from the producer graph, regardless of any pinned revision on the apps that depend on them.
@@ -117,7 +117,7 @@ Options:
 Example with overrides:
 
 ```bash
-uv run odc-api-sandbox batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
+uv run odc batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
 
 ### Undeploying
@@ -127,7 +127,7 @@ uv run odc-api-sandbox batch-deploy apps.txt --environment-key <env> --build-typ
 Undeploy a single app from an environment.
 
 ```bash
-uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
+uv run odc undeploy --asset-key <asset-key> --environment-key <environment-key>
 ```
 
 #### dangerous-batch-undeploy-all
@@ -135,7 +135,7 @@ uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <envir
 **Irreversible.** Undeploys every app currently deployed to an environment. Double-check `--environment-key` before running this.
 
 ```bash
-uv run odc-api-sandbox dangerous-batch-undeploy-all --environment-key <environment-key>
+uv run odc dangerous-batch-undeploy-all --environment-key <environment-key>
 ```
 
 Options:
@@ -150,7 +150,7 @@ Options:
 Permanently delete an asset from the asset repository.
 
 ```bash
-uv run odc-api-sandbox delete-app --asset-key <asset-key>
+uv run odc delete-app --asset-key <asset-key>
 ```
 
 #### update-user
@@ -158,7 +158,7 @@ uv run odc-api-sandbox delete-app --asset-key <asset-key>
 Update a user's name, active status, or photo URL. At least one of `--name`, `--is-active`, or `--photo-url` is required.
 
 ```bash
-uv run odc-api-sandbox update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-url https://example.com/photo.jpg
+uv run odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-url https://example.com/photo.jpg
 ```
 
 ### Internal single-step operations
@@ -166,9 +166,9 @@ uv run odc-api-sandbox update-user <user-key-or-email> --name "Jane Doe" --is-ac
 `internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset-key`/`--environment-key` and polls until the operation finishes (`--no-wait` to skip polling):
 
 ```bash
-uv run odc-api-sandbox internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
-uv run odc-api-sandbox internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
-uv run odc-api-sandbox internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
+uv run odc internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
+uv run odc internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
+uv run odc internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
 ```
 
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)

@@ -71,7 +71,7 @@ wheels = [
 ]
 
 [[package]]
-name = "odc-api-sandbox"
+name = "outsystems-odc-cli"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

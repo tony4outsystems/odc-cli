@@ -1,7 +1,7 @@
 [project]
-name = "odc-api-sandbox"
+name = "outsystems-odc-cli"
 version = "0.1.0"
-description = "Add your description here"
+description = "OutSystems ODC CLI"
 readme = "README.md"
 authors = [
     { name = "Tony", email = "tony.lbvre@gmail.com" }
@@ -13,7 +13,10 @@ dependencies = [
 ]
 
 [project.scripts]
-odc-api-sandbox = "odc_api_sandbox:main"
+odc = "odc_cli:main"
+
+[tool.uv.build-backend]
+module-name = "odc_cli"
 
 [build-system]
 requires = ["uv_build>=0.11.23,<0.12.0"]

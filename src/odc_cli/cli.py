@@ -300,7 +300,7 @@ def handle_update_user(client: OdcClient, args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Small ODC API client for build, publish, and deploy tests.")
+    parser = argparse.ArgumentParser(description="OutSystems ODC CLI for build, publish, and deploy operations.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     discover = subparsers.add_parser("discover", help="Fetch OIDC discovery metadata.")
