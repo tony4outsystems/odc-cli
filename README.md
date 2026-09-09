@@ -14,6 +14,12 @@ brew install tony4outsystems/tap/odc-cli
 
 To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. Homebrew builds the Go binary from source.
 
+### Download a binary
+
+Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your operating system (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` for Intel/AMD, `arm64` for ARM, including Apple silicon). Extract it and put `odc` (or `odc.exe` on Windows) in a directory on your `PATH`. No Go installation is required.
+
+Windows archives use `.zip`; macOS and Linux archives use `.tar.gz`. Each binary release includes `checksums.txt` with SHA-256 hashes of the archives.
+
 ### Build from source
 
 Requires Go 1.23 or later. Build and install from a checkout:
@@ -307,6 +313,17 @@ Commands that run multiple apps in parallel (`batch-deploy`, `dangerous-batch-un
 
 - `--max-parallel` — maximum apps to process concurrently (default `3`)
 - `--continue-on-error` — keep going on remaining apps if one fails, instead of stopping. Only fully honored when `--max-parallel 1`; with concurrency, in-flight apps are not cancelled on a failure either way
+
+## Releasing
+
+Push a version tag to build and publish binaries for Windows, macOS, and Linux, each for `amd64` and `arm64`:
+
+```bash
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+The `Release binaries` workflow runs tests and vet, builds all six archives, and publishes a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release. Skill releases use separate `skill-*` tags and do not trigger binary releases.
 
 ## TODO
 

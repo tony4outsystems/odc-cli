@@ -1,0 +1,85 @@
+name: Release binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build and package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target_os in windows darwin linux; do
+            for target_arch in amd64 arm64; do
+              package="odc_${RELEASE_TAG}_${target_os}_${target_arch}"
+              staging=$(mktemp -d)
+              binary=odc
+              if [[ "$target_os" == windows ]]; then
+                binary=odc.exe
+              fi
+              GOOS="$target_os" GOARCH="$target_arch" \
+                go build -trimpath -ldflags='-s -w' -o "$staging/$binary" ./cmd/odc
+              cp README.md "$staging/README.md"
+              if [[ "$target_os" == windows ]]; then
+                (cd "$staging" && zip "$GITHUB_WORKSPACE/dist/$package.zip" "$binary" README.md)
+              else
+                tar -czf "dist/$package.tar.gz" -C "$staging" "$binary" README.md
+              fi
+              rm -r "$staging"
+            done
+          done
+          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-binaries
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-binaries
+          path: dist
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check checksums.txt)
+          options=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            options+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" dist/* \
+            --verify-tag --generate-notes --title "ODC CLI $RELEASE_TAG" "${options[@]}"
