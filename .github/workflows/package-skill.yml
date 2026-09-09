@@ -1,0 +1,134 @@
+name: Package ODC CLI Skill
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'skills/odc-cli-helper/**'
+      - '.github/workflows/package-skill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package and Release Skill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Package skill
+        run: |
+          python scripts/package_skill.py skills/odc-cli-helper odc-cli-helper.skill
+          ls -lh odc-cli-helper.skill
+
+      - name: Get skill metadata
+        id: metadata
+        run: |
+          VERSION=$(git describe --tags --always --dirty)
+          SKILL_NAME=$(grep "^name:" skills/odc-cli-helper/SKILL.md | cut -d: -f2 | xargs)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "skill_name=$SKILL_NAME" >> $GITHUB_OUTPUT
+          echo "Skill: $SKILL_NAME (version: $VERSION)"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: skill-${{ steps.metadata.outputs.skill_name }}-${{ github.sha }}
+          name: "ODC CLI Skill - ${{ steps.metadata.outputs.version }}"
+          body: |
+            # ODC CLI Helper Skill
+
+            OutSystems ODC CLI helper for installing, configuring, and using the CLI tool.
+
+            **What's included:**
+            - Installation guidance (Homebrew on macOS, build from source on Windows/Linux)
+            - Credential setup and configuration
+            - Common commands reference
+            - Deployment and app management
+            - Troubleshooting guide
+
+            **Installation:**
+            1. Download `odc-cli-helper.skill` from this release
+            2. Open it with Claude Code
+            3. Click "Install" or copy to `~/.claude/skills/`
+
+            **Usage:**
+            Mention "odc-cli" in Claude and it will help you with any ODC CLI tasks.
+          files: |
+            odc-cli-helper.skill
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: odc-cli-helper-skill
+          path: odc-cli-helper.skill
+          retention-days: 30
+
+  validate:
+    name: Validate Skill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check SKILL.md exists
+        run: |
+          if [ ! -f "skills/odc-cli-helper/SKILL.md" ]; then
+            echo "Error: SKILL.md not found"
+            exit 1
+          fi
+          echo "✓ SKILL.md found"
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          python3 << 'EOF'
+          import re
+          with open("skills/odc-cli-helper/SKILL.md") as f:
+            content = f.read()
+
+          # Check for frontmatter
+          if not content.startswith("---"):
+            print("Error: SKILL.md must start with --- frontmatter")
+            exit(1)
+
+          # Extract frontmatter
+          match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          if not match:
+            print("Error: Invalid frontmatter format")
+            exit(1)
+
+          frontmatter = match.group(1)
+
+          # Check required fields
+          required_fields = ['name', 'description']
+          for field in required_fields:
+            if f'{field}:' not in frontmatter:
+              print(f"Error: Missing required field '{field}' in frontmatter")
+              exit(1)
+
+          print("✓ SKILL.md frontmatter is valid")
+          EOF
+
+      - name: Check evals exist
+        run: |
+          if [ -f "skills/odc-cli-helper/evals/evals.json" ]; then
+            echo "✓ Evals file found"
+          else
+            echo "Warning: No evals file found"
+          fi
