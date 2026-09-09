@@ -3,58 +3,89 @@
   "configurations": [
     {
       "name": "ODC: Discover",
-      "type": "debugpy",
+      "type": "go",
       "request": "launch",
-      "module": "odc_cli",
-      "args": ["discover"],
+      "args": [
+        "discover"
+      ],
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/odc"
     },
     {
       "name": "ODC: Latest Revision",
-      "type": "debugpy",
+      "type": "go",
       "request": "launch",
-      "module": "odc_cli",
-      "args": ["latest-revision"],
+      "args": [
+        "latest-revision",
+        "--asset",
+        "${input:asset}"
+      ],
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/odc"
     },
     {
       "name": "ODC: Validate",
-      "type": "debugpy",
+      "type": "go",
       "request": "launch",
-      "module": "odc_cli",
-      "args": ["validate"],
+      "args": [
+        "validate",
+        "--asset",
+        "${input:asset}",
+        "--env",
+        "${input:environment}"
+      ],
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/odc"
     },
     {
       "name": "ODC: Build Deploy",
-      "type": "debugpy",
+      "type": "go",
       "request": "launch",
-      "module": "odc_cli",
-      "args": ["deploy"],
+      "args": [
+        "deploy",
+        "--asset",
+        "${input:asset}",
+        "--env",
+        "${input:environment}"
+      ],
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/odc"
     },
     {
       "name": "ODC: Producer Graph",
-      "type": "debugpy",
+      "type": "go",
       "request": "launch",
-      "module": "odc_cli",
-      "args": ["producer-graph", "--output", "output/producer-graph-vscode.mmd"],
+      "args": [
+        "producer-graph",
+        "--output",
+        "output/producer-graph-vscode.mmd",
+        "--asset",
+        "${input:asset}"
+      ],
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/odc"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "asset",
+      "type": "promptString",
+      "description": "Asset name or key"
+    },
+    {
+      "id": "environment",
+      "type": "promptString",
+      "description": "Environment name or key"
     }
   ]
 }

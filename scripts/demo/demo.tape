@@ -14,17 +14,17 @@ Enter
 Sleep 500ms
 Show
 
-Type "uv run odc list-apps --search eGov"
+Type "odc list-apps --search eGov"
 Sleep 500ms
 Enter
 Sleep 3s
 
-Type "uv run odc validate --asset eGovPortal --env Sandbox"
+Type "odc validate --asset eGovPortal --env Sandbox"
 Sleep 500ms
 Enter
 Sleep 4s
 
-Type "uv run odc deploy --asset eGovPortal --env Sandbox"
+Type "odc deploy --asset eGovPortal --env Sandbox"
 Sleep 500ms
 Enter
 Sleep 20s

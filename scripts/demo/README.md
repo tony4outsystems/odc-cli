@@ -1,8 +1,10 @@
 # Regenerating the README demo
 
-`demo.tape` drives the real `odc` CLI via `uv run odc ...` against a real
+`demo.tape` drives the real `odc` CLI via `odc ...` against a real
 tenant (through your `.env`) — it is not a fake/canned recording. Before
 running it:
+
+- Run `go install ./cmd/odc` from the repository root and ensure `$(go env GOPATH)/bin` is on your `PATH`.
 
 - Edit the `--asset`/`--env` values in `demo.tape` to point at assets and an
   environment you're OK deploying to publicly (the last command really runs
