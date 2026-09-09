@@ -1,0 +1,29 @@
+{
+  "skill_name": "odc-cli-helper",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "I'm new to the ODC CLI. I'm on macOS and want to install it, set up my credentials, and verify everything works. My tenant URL is https://example.outsystems.dev, and I have my client ID and secret ready.",
+      "expected_output": "Step-by-step guidance for installing via Homebrew, saving credentials with odc login, and running odc discover to verify setup.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "I need to deploy the eGovPortal app to the Production environment. Can you help me do that with odc-cli?",
+      "expected_output": "The exact odc deploy command with the correct app and environment flags, explanation of what it does, and any tips.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want to see all the apps currently deployed in my Production environment, and then check the dependency graph for eGovPortal to understand what it depends on.",
+      "expected_output": "Commands to list deployed apps and display the producer graph for eGovPortal, with explanations of the output.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I have a batch of apps I need to deploy to Production: eGovPortal@42, eGovAdmin, and eGovCommon. They might have dependencies between them. How do I deploy all of them with odc-cli?",
+      "expected_output": "Guidance on creating a batch file, the batch-deploy command, automatic dependency resolution explanation, and options like --max-parallel.",
+      "files": []
+    }
+  ]
+}
