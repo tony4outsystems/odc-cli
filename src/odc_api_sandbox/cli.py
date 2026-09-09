@@ -16,16 +16,16 @@ from .utils import print_json, require_key
 from .workflows import batch_deploy, preflight, run_all_for_asset, undeploy_all_in_environment, wait_for
 
 
+def add_polling_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--poll-interval", type=float, default=10.0, help="Seconds between status polls.")
+    parser.add_argument("--timeout", type=float, default=1800.0, help="Seconds to wait before giving up.")
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
-    parser.add_argument(
-        "--environment-key",
-        default=None,
-        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
-    )
+    parser.add_argument("--asset-key", default=None, help="Asset name or key.")
+    parser.add_argument("--environment-key", default=None, help="Environment name or key.")
     parser.add_argument("--revision", type=int, default=None)
-    parser.add_argument("--poll-interval", type=float, default=10.0)
-    parser.add_argument("--timeout", type=float, default=1800.0)
+    add_polling_args(parser)
 
 
 def handle_discover(client: OdcClient, _args: argparse.Namespace) -> None:
@@ -40,22 +40,22 @@ def handle_discover(client: OdcClient, _args: argparse.Namespace) -> None:
 
 
 def handle_latest_revision(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key or client.settings.asset_key
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
     print(client.latest_revision(resolved_key))
 
 
 def handle_validate(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key or client.settings.asset_key
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = require_key(args.environment_key, "--environment-key")
     preflight(client, resolved_key, environment_key, args.revision)
 
 
-def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = args.asset_key or client.settings.asset_key
+def handle_internal_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
+    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.start_build(resolved_key, revision, args.build_type)
     print_json(response)
@@ -76,10 +76,10 @@ def handle_build(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
     return details
 
 
-def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = args.asset_key or client.settings.asset_key
+def handle_internal_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
+    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     response = client.publish(resolved_key, revision, environment_key)
     print_json(response)
@@ -100,10 +100,10 @@ def handle_publish(client: OdcClient, args: argparse.Namespace) -> dict[str, Any
     return details
 
 
-def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = args.asset_key or client.settings.asset_key
+def handle_internal_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
+    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
     revision = preflight(client, resolved_key, environment_key, args.revision)
     build_key = require_key(args.build_key, "--build-key")
     response = client.deploy(resolved_key, revision, build_key, environment_key)
@@ -125,10 +125,10 @@ def handle_deploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]
     return details
 
 
-def handle_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
-    asset_key = args.asset_key or client.settings.asset_key
+def handle_internal_undeploy(client: OdcClient, args: argparse.Namespace) -> dict[str, Any]:
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
-    environment_key = resolve_environment_key(client, args.environment_key or client.settings.environment_key)
+    environment_key = resolve_environment_key(client, require_key(args.environment_key, "--environment-key"))
     response = client.undeploy(resolved_key, environment_key)
     print_json(response)
     operation_key = require_key(response.get("key"), "deployment operation key")
@@ -163,14 +163,14 @@ def handle_list_environments(client: OdcClient, _args: argparse.Namespace) -> No
 
 
 def handle_delete_app(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key or client.settings.asset_key
+    asset_key = require_key(args.asset_key, "--asset-key")
     resolved_key = resolve_asset_key(client, asset_key)
     client.delete_asset(resolved_key)
     print_json({"status": "success", "message": f"Asset {resolved_key} deleted successfully"})
 
 
 def handle_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = require_key(args.environment_key, "--environment-key")
     summary = undeploy_all_in_environment(
         client,
         environment_key,
@@ -187,8 +187,7 @@ def handle_undeploy_all(client: OdcClient, args: argparse.Namespace) -> None:
 
 
 def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key_arg or args.asset_key or client.settings.asset_key
-    asset_key = require_key(asset_key, "asset key (positional argument, --asset-key, or ODC_ASSET_KEY)")
+    asset_key = require_key(args.asset_key_arg or args.asset_key, "asset key (positional argument or --asset-key)")
     resolved_key = resolve_asset_key(client, asset_key)
     revision = args.revision if args.revision is not None else client.latest_revision(resolved_key)
     producer_type_filter = "All" if args.all_producers else args.producer_type_filter
@@ -221,9 +220,9 @@ def handle_producer_graph(client: OdcClient, args: argparse.Namespace) -> None:
     )
 
 
-def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
-    asset_key = args.asset_key or client.settings.asset_key
-    environment_key = args.environment_key or client.settings.environment_key
+def handle_deploy(client: OdcClient, args: argparse.Namespace) -> None:
+    asset_key = require_key(args.asset_key, "--asset-key")
+    environment_key = require_key(args.environment_key, "--environment-key")
     run_all_for_asset(
         client,
         asset_key,
@@ -236,12 +235,11 @@ def handle_run_all(client: OdcClient, args: argparse.Namespace) -> None:
 
 
 def handle_batch_deploy(client: OdcClient, args: argparse.Namespace) -> None:
-    environment_key = args.environment_key or client.settings.environment_key
+    environment_key = require_key(args.environment_key, "--environment-key")
     summary = batch_deploy(
         client,
         args.apps_file,
         environment_key,
-        args.revision,
         args.build_type,
         args.poll_interval,
         args.timeout,
@@ -297,33 +295,43 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(validate)
     validate.set_defaults(handler=handle_validate)
 
-    build = subparsers.add_parser("build", help="Start a build operation.")
-    add_common_args(build)
-    build.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
-    build.add_argument("--no-wait", action="store_true")
-    build.set_defaults(handler=handle_build)
+    internal_build = subparsers.add_parser(
+        "internal-build", help="Start a build operation. Intermediate step; prefer `deploy` or `batch-deploy`."
+    )
+    add_common_args(internal_build)
+    internal_build.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
+    internal_build.add_argument("--no-wait", action="store_true")
+    internal_build.set_defaults(handler=handle_internal_build)
 
-    publish = subparsers.add_parser("publish", help="Start a publish operation.")
-    add_common_args(publish)
-    publish.add_argument("--no-wait", action="store_true")
-    publish.set_defaults(handler=handle_publish)
+    internal_publish = subparsers.add_parser(
+        "internal-publish", help="Start a publish operation. Intermediate step; prefer `deploy` or `batch-deploy`."
+    )
+    add_common_args(internal_publish)
+    internal_publish.add_argument("--no-wait", action="store_true")
+    internal_publish.set_defaults(handler=handle_internal_publish)
 
-    deploy = subparsers.add_parser("deploy", help="Start a deploy operation for an existing build.")
-    add_common_args(deploy)
-    deploy.add_argument("--build-key", required=True)
-    deploy.add_argument("--no-wait", action="store_true")
-    deploy.set_defaults(handler=handle_deploy)
+    internal_deploy = subparsers.add_parser(
+        "internal-deploy",
+        help="Deploy an existing build-key. Intermediate step; prefer `deploy` or `batch-deploy`.",
+    )
+    add_common_args(internal_deploy)
+    internal_deploy.add_argument("--build-key", required=True)
+    internal_deploy.add_argument("--no-wait", action="store_true")
+    internal_deploy.set_defaults(handler=handle_internal_deploy)
 
-    undeploy = subparsers.add_parser("undeploy", help="Undeploy a single app from an environment.")
-    add_common_args(undeploy)
-    undeploy.add_argument("--no-wait", action="store_true")
-    undeploy.set_defaults(handler=handle_undeploy)
+    internal_undeploy = subparsers.add_parser(
+        "internal-undeploy",
+        help="Undeploy a single app from an environment. Intermediate step; prefer `undeploy-all`.",
+    )
+    add_common_args(internal_undeploy)
+    internal_undeploy.add_argument("--no-wait", action="store_true")
+    internal_undeploy.set_defaults(handler=handle_internal_undeploy)
 
     list_environments = subparsers.add_parser("list-environments", help="List environments visible to the API client.")
     list_environments.set_defaults(handler=handle_list_environments)
 
     delete_app = subparsers.add_parser("delete-app", help="Delete an asset from the asset repository.")
-    delete_app.add_argument("--asset-key", default=None, help="Asset name or key. Defaults to ODC_ASSET_KEY.")
+    delete_app.add_argument("--asset-key", default=None, help="Asset name or key.")
     delete_app.set_defaults(handler=handle_delete_app)
 
     undeploy_all = subparsers.add_parser(
@@ -333,10 +341,9 @@ def build_parser() -> argparse.ArgumentParser:
     undeploy_all.add_argument(
         "--environment-key",
         default=None,
-        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+        help="Environment name or key.",
     )
-    undeploy_all.add_argument("--poll-interval", type=float, default=10.0)
-    undeploy_all.add_argument("--timeout", type=float, default=1800.0)
+    add_polling_args(undeploy_all)
     undeploy_all.add_argument(
         "--max-parallel",
         type=int,
@@ -349,7 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
         "producer-graph",
         help="Generate a Mermaid graph of all asset producers.",
     )
-    producer_graph.add_argument("asset_key_arg", nargs="?", help="Asset key. Defaults to ODC_ASSET_KEY.")
+    producer_graph.add_argument("asset_key_arg", nargs="?", help="Asset key.")
     producer_graph.add_argument("--asset-key", default=None)
     producer_graph.add_argument("--revision", type=int, default=None)
     producer_graph.add_argument("--environment-key", default=None)
@@ -377,27 +384,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     producer_graph.set_defaults(handler=handle_producer_graph)
 
-    run_all = subparsers.add_parser("run-all", help="Build, then deploy the configured asset.")
-    add_common_args(run_all)
-    run_all.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
-    run_all.set_defaults(handler=handle_run_all)
+    deploy = subparsers.add_parser("deploy", help="Build, then deploy the configured asset.")
+    add_common_args(deploy)
+    deploy.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
+    deploy.set_defaults(handler=handle_deploy)
 
     batch_deploy_parser = subparsers.add_parser(
         "batch-deploy",
-        help="Build, then deploy every app listed in a text file (one app name or key per line).",
+        help="Build, then deploy every app listed in a text file.",
     )
     batch_deploy_parser.add_argument(
         "apps_file",
-        help="Path to a text file with one app name/key per line. Blank lines and lines starting with # are ignored.",
+        help=(
+            "Path to a text file with one app per line: `asset_key` for the latest revision, "
+            "or `asset_key@revision` to pin one. Blank lines and lines starting with # are ignored."
+        ),
     )
     batch_deploy_parser.add_argument(
         "--environment-key",
         default=None,
-        help="Environment name or key. Defaults to ODC_ENVIRONMENT_KEY.",
+        help="Environment name or key.",
     )
-    batch_deploy_parser.add_argument("--revision", type=int, default=None)
-    batch_deploy_parser.add_argument("--poll-interval", type=float, default=10.0)
-    batch_deploy_parser.add_argument("--timeout", type=float, default=1800.0)
+    add_polling_args(batch_deploy_parser)
     batch_deploy_parser.add_argument("--build-type", choices=["Debug", "Release"], default="Release")
     batch_deploy_parser.add_argument(
         "--max-parallel",

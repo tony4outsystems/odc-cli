@@ -4,30 +4,28 @@ Small Python client for testing the ODC APIs described in `api-specs/`.
 
 ## Setup
 
-Configuration is read from environment variables, loaded from a `.env` file in the project root. Required:
+Auth is read from environment variables, loaded from a `.env` file in the project root (never pass credentials as CLI arguments — they'd leak into shell history and process listings). Required:
 
 - `ODC_TENANT_URL`
 - `ODC_CLIENT_ID`
 - `ODC_CLIENT_SECRET`
-- `ODC_ENVIRONMENT_KEY`
 
 Optional:
 
-- `ODC_ASSET_KEY` — default asset for commands that accept `--asset-key`
 - `ODC_SCOPE` — OAuth scope override
 
-The default `.env` values target the provided tenant, asset key, and environment key.
+Asset and environment are not read from `.env` — pass `--asset-key`/`--environment-key` explicitly to each command that needs them.
 
 ## Quick start
 
 ```bash
 uv run odc-api-sandbox discover
-uv run odc-api-sandbox validate
-uv run odc-api-sandbox latest-revision
-uv run odc-api-sandbox run-all
+uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <environment-key>
+uv run odc-api-sandbox latest-revision --asset-key <asset-key>
+uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key>
 ```
 
-The `validate` command confirms that the configured asset and environment keys are visible to the API client, then prints a short summary of both objects. The `run-all` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, then deploys it to the configured environment.
+The `validate` command confirms that the given asset and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, resolves the latest revision, starts a Release build, waits for it to finish, then deploys it to the given environment.
 
 ## Commands
 
@@ -41,7 +39,7 @@ uv run odc-api-sandbox discover
 
 ### validate
 
-Confirm the configured asset and environment are visible to the API client.
+Confirm the given asset and environment are visible to the API client.
 
 ```bash
 uv run odc-api-sandbox validate --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
@@ -55,41 +53,34 @@ Print the latest revision number for an asset.
 uv run odc-api-sandbox latest-revision --asset-key <asset-key>
 ```
 
-### build / publish / deploy
+### internal-build / internal-publish / internal-deploy / internal-undeploy
 
-Individual operations, each defaulting to the configured asset/environment and polling until the operation finishes (`--no-wait` to skip polling):
+Raw single-step operations against the build/publish/deploy/undeploy APIs. These are the building blocks `deploy`, `batch-deploy`, and `undeploy-all` are made of — reach for them only when you need to drive one step in isolation (e.g. deploy a build that already exists). Each requires `--asset-key`/`--environment-key` and polls until the operation finishes (`--no-wait` to skip polling):
 
 ```
-uv run odc-api-sandbox build --revision 1 --build-type Release
-uv run odc-api-sandbox publish --revision 1
-uv run odc-api-sandbox deploy --revision 1 --build-key <build-key>
+uv run odc-api-sandbox internal-build --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-type Release
+uv run odc-api-sandbox internal-publish --asset-key <asset-key> --environment-key <environment-key> --revision 1
+uv run odc-api-sandbox internal-deploy --asset-key <asset-key> --environment-key <environment-key> --revision 1 --build-key <build-key>
+uv run odc-api-sandbox internal-undeploy --asset-key <asset-key> --environment-key <environment-key>
 ```
 
-Common options for `build`, `publish`, `deploy`, `validate`, and `run-all`:
+Common options for `internal-build`, `internal-publish`, `internal-deploy`, `internal-undeploy`, `validate`, and `deploy`:
 
-- `--asset-key` — asset name or key (defaults to `ODC_ASSET_KEY`)
-- `--environment-key` — environment name or key (defaults to `ODC_ENVIRONMENT_KEY`)
+- `--asset-key` — asset name or key (required)
+- `--environment-key` — environment name or key (required)
 - `--revision` — asset revision (defaults to the latest revision)
 - `--poll-interval` — seconds between status polls (default `10`)
 - `--timeout` — seconds to wait before giving up (default `1800`)
-- `--no-wait` — return after starting the operation instead of polling (build/publish/deploy only)
-- `--build-type` — `Debug` or `Release` (default `Release`; build/run-all only)
-- `deploy` also requires `--build-key <build-key>`
+- `--no-wait` — return after starting the operation instead of polling (internal-build/internal-publish/internal-deploy/internal-undeploy only)
+- `--build-type` — `Debug` or `Release` (default `Release`; internal-build/deploy only)
+- `internal-deploy` also requires `--build-key <build-key>`
 
-### run-all
+### deploy
 
 Validate, resolve the latest revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-uv run odc-api-sandbox run-all --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
-```
-
-### undeploy
-
-Undeploy an asset from an environment (defaults to the configured asset/environment; polls until the operation finishes, `--no-wait` to skip polling).
-
-```bash
-uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
+uv run odc-api-sandbox deploy --asset-key <asset-key> --environment-key <environment-key> --revision <revision>
 ```
 
 ### list-environments
@@ -116,7 +107,7 @@ Generate a Mermaid graph of an asset's producer dependencies.
 uv run odc-api-sandbox producer-graph <asset-key> --max-depth 2 --output graph.mmd
 ```
 
-- `asset_key` — positional; defaults to `ODC_ASSET_KEY` if omitted (also settable via `--asset-key`)
+- `asset_key` — positional (also settable via `--asset-key`)
 - `--revision` — defaults to the latest revision
 - `--environment-key` — environment context for resolving producers
 - `--max-depth` — maximum producer depth to traverse; `0` (default) means infinite
@@ -126,18 +117,17 @@ uv run odc-api-sandbox producer-graph <asset-key> --max-depth 2 --output graph.m
 
 ### batch-deploy
 
-Build and deploy every app listed in a text file, one app name or key per line (blank lines and `#` comments ignored). See [apps.txt](apps.txt) for an example.
+Build and deploy every app listed in a text file, one app per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [apps.txt](apps.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
 
 ```bash
-uv run odc-api-sandbox batch-deploy apps.txt
+uv run odc-api-sandbox batch-deploy apps.txt --environment-key <environment-key>
 ```
 
-By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them.
+By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies always deploy at the revision resolved from the producer graph, regardless of any pinned revision on the apps that depend on them.
 
 Options:
 
-- `--environment-key` — environment name or key (defaults to `ODC_ENVIRONMENT_KEY`)
-- `--revision` — applied only to apps explicitly listed in the file; dependencies deploy at the revision resolved from the producer graph
+- `--environment-key` — environment name or key (required)
 - `--poll-interval` — seconds between status polls (default `10`)
 - `--timeout` — seconds to wait per app before giving up (default `1800`)
 - `--build-type` — `Debug` or `Release` (default `Release`)
@@ -151,16 +141,6 @@ Example with overrides:
 uv run odc-api-sandbox batch-deploy apps.txt --environment-key <env> --build-type Release --max-parallel 3 --continue-on-error
 ```
 
-### undeploy
-
-Undeploy a single app from an environment.
-
-```bash
-uv run odc-api-sandbox undeploy --asset-key <asset-key> --environment-key <environment-key>
-```
-
-Accepts the same `--poll-interval`, `--timeout`, and `--no-wait` options as `build`/`publish`/`deploy`.
-
 ### undeploy-all
 
 Undeploy every app currently deployed to an environment.
@@ -171,7 +151,7 @@ uv run odc-api-sandbox undeploy-all --environment-key <environment-key>
 
 Options:
 
-- `--environment-key` — environment name or key (defaults to `ODC_ENVIRONMENT_KEY`)
+- `--environment-key` — environment name or key (required)
 - `--poll-interval` — seconds between status polls (default `10`)
 - `--timeout` — seconds to wait per app before giving up (default `1800`)
 - `--max-parallel` — maximum apps to undeploy concurrently (default `3`)

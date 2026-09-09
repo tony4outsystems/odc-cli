@@ -229,14 +229,15 @@ def undeploy_all_in_environment(
 
 
 def build_dependency_plan(
-    client: OdcClient, asset_keys: list[str], environment_key: str
+    client: OdcClient, apps: list[tuple[str, int | None]], environment_key: str
 ) -> list[list[tuple[str, int | None]]]:
-    """Expand asset_keys with their producer dependencies into ordered deploy levels.
+    """Expand apps with their producer dependencies into ordered deploy levels.
 
     Each level is a list of (asset_key, revision) pairs that can be deployed in
     parallel; every level must finish before the next one starts. A dependency
     shared by multiple apps is only included once, at the earliest level all of
-    its consumers need it deployed by.
+    its consumers need it deployed by. `apps` pairs each explicitly listed asset
+    with an optional pinned revision (None means "latest").
     """
     revisions: dict[str, int | None] = {}
     producers_of: dict[str, set[str]] = {}
@@ -258,9 +259,9 @@ def build_dependency_plan(
             producers_of[node_key].add(visit_producer_node(child))
         return node_key
 
-    for asset_key in asset_keys:
+    for asset_key, pinned_revision in apps:
         resolved_key = resolve_asset_key(client, asset_key)
-        record(resolved_key, None)
+        record(resolved_key, pinned_revision)
         revision = revisions[resolved_key] or client.latest_revision(resolved_key)
         graph = client.producer_graph(
             resolved_key, revision, environment_key=environment_key, producer_type_filter="All"
@@ -292,13 +293,31 @@ def build_dependency_plan(
     return plan
 
 
-def read_apps_file(path: str) -> list[str]:
+def read_apps_file(path: str) -> list[tuple[str, int | None]]:
+    """Parse one app per line: `asset_key` or `asset_key@revision`.
+
+    A per-app revision lets a single file mix apps pinned to specific
+    revisions with apps that should deploy at their latest revision.
+    """
     apps_path = Path(path)
     if not apps_path.is_file():
         raise OdcApiError(f"Apps file not found: {path}")
     lines = apps_path.read_text(encoding="utf-8").splitlines()
-    apps = [line.strip() for line in lines]
-    apps = [app for app in apps if app and not app.startswith("#")]
+    apps: list[tuple[str, int | None]] = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        asset_key, sep, revision_text = line.partition("@")
+        asset_key = asset_key.strip()
+        revision: int | None = None
+        if sep:
+            revision_text = revision_text.strip()
+            try:
+                revision = int(revision_text)
+            except ValueError:
+                raise OdcApiError(f"Invalid revision {revision_text!r} for app {asset_key!r} in {path}") from None
+        apps.append((asset_key, revision))
     if not apps:
         raise OdcApiError(f"Apps file is empty: {path}")
     return apps
@@ -336,7 +355,6 @@ def batch_deploy(
     client: OdcClient,
     apps_file: str,
     environment_key: str,
-    revision: int | None,
     build_type: str,
     poll_interval: float,
     timeout_seconds: float,
@@ -352,15 +370,10 @@ def batch_deploy(
     client.token()
 
     if skip_dependencies:
-        plan = [[(asset_key, revision) for asset_key in apps]]
+        plan = [apps]
     else:
-        explicit_keys = {resolve_asset_key(client, asset_key) for asset_key in apps}
-        plan = [
-            # Only apply the requested revision to apps explicitly listed in the file;
-            # dependencies deploy at the revision resolved from the producer graph.
-            [(key, revision if key in explicit_keys else dep_revision) for key, dep_revision in level]
-            for level in build_dependency_plan(client, apps, resolved_environment_key)
-        ]
+        explicit_keys = {resolve_asset_key(client, asset_key) for asset_key, _ in apps}
+        plan = build_dependency_plan(client, apps, resolved_environment_key)
         added = sum(1 for level in plan for key, _ in level if key not in explicit_keys)
         if added:
             print(f"Including {added} dependency app(s) not listed in {apps_file}.")
