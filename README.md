@@ -77,7 +77,7 @@ uv run odc list-apps --type WebApplication
 uv run odc list-apps --search eGov
 ```
 
-- `--type` — filter by asset type, e.g. `WebApplication`, `Agent`, `ExtensionLibrary`
+- `--type` — filter by asset type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
 - `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
 
 #### get-app

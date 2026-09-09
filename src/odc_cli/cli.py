@@ -15,6 +15,23 @@ from .settings import load_settings
 from .utils import print_json, require_key
 from .workflows import batch_deploy, preflight, run_all_for_asset, undeploy_all_in_environment, wait_for
 
+ASSET_TYPES = [
+    "WebApplication",
+    "MobileApplication",
+    "LowCodeLibrary",
+    "ExtensionLibrary",
+    "ExternalConnection",
+    "ExternalLibrary",
+    "Workflow",
+    "WidgetLibrary",
+    "AIModelConnection",
+    "SearchServiceConnection",
+    "Agent",
+    "MCPConnection",
+    "A2AConnection",
+    "KnowledgeBase",
+]
+
 
 def add_polling_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--poll-interval", type=float, default=10.0, help="Seconds between status polls.")
@@ -370,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     list_environments.set_defaults(handler=handle_list_environments)
 
     list_apps = subparsers.add_parser("list-apps", help="List assets visible to the API client.")
-    list_apps.add_argument("--type", default=None, help="Filter by asset type, e.g. WebApplication, Agent.")
+    list_apps.add_argument("--type", choices=ASSET_TYPES, default=None, help="Filter by asset type.")
     list_apps.add_argument("--search", default=None, help="Filter by a name/key substring (case-insensitive).")
     list_apps.set_defaults(handler=handle_list_apps)
 
