@@ -3,6 +3,10 @@
 
 # Web Applications (26)
 
+eGovPortal
+eGovPortalBackoffice
+eGovPortalCore
+
 # Inventory Management & Refund Portal
 My Insurance Backoffice
 # My Insurance Core

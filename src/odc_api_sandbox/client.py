@@ -11,6 +11,7 @@ from .settings import Settings
 
 BUILD_TERMINAL_STATUSES = {"Finished", "FinishedWithErrors", "Deleted", "ToBeDeleted"}
 OPERATION_TERMINAL_STATUSES = {"Finished", "FinishedWithError"}
+SYSTEM_CREATED_BY = "00000000-0000-0000-0000-000000000000"
 API_BASE_PATHS = {
     "asset-repository": "/api/asset-repository/v1",
     "builds": "/api/builds/v1",
@@ -128,6 +129,14 @@ class OdcClient:
             offset = next_offset
         self._assets_cache = assets
         return assets
+
+    def is_platform_provided(self, asset_key: str) -> bool:
+        """True for OutSystems-provided assets (e.g. foundation libraries) installed by
+        other means and not deployable through this client."""
+        for asset in self.list_assets():
+            if asset.get("assetKey") == asset_key:
+                return asset.get("createdBy") == SYSTEM_CREATED_BY
+        return False
 
     def search_asset(self, query: str) -> list[dict[str, Any]]:
         results = self.list_assets()

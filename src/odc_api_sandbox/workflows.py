@@ -87,7 +87,11 @@ def preflight(client: OdcClient, asset_key: str, environment_key: str, revision:
 
 def print_dependency_summary(client: OdcClient, asset_key: str, revision: int, environment_key: str) -> None:
     graph = client.producer_graph(asset_key, revision, environment_key=environment_key)
-    producers = graph.get("results") or []
+    producers = [
+        producer
+        for producer in (graph.get("results") or [])
+        if not client.is_platform_provided(require_key(producer.get("key"), "producer key"))
+    ]
     with _PRINT_LOCK:
         print(f"Dependencies ({len(producers)}):")
         for producer in producers:
@@ -248,8 +252,10 @@ def build_dependency_plan(
         node_key = require_key(node.get("key"), "producer key")
         record(node_key, node.get("revision"))
         for child in node.get("producers") or []:
-            child_key = visit_producer_node(child)
-            producers_of[node_key].add(child_key)
+            child_key = require_key(child.get("key"), "producer key")
+            if client.is_platform_provided(child_key):
+                continue
+            producers_of[node_key].add(visit_producer_node(child))
         return node_key
 
     for asset_key in asset_keys:
@@ -260,6 +266,8 @@ def build_dependency_plan(
             resolved_key, revision, environment_key=environment_key, producer_type_filter="All"
         )
         for producer in graph.get("results") or []:
+            if client.is_platform_provided(require_key(producer.get("key"), "producer key")):
+                continue
             child_key = visit_producer_node(producer)
             producers_of[resolved_key].add(child_key)
 
