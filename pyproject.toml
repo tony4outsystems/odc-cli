@@ -1,5 +1,5 @@
 [project]
-name = "outsystems-odc-cli"
+name = "odc-cli"
 version = "0.1.0"
 description = "OutSystems ODC CLI"
 readme = "README.md"
@@ -15,9 +15,9 @@ dependencies = [
 [project.scripts]
 odc = "odc_cli:main"
 
-[tool.uv.build-backend]
-module-name = "odc_cli"
+[tool.hatch.build.targets.wheel]
+packages = ["src/odc_cli"]
 
 [build-system]
-requires = ["uv_build>=0.11.23,<0.12.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
