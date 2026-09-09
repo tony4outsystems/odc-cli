@@ -2,6 +2,22 @@
 
 Small Python CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
+## Install
+
+If you have [`uv`](https://docs.astral.sh/uv/) installed, run commands directly from GitHub without cloning:
+
+```bash
+uvx --from git+https://github.com/tony4outsystems/odc-cli odc discover
+```
+
+On macOS, install via Homebrew from this project's tap:
+
+```bash
+brew install tony4outsystems/tap/odc-cli
+```
+
+Otherwise, clone this repo and run commands with `uv run odc ...` as shown below.
+
 ## Setup
 
 Auth is read from environment variables, loaded from a `.env` file in the project root (never pass credentials as CLI arguments — they'd leak into shell history and process listings). Required:
