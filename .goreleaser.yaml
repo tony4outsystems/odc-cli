@@ -1,0 +1,45 @@
+version: 2
+
+project_name: odc
+
+git:
+  ignore_tags:
+    - 'skill-*'
+
+builds:
+  - id: odc
+    main: ./cmd/odc
+    binary: odc
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    name_template: '{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}'
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github-native
+
+release:
+  name_template: 'ODC CLI {{ .Tag }}'
+  prerelease: auto

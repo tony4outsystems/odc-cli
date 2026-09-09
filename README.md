@@ -323,7 +323,16 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-The `Release binaries` workflow runs tests and vet, builds all six archives, and publishes a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release. Skill releases use separate `skill-*` tags and do not trigger binary releases.
+The `Release binaries` workflow runs tests and vet, then uses GoReleaser (configured in `.goreleaser.yaml`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
+
+To validate the release locally without publishing (requires GoReleaser):
+
+```bash
+goreleaser check
+goreleaser release --snapshot --clean
+```
+
+Artifacts are written to `dist/`.
 
 ## TODO
 
