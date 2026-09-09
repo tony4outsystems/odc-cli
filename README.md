@@ -6,6 +6,16 @@ Small Go CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs descr
 
 ## Install
 
+On macOS, install with Homebrew:
+
+```bash
+brew install tony4outsystems/tap/odc-cli
+```
+
+To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. Homebrew builds the Go binary from source.
+
+### Build from source
+
 Requires Go 1.23 or later. Build and install from a checkout:
 
 ```bash
@@ -21,7 +31,7 @@ go build -o bin/odc ./cmd/odc
 ./bin/odc --help
 ```
 
-During development, use `go run ./cmd/odc ...`. The binary has no Python or third-party Go runtime dependencies. The existing Homebrew tap must be updated separately to distribute this Go version.
+During development, use `go run ./cmd/odc ...`. The binary has no Python or third-party Go runtime dependencies.
 
 ## Setup
 
