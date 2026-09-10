@@ -83,3 +83,48 @@ func (c *Client) Resolve(input, kind string) (string, error) {
 	}
 	return "", errorf("%s", message)
 }
+
+// ResolveRole looks up an application role by name, optionally scoped to appKey.
+func (c *Client) ResolveRole(name, appKey string) (string, error) {
+	if name == "" {
+		return "", errorf("role name is required")
+	}
+	if guidPattern.MatchString(name) {
+		return name, nil
+	}
+	items, e := c.QueryApplicationRoles(name, appKey)
+	if e != nil {
+		return "", e
+	}
+	matches := []object{}
+	exact := []object{}
+	for _, item := range items {
+		if contains(item["name"], name) {
+			matches = append(matches, item)
+		}
+		if strings.EqualFold(str(item["name"]), name) {
+			exact = append(exact, item)
+		}
+	}
+	if len(exact) == 1 {
+		return requireString(exact[0]["key"], "role key")
+	}
+	if len(exact) == 0 && len(matches) == 1 {
+		return requireString(matches[0]["key"], "role key")
+	}
+	message := fmt.Sprintf("No exact match for role %q. Did you mean:", name)
+	if len(exact) > 1 {
+		message = fmt.Sprintf("Multiple roles named %q (ambiguous); use --app to narrow down:", name)
+		matches = exact
+	}
+	if len(matches) == 0 {
+		message = fmt.Sprintf("No application roles found matching %q", name)
+	}
+	for _, item := range matches[:min(10, len(matches))] {
+		message += fmt.Sprintf("\n  - %v (app %v)", item["name"], item["assetKey"])
+	}
+	if len(matches) > 10 {
+		message += fmt.Sprintf("\n  ... and %d more", len(matches)-10)
+	}
+	return "", errorf("%s", message)
+}

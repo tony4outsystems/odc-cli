@@ -13,6 +13,7 @@ import (
 const appKey = "11111111-1111-1111-1111-111111111111"
 const envKey = "22222222-2222-2222-2222-222222222222"
 const userKey = "33333333-3333-3333-3333-333333333333"
+const roleKey = "44444444-4444-4444-4444-444444444444"
 
 func TestAllCommands(t *testing.T) {
 	dir := t.TempDir()
@@ -26,6 +27,7 @@ func TestAllCommands(t *testing.T) {
 		{"analyze-deployment", "App", "--env", "Sandbox"}, {"analyze-deletion", "App"},
 		{"discover"}, {"list-environments"}, {"list-apps", "--search", "App", "--type", "WebApplication"}, {"latest-revision", "--app", "App"}, {"get-app", "App"}, {"delete-app", "--app", "App"},
 		{"get-user", "person@example.com"}, {"update-user", "person@example.com", "--name", "New Name", "--is-active", "false", "--photo-url", ""},
+		{"grant-role", "person@example.com", "Creator"}, {"revoke-role", "person@example.com", "Creator", "--app", "App"},
 		{"producer-graph", "App", "--env", "Sandbox", "--all-producers", "--output", filepath.Join(dir, "graphs", "app.mmd")},
 		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
@@ -78,6 +80,14 @@ func TestAllCommands(t *testing.T) {
 					return jsonResponse(200, `{"results":[{"revision":4}]}`), nil
 				case strings.HasSuffix(p, "/revisions/4"):
 					return jsonResponse(200, `{"revision":4}`), nil
+				case p == "/api/identity/v1/application-roles":
+					return jsonResponse(200, `{"results":[{"key":"`+roleKey+`","name":"Creator","assetKey":"`+appKey+`"}]}`), nil
+				case p == "/api/identity/v1/users/"+userKey+"/application-roles/"+roleKey:
+					mutations++
+					if r.Method != "POST" && r.Method != "DELETE" {
+						t.Errorf("unexpected method %s for role grant/revoke", r.Method)
+					}
+					return jsonResponse(201, ""), nil
 				case strings.HasSuffix(p, "-analyses"):
 					return jsonResponse(201, `{"analysisKey":"analysis"}`), nil
 				case strings.HasSuffix(p, "-analyses/analysis"):

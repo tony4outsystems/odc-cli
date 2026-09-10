@@ -310,6 +310,13 @@ func (c *Client) QueryUsers(input string) ([]object, error) {
 	d, e := c.call("GET", "identity", "/users", nil, url.Values{"limit": {"100"}, "nameOrEmailContains": {input}})
 	return objects(d["results"]), e
 }
+func (c *Client) QueryApplicationRoles(name, appKey string) ([]object, error) {
+	q := url.Values{"nameContains": {name}}
+	if appKey != "" {
+		q.Set("assetKey", appKey)
+	}
+	return c.paginated("identity", "/application-roles", q)
+}
 func contains(value any, query string) bool {
 	return strings.Contains(strings.ToLower(str(value)), strings.ToLower(query))
 }

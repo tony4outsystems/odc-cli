@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "internal-build", "internal-publish", "internal-deploy"}
+var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
 var appTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
 func member(value string, values ...string) bool {
@@ -69,6 +69,8 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		"get-revision":       "Retrieve a specific app revision.",
 		"analyze-deployment": "Analyze the impact of deploying an app revision.",
 		"analyze-deletion":   "Analyze the impact of deleting an app.",
+		"grant-role":         "Grant an application role to a user.",
+		"revoke-role":        "Revoke an application role from a user.",
 	}[cmd]
 	fs := command.Flags()
 	positionalName := ""
@@ -80,6 +82,8 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		positionalName = "[app-name-or-key]"
 	case "get-user", "update-user":
 		positionalName = "<user-key-or-email>"
+	case "grant-role", "revoke-role":
+		positionalName = "<user-key-or-email> <role-name-or-key>"
 	case "batch-deploy":
 		positionalName = "<apps-file>"
 	}
@@ -92,6 +96,9 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	batch := member(cmd, "batch-deploy", "dangerous-batch-undeploy-all")
 	if common || appCommand {
 		fs.StringVar(&o.App, "app", "", "App name or key.")
+	}
+	if member(cmd, "grant-role", "revoke-role") {
+		fs.StringVar(&o.App, "app", "", "App name or key, to disambiguate roles with the same name across apps.")
 	}
 	if common || batch || member(cmd, "producer-graph", "list-deployed-apps", "analyze-deployment") {
 		fs.StringVar(&o.Env, "env", "", "Environment name or key.")
@@ -163,10 +170,17 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 			}
 			return accept(cmd, o, positionals)
 		}
-		if positionalName == "" && len(positionals) > 0 || len(positionals) > 1 {
+		maxPositionals := 1
+		if member(cmd, "grant-role", "revoke-role") {
+			maxPositionals = 2
+		}
+		if positionalName == "" && len(positionals) > 0 || len(positionals) > maxPositionals {
 			return errorf("Unexpected positional arguments for %s", cmd)
 		}
 		if member(cmd, "get-user", "update-user", "batch-deploy") && len(positionals) != 1 {
+			return errorf("%s requires %s", cmd, positionalName)
+		}
+		if member(cmd, "grant-role", "revoke-role") && len(positionals) != 2 {
 			return errorf("%s requires %s", cmd, positionalName)
 		}
 		if member(cmd, "get-app", "producer-graph", "list-revisions", "get-revision", "analyze-deployment", "analyze-deletion") && len(positionals) == 1 {
@@ -291,6 +305,30 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			return e
 		}
 		return PrintResult(object{"status": "success", "message": fmt.Sprintf("User %s updated successfully", key)})
+	case "grant-role", "revoke-role":
+		userKey, e := c.Resolve(pos[0], "user")
+		if e != nil {
+			return e
+		}
+		appKey := ""
+		if o.App != "" {
+			appKey, e = c.Resolve(o.App, "app")
+			if e != nil {
+				return e
+			}
+		}
+		roleKey, e := c.ResolveRole(pos[1], appKey)
+		if e != nil {
+			return e
+		}
+		method, verb := "POST", "granted to"
+		if cmd == "revoke-role" {
+			method, verb = "DELETE", "revoked from"
+		}
+		if _, e = c.call(method, "identity", "/users/"+esc(userKey)+"/application-roles/"+esc(roleKey), nil, nil); e != nil {
+			return e
+		}
+		return PrintResult(object{"status": "success", "message": fmt.Sprintf("Role %s user %s successfully", verb, userKey)})
 	case "deploy":
 		_, e := c.DeployApp(o.App, o.Env, o.Revision, o)
 		return e

@@ -61,7 +61,7 @@ App and environment are not read from `.env` — pass `--app`/`--env` explicitly
 
 1. Sign in to your organization's ODC Portal (e.g. `https://<your-tenant>.outsystems.dev/`). That URL is `ODC_TENANT_URL`.
 2. Go to **Management > API Clients** (or navigate directly to `https://<your-tenant>.outsystems.dev/usersaccess/apiclients`).
-3. Create a new **API Client**, grant it the permissions the commands you'll run need (e.g. **Application management** for build/publish/deploy, **User management** for `get-user`/`update-user`), and save it.
+3. Create a new **API Client**, grant it the permissions the commands you'll run need (e.g. **Application management** for build/publish/deploy, **User management** for `get-user`/`update-user`/`grant-role`/`revoke-role`), and save it.
 4. Run `odc login <tenant-url> <client-id>` and enter the generated **Client Secret**, or copy the **Client ID** and **Client Secret** into `.env` as `ODC_CLIENT_ID` and `ODC_CLIENT_SECRET` — the secret is only shown once, so store it now. Copy [.env.example](.env.example) to `.env` as a starting point.
 5. Run `odc discover` to check the tenant URL; it fetches OIDC metadata without needing an app or environment.
 
@@ -286,6 +286,17 @@ Update a user's name, active status, or photo URL. At least one of `--name`, `--
 ```bash
 odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-url https://example.com/photo.jpg
 ```
+
+#### grant-role / revoke-role
+
+Grant or revoke an application role for a user. The role can be given by name or key; if the same role name exists on multiple apps, pass `--app` to disambiguate.
+
+```bash
+odc grant-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
+odc revoke-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
+```
+
+The API client needs the **User management > Manage end-user access** permission.
 
 ### Internal single-step operations
 
