@@ -1,0 +1,20 @@
+# "Clone of ..." apps in the organization
+# Generated from ODC asset-repository listing
+
+Clone of Solutions Common Services
+Clone of Solutions Common Patterns
+Clone of Mobile Banking
+Clone of Lending Services
+Clone of Lending Policy Agent
+Clone of Lending Fraud Agent
+Clone of Lending Conversation Agent
+Clone of Lending Console
+Clone of Lending Application Workflow
+Clone of Lending Agents Evals
+Clone of Credit Integration Services
+Clone of Banking Sync Services
+Clone of Banking Regulatory Integration Services
+Clone of Banking KYC Services
+Clone of Banking Document Agent
+Clone of Banking Core Integration Services
+Clone of Banking Account Services
