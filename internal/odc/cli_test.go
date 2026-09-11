@@ -31,6 +31,7 @@ func TestAllCommands(t *testing.T) {
 		{"producer-graph", "App", "--env", "Sandbox", "--all-producers", "--output", filepath.Join(dir, "graphs", "app.mmd")},
 		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
+		{"batch-undeploy", apps, "--env", "Sandbox", "--skip-dependencies"},
 		{"dangerous-batch-undeploy-all", "--env", "Sandbox"},
 	}
 	for _, cmd := range []string{"internal-build", "internal-publish", "internal-deploy", "undeploy"} {
