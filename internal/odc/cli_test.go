@@ -22,6 +22,10 @@ func TestAllCommands(t *testing.T) {
 	if e := os.WriteFile(apps, []byte(appKey+"@4\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
+	omlFile := filepath.Join(dir, "app.oml")
+	if e := os.WriteFile(omlFile, []byte("fake-oml-bytes"), 0600); e != nil {
+		t.Fatal(e)
+	}
 	cases := [][]string{
 		{"list-deployed-apps", "--env", "Sandbox", "--search", "App"},
 		{"list-revisions", "App"}, {"get-revision", "--app", "App", "--revision", "4"},
@@ -31,6 +35,7 @@ func TestAllCommands(t *testing.T) {
 		{"grant-role", "person@example.com", "Creator"}, {"revoke-role", "person@example.com", "Creator", "--app", "App"},
 		{"producer-graph", "App", "--env", "Sandbox", "--all-producers", "--output", filepath.Join(dir, "graphs", "app.mmd")},
 		{"download-source-code", "App", "--revision", "4", "--output", filepath.Join(dir, "app.oml")},
+		{"upload-source-code", omlFile},
 		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
 		{"batch-undeploy", apps, "--env", "Sandbox", "--skip-dependencies"},
@@ -59,6 +64,8 @@ func TestAllCommands(t *testing.T) {
 				switch {
 				case p == "/identity/.well-known/openid-configuration":
 					return jsonResponse(200, `{"issuer":"test","token_endpoint":"https://tenant.example/token","scopes_supported":[]}`), nil
+				case p == "/api/asset-repository/v1/assets" && r.Method == "POST":
+					return jsonResponse(201, `{"assetKey":"`+appKey+`","revision":1}`), nil
 				case p == "/api/asset-repository/v1/assets":
 					return jsonResponse(200, `{"results":[{"name":"App","assetKey":"`+appKey+`","assetType":"WebApplication"}]}`), nil
 				case p == "/api/portfolios/v2/environments":

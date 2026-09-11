@@ -176,6 +176,16 @@ odc download-source-code <app-name-or-key> [--revision <revision>] [--output <pa
 - `--revision` — defaults to the latest revision
 - `--output` — output file path; defaults to `<app-key>-rev-<revision>.oml`
 
+#### upload-source-code
+
+Upload an OML/XIF file, creating a new asset (first revision) or a new revision of an existing one. The asset key is derived from the file's embedded module key, not from a name or `--app` flag.
+
+```bash
+odc upload-source-code <oml-file>
+```
+
+Combine with `deploy --app <asset-key> --env <environment>` to build and deploy the uploaded revision.
+
 #### analyze-deployment / analyze-deletion
 
 Run impact analysis and print the resulting report. These commands do not deploy or delete the app.
@@ -359,10 +369,7 @@ Artifacts are written to `dist/`.
 ## TODO
 
 * Claude skill
-* Readme: Terminal session demo
-* cli autocompletion
 * Support Portfolio
 
 
 Tech
-- Settings in user home directory
