@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "batch-undeploy", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
+var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "batch-undeploy", "batch-delete", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
 var appTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
 func member(value string, values ...string) bool {
@@ -84,7 +84,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		positionalName = "<user-key-or-email>"
 	case "grant-role", "revoke-role":
 		positionalName = "<user-key-or-email> <role-name-or-key>"
-	case "batch-deploy", "batch-undeploy":
+	case "batch-deploy", "batch-undeploy", "batch-delete":
 		positionalName = "<apps-file>"
 	}
 	if positionalName != "" {
@@ -93,7 +93,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	analysis := member(cmd, "analyze-deployment", "analyze-deletion")
 	appCommand := member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph", "list-revisions", "get-revision") || analysis
 	common := member(cmd, "validate", "deploy", "internal-build", "internal-publish", "internal-deploy", "undeploy")
-	batch := member(cmd, "batch-deploy", "batch-undeploy", "dangerous-batch-undeploy-all")
+	batch := member(cmd, "batch-deploy", "batch-undeploy", "batch-delete", "dangerous-batch-undeploy-all")
 	if common || appCommand {
 		fs.StringVar(&o.App, "app", "", "App name or key.")
 	}
@@ -114,7 +114,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		})
 	}
 	interval, timeout := 10.0, 1800.0
-	if common || batch || analysis {
+	if common || (batch && cmd != "batch-delete") || analysis {
 		fs.Float64Var(&interval, "poll-interval", 10, "Seconds between status polls.")
 		fs.Float64Var(&timeout, "timeout", 1800, "Seconds to wait before giving up.")
 	}
@@ -138,6 +138,9 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	}
 	if cmd == "batch-undeploy" {
 		fs.BoolVar(&o.SkipDependencies, "skip-dependencies", false, "Undeploy only apps explicitly listed in the file.")
+	}
+	if cmd == "batch-delete" {
+		fs.BoolVar(&o.SkipDependencies, "skip-dependencies", false, "Delete only apps explicitly listed in the file.")
 	}
 	if cmd == "producer-graph" {
 		fs.IntVar(&o.MaxDepth, "max-depth", 0, "Maximum producer depth; 0 means unlimited.")
@@ -180,7 +183,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		if positionalName == "" && len(positionals) > 0 || len(positionals) > maxPositionals {
 			return errorf("Unexpected positional arguments for %s", cmd)
 		}
-		if member(cmd, "get-user", "update-user", "batch-deploy", "batch-undeploy") && len(positionals) != 1 {
+		if member(cmd, "get-user", "update-user", "batch-deploy", "batch-undeploy", "batch-delete") && len(positionals) != 1 {
 			return errorf("%s requires %s", cmd, positionalName)
 		}
 		if member(cmd, "grant-role", "revoke-role") && len(positionals) != 2 {
@@ -194,8 +197,11 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 				return errorf("--app or an app positional argument is required")
 			}
 		}
-		if (common || batch || cmd == "analyze-deployment") && o.Env == "" {
+		if (common || (batch && cmd != "batch-delete") || cmd == "analyze-deployment") && o.Env == "" {
 			return errorf("--env is required")
+		}
+		if cmd == "batch-delete" && o.Env == "" && !o.SkipDependencies {
+			return errorf("--env is required unless --skip-dependencies is set")
 		}
 		if cmd == "get-revision" && o.Revision == nil {
 			return errorf("--revision is required")
@@ -335,7 +341,7 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 	case "deploy":
 		_, e := c.DeployApp(o.App, o.Env, o.Revision, o)
 		return e
-	case "batch-deploy", "batch-undeploy", "dangerous-batch-undeploy-all":
+	case "batch-deploy", "batch-undeploy", "batch-delete", "dangerous-batch-undeploy-all":
 		var summary []object
 		var e error
 		label := "deploy"
@@ -345,6 +351,9 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		case "batch-undeploy":
 			label = "undeploy"
 			summary, e = c.BatchUndeploy(pos[0], o)
+		case "batch-delete":
+			label = "delete"
+			summary, e = c.BatchDelete(pos[0], o)
 		default:
 			label = "undeploy-all"
 			summary, e = c.UndeployAll(o)

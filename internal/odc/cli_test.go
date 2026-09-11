@@ -32,6 +32,7 @@ func TestAllCommands(t *testing.T) {
 		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
 		{"batch-undeploy", apps, "--env", "Sandbox", "--skip-dependencies"},
+		{"batch-delete", apps, "--skip-dependencies"},
 		{"dangerous-batch-undeploy-all", "--env", "Sandbox"},
 	}
 	for _, cmd := range []string{"internal-build", "internal-publish", "internal-deploy", "undeploy"} {

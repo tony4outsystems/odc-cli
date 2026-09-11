@@ -494,6 +494,61 @@ func (c *Client) BatchUndeploy(path string, o Options) ([]object, error) {
 	}
 	return summary, nil
 }
+func (c *Client) BatchDelete(path string, o Options) ([]object, error) {
+	apps, e := ReadAppsFile(path)
+	if e != nil {
+		return nil, e
+	}
+	plan := [][]App{apps}
+	if !o.SkipDependencies {
+		env, e := c.Resolve(o.Env, "environment")
+		if e != nil {
+			return nil, e
+		}
+		plan, e = c.DependencyPlan(apps, env)
+		if e != nil {
+			return nil, e
+		}
+		explicit := map[string]bool{}
+		for _, app := range apps {
+			key, e := c.Resolve(app.Key, "app")
+			if e != nil {
+				return nil, e
+			}
+			explicit[key] = true
+		}
+		added := 0
+		for _, level := range plan {
+			for _, app := range level {
+				if !explicit[app.Key] {
+					added++
+				}
+			}
+		}
+		if added > 0 {
+			printlnLocked("Including %d dependency app(s) not listed in %s.", added, path)
+		}
+	}
+	if _, e = c.Token(); e != nil {
+		return nil, e
+	}
+	summary := []object{}
+	for i := len(plan) - 1; i >= 0; i-- {
+		level := plan[i]
+		summary = append(summary, runParallel(level, o, func(app App) object {
+			printlnLocked("\n=== Deleting '%s' ===", app.Key)
+			key, e := c.Resolve(app.Key, "app")
+			if e == nil {
+				_, e = c.call("DELETE", "asset-repository", "/assets/"+esc(key), nil, nil)
+			}
+			return resultEntry(app.Key, object{"status": "success"}, e)
+		})...)
+		if !o.ContinueOnError && hasFailed(summary) {
+			break
+		}
+	}
+	return summary, nil
+}
 func (c *Client) UndeployAll(o Options) ([]object, error) {
 	env, e := c.Resolve(o.Env, "environment")
 	if e != nil {
