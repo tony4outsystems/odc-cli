@@ -15,6 +15,51 @@ import (
 var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "download-source-code", "upload-source-code", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "batch-undeploy", "batch-delete", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
 var appTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
+// commandGroups maps each command to a help category, in display order.
+var commandGroups = []struct {
+	ID    string
+	Title string
+}{
+	{"auth", "Authentication"},
+	{"inspect", "Inspection"},
+	{"analyze", "Analysis"},
+	{"deploy", "Deployment"},
+	{"users", "Users & Roles"},
+	{"internal", "Internal (Advanced)"},
+}
+
+var commandGroupID = map[string]string{
+	"login":                        "auth",
+	"discover":                     "auth",
+	"list-environments":            "inspect",
+	"list-apps":                    "inspect",
+	"list-deployed-apps":           "inspect",
+	"get-app":                      "inspect",
+	"latest-revision":              "inspect",
+	"list-revisions":               "inspect",
+	"get-revision":                 "inspect",
+	"producer-graph":               "inspect",
+	"download-source-code":         "inspect",
+	"upload-source-code":           "inspect",
+	"validate":                     "inspect",
+	"analyze-deployment":           "analyze",
+	"analyze-deletion":             "analyze",
+	"deploy":                       "deploy",
+	"undeploy":                     "deploy",
+	"delete-app":                   "deploy",
+	"batch-deploy":                 "deploy",
+	"batch-undeploy":               "deploy",
+	"batch-delete":                 "deploy",
+	"dangerous-batch-undeploy-all": "deploy",
+	"get-user":                     "users",
+	"update-user":                  "users",
+	"grant-role":                   "users",
+	"revoke-role":                  "users",
+	"internal-build":               "internal",
+	"internal-publish":             "internal",
+	"internal-deploy":              "internal",
+}
+
 func member(value string, values ...string) bool {
 	for _, v := range values {
 		if v == value {
@@ -46,6 +91,9 @@ func parseArgs(args []string) (string, Options, []string, error) {
 	root.SetArgs(args)
 	root.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Print JSON results (progress goes to stderr).")
 	root.PersistentFlags().StringVar(&color, "color", "auto", "Color mode: auto, always, or never; auto respects NO_COLOR.")
+	for _, g := range commandGroups {
+		root.AddGroup(&cobra.Group{ID: g.ID, Title: g.Title + ":"})
+	}
 	for _, name := range commands {
 		root.AddCommand(newCLICommand(name, func(cmd string, o Options, pos []string) error {
 			o.JSON, o.Color = jsonOutput, color
@@ -62,17 +110,37 @@ func parseArgs(args []string) (string, Options, []string, error) {
 
 func newCLICommand(cmd string, accept func(string, Options, []string) error) *cobra.Command {
 	o := Options{Updates: object{}}
-	command := &cobra.Command{Use: cmd}
+	command := &cobra.Command{Use: cmd, GroupID: commandGroupID[cmd]}
 	command.Short = map[string]string{
-		"list-deployed-apps":   "List deployed apps, optionally filtered by environment, name or key.",
-		"list-revisions":       "List all revisions of an app.",
-		"get-revision":         "Retrieve a specific app revision.",
-		"download-source-code": "Download the OML source code of an app revision.",
-		"upload-source-code":   "Upload an OML/XIF file, creating a new asset or revision.",
-		"analyze-deployment":   "Analyze the impact of deploying an app revision.",
-		"analyze-deletion":     "Analyze the impact of deleting an app.",
-		"grant-role":           "Grant an application role to a user.",
-		"revoke-role":          "Revoke an application role from a user.",
+		"discover":                     "Show the OAuth discovery document (issuer, endpoints, scopes).",
+		"login":                        "Save credentials in ~/.odc/config.json (prompts for client secret).",
+		"list-environments":            "List environments in the tenant.",
+		"list-apps":                    "List apps in the tenant, optionally filtered by type or name.",
+		"list-deployed-apps":           "List deployed apps, optionally filtered by environment, name or key.",
+		"get-app":                      "Retrieve app metadata.",
+		"latest-revision":              "Print the latest revision number of an app.",
+		"list-revisions":               "List all revisions of an app.",
+		"get-revision":                 "Retrieve a specific app revision.",
+		"producer-graph":               "Render an app's producer dependency graph as Mermaid.",
+		"download-source-code":         "Download the OML source code of an app revision.",
+		"upload-source-code":           "Upload an OML/XIF file, creating a new asset or revision.",
+		"validate":                     "Validate that an app can be deployed to an environment.",
+		"analyze-deployment":           "Analyze the impact of deploying an app revision.",
+		"analyze-deletion":             "Analyze the impact of deleting an app.",
+		"deploy":                       "Deploy an app to an environment.",
+		"undeploy":                     "Undeploy an app from an environment.",
+		"delete-app":                   "Delete an app.",
+		"batch-deploy":                 "Deploy multiple apps listed in a file.",
+		"batch-undeploy":               "Undeploy multiple apps listed in a file.",
+		"batch-delete":                 "Delete multiple apps listed in a file.",
+		"dangerous-batch-undeploy-all": "Undeploy all apps from an environment.",
+		"get-user":                     "Retrieve a user's details.",
+		"update-user":                  "Update a user's name, active status, or photo URL.",
+		"grant-role":                   "Grant an application role to a user.",
+		"revoke-role":                  "Revoke an application role from a user.",
+		"internal-build":               "Start a build for an app revision.",
+		"internal-publish":             "Publish a build to an environment.",
+		"internal-deploy":              "Deploy an existing build to an environment.",
 	}[cmd]
 	fs := command.Flags()
 	positionalName := ""
