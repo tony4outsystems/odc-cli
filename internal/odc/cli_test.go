@@ -3,6 +3,7 @@ package odc
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,6 +30,7 @@ func TestAllCommands(t *testing.T) {
 		{"get-user", "person@example.com"}, {"update-user", "person@example.com", "--name", "New Name", "--is-active", "false", "--photo-url", ""},
 		{"grant-role", "person@example.com", "Creator"}, {"revoke-role", "person@example.com", "Creator", "--app", "App"},
 		{"producer-graph", "App", "--env", "Sandbox", "--all-producers", "--output", filepath.Join(dir, "graphs", "app.mmd")},
+		{"download-source-code", "App", "--revision", "4", "--output", filepath.Join(dir, "app.oml")},
 		{"validate", "--app", "App", "--env", "Sandbox"}, {"deploy", "--app", "App", "--env", "Sandbox"},
 		{"batch-deploy", apps, "--env", "Sandbox"}, {"batch-deploy", "--env", "Sandbox", apps, "--skip-dependencies"},
 		{"batch-undeploy", apps, "--env", "Sandbox", "--skip-dependencies"},
@@ -82,6 +84,10 @@ func TestAllCommands(t *testing.T) {
 					return jsonResponse(200, `{"results":[{"revision":4}]}`), nil
 				case strings.HasSuffix(p, "/revisions/4"):
 					return jsonResponse(200, `{"revision":4}`), nil
+				case strings.HasSuffix(p, "/revisions/4/source-code"):
+					return jsonResponse(200, `{"sourceCodeBinaryUrl":"https://blob.example/file.oml","sourceCodeDigest":"`+userKey+`"}`), nil
+				case p == "/file.oml":
+					return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("oml-bytes"))}, nil
 				case p == "/api/identity/v1/application-roles":
 					return jsonResponse(200, `{"results":[{"key":"`+roleKey+`","name":"Creator","assetKey":"`+appKey+`"}]}`), nil
 				case p == "/api/identity/v1/users/"+userKey+"/application-roles/"+roleKey:
@@ -131,6 +137,12 @@ func TestAllCommands(t *testing.T) {
 				data, e := os.ReadFile(o.Output)
 				if e != nil || !strings.Contains(string(data), "flowchart LR") {
 					t.Fatalf("graph: %s %v", data, e)
+				}
+			}
+			if cmd == "download-source-code" {
+				data, e := os.ReadFile(o.Output)
+				if e != nil || string(data) != "oml-bytes" {
+					t.Fatalf("source code: %s %v", data, e)
 				}
 			}
 		})

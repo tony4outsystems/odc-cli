@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "batch-undeploy", "batch-delete", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
+var commands = []string{"list-deployed-apps", "analyze-deployment", "analyze-deletion", "list-revisions", "get-revision", "download-source-code", "login", "discover", "validate", "latest-revision", "list-environments", "list-apps", "get-app", "producer-graph", "get-user", "deploy", "batch-deploy", "batch-undeploy", "batch-delete", "undeploy", "dangerous-batch-undeploy-all", "delete-app", "update-user", "grant-role", "revoke-role", "internal-build", "internal-publish", "internal-deploy"}
 var appTypes = []string{"WebApplication", "MobileApplication", "LowCodeLibrary", "ExtensionLibrary", "ExternalConnection", "ExternalLibrary", "Workflow", "WidgetLibrary", "AIModelConnection", "SearchServiceConnection", "Agent", "MCPConnection", "A2AConnection", "KnowledgeBase"}
 
 func member(value string, values ...string) bool {
@@ -64,13 +64,14 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	o := Options{Updates: object{}}
 	command := &cobra.Command{Use: cmd}
 	command.Short = map[string]string{
-		"list-deployed-apps": "List deployed apps, optionally filtered by environment, name or key.",
-		"list-revisions":     "List all revisions of an app.",
-		"get-revision":       "Retrieve a specific app revision.",
-		"analyze-deployment": "Analyze the impact of deploying an app revision.",
-		"analyze-deletion":   "Analyze the impact of deleting an app.",
-		"grant-role":         "Grant an application role to a user.",
-		"revoke-role":        "Revoke an application role from a user.",
+		"list-deployed-apps":   "List deployed apps, optionally filtered by environment, name or key.",
+		"list-revisions":       "List all revisions of an app.",
+		"get-revision":         "Retrieve a specific app revision.",
+		"download-source-code": "Download the OML source code of an app revision.",
+		"analyze-deployment":   "Analyze the impact of deploying an app revision.",
+		"analyze-deletion":     "Analyze the impact of deleting an app.",
+		"grant-role":           "Grant an application role to a user.",
+		"revoke-role":          "Revoke an application role from a user.",
 	}[cmd]
 	fs := command.Flags()
 	positionalName := ""
@@ -78,7 +79,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	case "login":
 		positionalName = "<tenant-url> <client-id>"
 		command.Short = "Save credentials in ~/.odc/config.json (prompts for client secret)."
-	case "get-app", "producer-graph", "list-revisions", "get-revision", "analyze-deployment", "analyze-deletion":
+	case "get-app", "producer-graph", "list-revisions", "get-revision", "download-source-code", "analyze-deployment", "analyze-deletion":
 		positionalName = "[app-name-or-key]"
 	case "get-user", "update-user":
 		positionalName = "<user-key-or-email>"
@@ -91,7 +92,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		command.Use += " " + positionalName
 	}
 	analysis := member(cmd, "analyze-deployment", "analyze-deletion")
-	appCommand := member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph", "list-revisions", "get-revision") || analysis
+	appCommand := member(cmd, "latest-revision", "get-app", "delete-app", "producer-graph", "list-revisions", "get-revision", "download-source-code") || analysis
 	common := member(cmd, "validate", "deploy", "internal-build", "internal-publish", "internal-deploy", "undeploy")
 	batch := member(cmd, "batch-deploy", "batch-undeploy", "batch-delete", "dangerous-batch-undeploy-all")
 	if common || appCommand {
@@ -103,8 +104,8 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 	if common || batch || member(cmd, "producer-graph", "list-deployed-apps", "analyze-deployment") {
 		fs.StringVar(&o.Env, "env", "", "Environment name or key.")
 	}
-	if common || member(cmd, "producer-graph", "get-revision", "analyze-deployment") {
-		fs.Func("revision", "App revision (required for get-revision; graph and analysis default to latest; otherwise current).", func(value string) error {
+	if common || member(cmd, "producer-graph", "get-revision", "download-source-code", "analyze-deployment") {
+		fs.Func("revision", "App revision (required for get-revision; graph, download, and analysis default to latest; otherwise current).", func(value string) error {
 			n, e := strconv.Atoi(value)
 			if e != nil || n < 1 {
 				return errorf("revision must be a positive integer")
@@ -148,6 +149,9 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		fs.BoolVar(&o.AllProducers, "all-producers", false, "Shortcut for --producer-type-filter All.")
 		fs.StringVar(&o.Output, "output", "", "Mermaid output file.")
 	}
+	if cmd == "download-source-code" {
+		fs.StringVar(&o.Output, "output", "", "Output file path; defaults to <app>-rev-<revision>.oml.")
+	}
 	if cmd == "list-apps" {
 		fs.StringVar(&o.AppType, "type", "", "App type: "+strings.Join(appTypes, ", "))
 	}
@@ -189,7 +193,7 @@ func newCLICommand(cmd string, accept func(string, Options, []string) error) *co
 		if member(cmd, "grant-role", "revoke-role") && len(positionals) != 2 {
 			return errorf("%s requires %s", cmd, positionalName)
 		}
-		if member(cmd, "get-app", "producer-graph", "list-revisions", "get-revision", "analyze-deployment", "analyze-deletion") && len(positionals) == 1 {
+		if member(cmd, "get-app", "producer-graph", "list-revisions", "get-revision", "download-source-code", "analyze-deployment", "analyze-deletion") && len(positionals) == 1 {
 			o.App = positionals[0]
 		}
 		if common || appCommand {
@@ -387,6 +391,8 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 			return e
 		}
 		return PrintResult(d)
+	case "download-source-code":
+		return c.downloadSourceCode(key, o)
 	case "analyze-deletion", "analyze-deployment":
 		return c.analyze(key, cmd, o)
 	case "latest-revision":
@@ -466,6 +472,27 @@ func execute(c *Client, cmd string, o Options, pos []string) error {
 		return PrintResult(d)
 	}
 	return nil
+}
+func (c *Client) downloadSourceCode(key string, o Options) error {
+	var rev int
+	var e error
+	if o.Revision != nil {
+		rev = *o.Revision
+	} else {
+		rev, e = c.LatestRevision(key)
+		if e != nil {
+			return e
+		}
+	}
+	output := o.Output
+	if output == "" {
+		output = fmt.Sprintf("%s-rev-%d.oml", safeFileToken(key), rev)
+	}
+	written, e := c.DownloadSourceCode(key, rev, output)
+	if e != nil {
+		return e
+	}
+	return PrintResult(object{"assetKey": key, "revision": rev, "output": output, "bytes": written})
 }
 func (c *Client) writeGraph(key string, o Options) error {
 	env := ""

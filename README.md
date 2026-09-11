@@ -165,6 +165,17 @@ odc get-revision --app <app-name-or-key> --revision <revision>
 
 Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number.
 
+#### download-source-code
+
+Download the OML source code of an app revision.
+
+```bash
+odc download-source-code <app-name-or-key> [--revision <revision>] [--output <path>]
+```
+
+- `--revision` — defaults to the latest revision
+- `--output` — output file path; defaults to `<app-key>-rev-<revision>.oml`
+
 #### analyze-deployment / analyze-deletion
 
 Run impact analysis and print the resulting report. These commands do not deploy or delete the app.

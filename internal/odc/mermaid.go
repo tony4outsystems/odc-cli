@@ -64,12 +64,14 @@ func RenderProducerGraph(root object, producers []object) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
-func defaultMermaidPath(key string, revision int) string {
-	safe := strings.Map(func(r rune) rune {
+func safeFileToken(key string) string {
+	return strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '_' {
 			return r
 		}
 		return '_'
 	}, key)
-	return fmt.Sprintf("producer-graph-%s-rev-%d.mmd", safe, revision)
+}
+func defaultMermaidPath(key string, revision int) string {
+	return fmt.Sprintf("producer-graph-%s-rev-%d.mmd", safeFileToken(key), revision)
 }

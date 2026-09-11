@@ -2,6 +2,9 @@ package odc
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"time"
 )
 
@@ -11,6 +14,42 @@ func (c *Client) ListRevisions(key string) ([]object, error) {
 
 func (c *Client) GetRevision(key string, revision int) (object, error) {
 	return c.call("GET", "asset-repository", fmt.Sprintf("/assets/%s/revisions/%d", esc(key), revision), nil, nil)
+}
+
+func (c *Client) GetRevisionSourceCode(key string, revision int) (object, error) {
+	return c.call("GET", "asset-repository", fmt.Sprintf("/assets/%s/revisions/%d/source-code", esc(key), revision), nil, nil)
+}
+
+// DownloadSourceCode fetches the revision's source-code metadata, downloads the
+// binary from the returned URL, and writes it to output. It returns the bytes written.
+func (c *Client) DownloadSourceCode(key string, revision int, output string) (int64, error) {
+	meta, err := c.GetRevisionSourceCode(key, revision)
+	if err != nil {
+		return 0, err
+	}
+	sourceURL, err := requireString(meta["sourceCodeBinaryUrl"], "sourceCodeBinaryUrl")
+	if err != nil {
+		return 0, err
+	}
+	req, err := http.NewRequest("GET", sourceURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	response, err := c.HTTP.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 400 {
+		data, _ := io.ReadAll(response.Body)
+		return 0, errorf("GET %s failed with %d: %s", sourceURL, response.StatusCode, data)
+	}
+	file, err := os.Create(output)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	return io.Copy(file, response.Body)
 }
 
 func deployedAppRows(items []object, env, search string) []object {
