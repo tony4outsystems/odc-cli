@@ -95,6 +95,69 @@ odc list-apps --json > apps.json
 
 ## Commands
 
+Commands are grouped by category in `odc --help`:
+
+```
+$ odc --help
+OutSystems ODC CLI
+
+Usage:
+  odc <command> [flags]
+  odc [command]
+
+Authentication:
+  discover                     Show the OAuth discovery document (issuer, endpoints, scopes).
+  login                        Save credentials in ~/.odc/config.json (prompts for client secret).
+
+Inspection:
+  download-source-code         Download the OML source code of an app revision.
+  get-app                      Retrieve app metadata.
+  get-revision                 Retrieve a specific app revision.
+  latest-revision              Print the latest revision number of an app.
+  list-apps                    List apps in the tenant, optionally filtered by type or name.
+  list-deployed-apps           List deployed apps, optionally filtered by environment, name or key.
+  list-environments            List environments in the tenant.
+  list-revisions               List all revisions of an app.
+  producer-graph               Render an app's producer dependency graph as Mermaid.
+  upload-source-code           Upload an OML/XIF file, creating a new asset or revision.
+  validate                     Validate that an app can be deployed to an environment.
+
+Analysis:
+  analyze-deletion             Analyze the impact of deleting an app.
+  analyze-deployment           Analyze the impact of deploying an app revision.
+
+Deployment:
+  batch-delete                 Delete multiple apps listed in a file.
+  batch-deploy                 Deploy multiple apps listed in a file.
+  batch-undeploy               Undeploy multiple apps listed in a file.
+  dangerous-batch-undeploy-all Undeploy all apps from an environment.
+  delete-app                   Delete an app.
+  deploy                       Deploy an app to an environment.
+  undeploy                     Undeploy an app from an environment.
+
+Users & Roles:
+  get-user                     Retrieve a user's details.
+  grant-role                   Grant an application role to a user.
+  revoke-role                  Revoke an application role from a user.
+  update-user                  Update a user's name, active status, or photo URL.
+
+Internal (Advanced):
+  internal-build               Start a build for an app revision.
+  internal-deploy              Deploy an existing build to an environment.
+  internal-publish             Publish a build to an environment.
+
+Additional Commands:
+  completion                   Generate the autocompletion script for the specified shell
+  help                         Help about any command
+
+Flags:
+      --color string   Color mode: auto, always, or never; auto respects NO_COLOR. (default "auto")
+  -h, --help           help for odc
+      --json           Print JSON results (progress goes to stderr).
+
+Use "odc [command] --help" for more information about a command.
+```
+
 In the usage examples below, arguments in `[brackets]` are optional (with a default or a resolved fallback); everything else is required.
 
 ### Inspection
