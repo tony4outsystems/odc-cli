@@ -217,10 +217,15 @@ List apps visible to the API client (name, key, type).
 
 ```bash
 odc list-apps [--type WebApplication] [--search eGov]
+odc list-apps --offset 100 --limit 50
 ```
 
 - `--type` — filter by app type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
 - `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
+- `--offset` — fetch a single page starting at this result index instead of every page; with `--json`, the response includes `page.nextOffset` for fetching the next page
+- `--limit` — page size to request from the API (default `100`); applies whether or not `--offset` is set
+
+Without `--offset`, all pages are fetched and combined into one result.
 
 #### list-deployed-apps
 

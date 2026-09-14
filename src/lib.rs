@@ -38,6 +38,8 @@ pub async fn run(args: &[String]) -> Result<()> {
     // Parse color and JSON flags
     let mut json = false;
     let mut color_str = "auto";
+    let mut offset: Option<i64> = None;
+    let mut limit: i64 = 100;
     let mut cmd_args = Vec::new();
     let mut skip_next = false;
 
@@ -52,6 +54,23 @@ pub async fn run(args: &[String]) -> Result<()> {
             "--color" => {
                 if i + 1 < args.len() {
                     color_str = &args[i + 1];
+                    skip_next = true;
+                }
+            }
+            "--offset" => {
+                if i + 1 < args.len() {
+                    offset =
+                        Some(args[i + 1].parse().map_err(|_| {
+                            anyhow::anyhow!("--offset must be a non-negative integer")
+                        })?);
+                    skip_next = true;
+                }
+            }
+            "--limit" => {
+                if i + 1 < args.len() {
+                    limit = args[i + 1]
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("--limit must be a positive integer"))?;
                     skip_next = true;
                 }
             }
@@ -92,6 +111,8 @@ pub async fn run(args: &[String]) -> Result<()> {
     let options = cli::Options {
         json,
         color,
+        offset,
+        limit,
         ..Default::default()
     };
 

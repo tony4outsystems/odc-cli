@@ -70,6 +70,27 @@ async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()>
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
+    // With an explicit --offset, fetch just that page; otherwise fetch all pages.
+    if let Some(offset) = options.offset {
+        let (apps, next_offset) = client.list_apps_page(offset, options.limit)?;
+        let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
+
+        if options.json {
+            let mut page = serde_json::Map::new();
+            page.insert("offset".to_string(), serde_json::json!(offset));
+            page.insert("limit".to_string(), serde_json::json!(options.limit));
+            page.insert("nextOffset".to_string(), serde_json::json!(next_offset));
+
+            let mut body = serde_json::Map::new();
+            body.insert("results".to_string(), serde_json::Value::Array(result));
+            body.insert("page".to_string(), serde_json::Value::Object(page));
+            output.print_result(&serde_json::Value::Object(body))?;
+        } else {
+            output.print_result(&serde_json::Value::Array(result))?;
+        }
+        return Ok(());
+    }
+
     let apps = client.list_apps()?;
     let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
     output.print_result(&serde_json::Value::Array(result))?;
