@@ -118,7 +118,7 @@ Commands:
   discover                      Show the OAuth discovery document (issuer, endpoints, scopes)
   login                         Save credentials in ~/.odc/config.json (prompts for client secret)
   list-environments             List environments in the tenant
-  list-apps                     List apps in the tenant, optionally filtered by name/key
+  list-apps                     List apps in the tenant, optionally filtered by name/key and/or type
   list-deployed-apps            List deployed apps, optionally filtered by environment and name/key
   get-app                       Retrieve app metadata
   latest-revision               Print the latest revision number of an app
@@ -198,10 +198,10 @@ odc list-environments
 List apps visible to the API client (name, key, type).
 
 ```bash
-odc list-apps [name-or-key-substring]
+odc list-apps [name-or-key-substring] [--type WebApplication]
 ```
 
-An optional positional filters to apps whose name or key contains it (case-insensitive).
+An optional positional filters to apps whose name or key contains it (case-insensitive). `--type` filters to an exact asset type; run `odc list-apps --help` for the full list of recognized values (`WebApplication`, `Agent`, `LowCodeLibrary`, ...).
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 

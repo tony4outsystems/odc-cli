@@ -27,6 +27,61 @@ fn parse_color_arg(s: &str) -> Result<crate::output::ColorMode, String> {
     parse_color(s).map_err(|e| e.to_string())
 }
 
+/// Recognized asset types, per the asset-repository API's `assetTypes` filter parameter.
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum AppType {
+    #[value(name = "WebApplication")]
+    WebApplication,
+    #[value(name = "MobileApplication")]
+    MobileApplication,
+    #[value(name = "LowCodeLibrary")]
+    LowCodeLibrary,
+    #[value(name = "ExtensionLibrary")]
+    ExtensionLibrary,
+    #[value(name = "ExternalConnection")]
+    ExternalConnection,
+    #[value(name = "ExternalLibrary")]
+    ExternalLibrary,
+    #[value(name = "Workflow")]
+    Workflow,
+    #[value(name = "WidgetLibrary")]
+    WidgetLibrary,
+    #[value(name = "AIModelConnection")]
+    AiModelConnection,
+    #[value(name = "SearchServiceConnection")]
+    SearchServiceConnection,
+    #[value(name = "Agent")]
+    Agent,
+    #[value(name = "MCPConnection")]
+    McpConnection,
+    #[value(name = "A2AConnection")]
+    A2aConnection,
+    #[value(name = "KnowledgeBase")]
+    KnowledgeBase,
+}
+
+impl AppType {
+    /// The exact `assetType` string this variant matches, as returned by the API.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AppType::WebApplication => "WebApplication",
+            AppType::MobileApplication => "MobileApplication",
+            AppType::LowCodeLibrary => "LowCodeLibrary",
+            AppType::ExtensionLibrary => "ExtensionLibrary",
+            AppType::ExternalConnection => "ExternalConnection",
+            AppType::ExternalLibrary => "ExternalLibrary",
+            AppType::Workflow => "Workflow",
+            AppType::WidgetLibrary => "WidgetLibrary",
+            AppType::AiModelConnection => "AIModelConnection",
+            AppType::SearchServiceConnection => "SearchServiceConnection",
+            AppType::Agent => "Agent",
+            AppType::McpConnection => "MCPConnection",
+            AppType::A2aConnection => "A2AConnection",
+            AppType::KnowledgeBase => "KnowledgeBase",
+        }
+    }
+}
+
 /// Shared polling flags for commands that start and wait on an operation.
 #[derive(clap::Args, Debug, Clone)]
 pub struct PollArgs {
@@ -67,10 +122,13 @@ pub enum Commands {
     /// List environments in the tenant.
     ListEnvironments,
 
-    /// List apps in the tenant, optionally filtered by name/key.
+    /// List apps in the tenant, optionally filtered by name/key and/or type.
     ListApps {
         /// Filter to apps whose name or key contains this (case-insensitive)
         filter: Option<String>,
+        /// Filter to apps of this type
+        #[arg(long = "type")]
+        app_type: Option<AppType>,
         /// Fetch a single page starting at this result index (default: fetch every page)
         #[arg(long)]
         offset: Option<i64>,
@@ -391,11 +449,15 @@ impl Commands {
             }
             Commands::ListApps {
                 filter,
+                app_type,
                 offset,
                 limit,
             } => {
                 options.offset = offset;
                 options.limit = limit;
+                if let Some(t) = app_type {
+                    options.app_type = t.as_str().to_string();
+                }
                 if let Some(f) = filter {
                     positionals.push(f);
                 }
@@ -636,6 +698,7 @@ pub struct Options {
     pub build_type: String,
     pub build_key: String,
     pub filter: String,
+    pub app_type: String,
     pub output: String,
     pub revision: Option<i32>,
     pub offset: Option<i64>,
@@ -661,6 +724,7 @@ impl Default for Options {
             build_type: "Release".to_string(),
             build_key: String::new(),
             filter: String::new(),
+            app_type: String::new(),
             output: String::new(),
             revision: None,
             offset: None,
@@ -721,10 +785,12 @@ mod tests {
         match cli.command {
             Commands::ListApps {
                 filter,
+                app_type,
                 offset,
                 limit,
             } => {
                 assert_eq!(filter, Some("eGov".to_string()));
+                assert!(app_type.is_none());
                 assert_eq!(offset, Some(10));
                 assert_eq!(limit, 100);
             }
@@ -739,6 +805,26 @@ mod tests {
         let (options, positionals) = cli.command.into_dispatch();
         assert_eq!(options.env, "prod");
         assert_eq!(positionals, vec!["eGov".to_string()]);
+    }
+
+    #[test]
+    fn test_list_apps_type_filter_maps_to_exact_api_string() {
+        let cli = Cli::try_parse_from(["odc", "list-apps", "--type", "Agent"]).unwrap();
+        let (options, _) = cli.command.into_dispatch();
+        assert_eq!(options.app_type, "Agent");
+    }
+
+    #[test]
+    fn test_list_apps_type_filter_rejects_unknown_value() {
+        let result = Cli::try_parse_from(["odc", "list-apps", "--type", "Bogus"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_list_apps_without_type_leaves_app_type_empty() {
+        let cli = Cli::try_parse_from(["odc", "list-apps"]).unwrap();
+        let (options, _) = cli.command.into_dispatch();
+        assert_eq!(options.app_type, "");
     }
 
     #[test]
