@@ -35,6 +35,19 @@ fn fetch_listing(
     }
 }
 
+/// Find an app by key or name. The asset-repository API identifies an app by `assetKey`
+/// (not `key`), so this matches on `assetKey` first and falls back to `name` since commands
+/// accept "an app name or key" (per README) and both are common ways users refer to an app.
+fn find_app<'a>(
+    apps: &'a [Map<String, Value>],
+    identifier: &str,
+) -> Option<&'a Map<String, Value>> {
+    apps.iter().find(|app| match app.get("assetKey") {
+        Some(Value::String(key)) if key == identifier => true,
+        _ => matches!(app.get("name"), Some(Value::String(name)) if name == identifier),
+    })
+}
+
 /// Columns shown for `list-apps` / `list-deployed-apps` table output. `--json` still returns
 /// every field the API sent; this only narrows what the human-readable table displays, since
 /// showing all ~20 asset fields (guids, digests, tagging metadata, ...) makes the table
@@ -182,16 +195,10 @@ async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    for app in apps {
-        if let Some(serde_json::Value::String(key)) = app.get("key") {
-            if key == app_key {
-                output.print_result(&serde_json::Value::Object(app))?;
-                return Ok(());
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!("App not found: {}", app_key))
+    let app =
+        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    output.print_result(&serde_json::Value::Object(app.clone()))?;
+    Ok(())
 }
 
 async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Result<()> {
@@ -208,18 +215,13 @@ async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Resul
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    for app in apps {
-        if let Some(serde_json::Value::String(key)) = app.get("key") {
-            if key == app_key {
-                if let Some(revision) = app.get("revision") {
-                    output.print_result(revision)?;
-                    return Ok(());
-                }
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!("App not found: {}", app_key))
+    let app =
+        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    let revision = app
+        .get("revision")
+        .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?;
+    output.print_result(revision)?;
+    Ok(())
 }
 
 async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result<()> {
@@ -236,13 +238,11 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let asset_key = apps
-        .iter()
-        .find_map(|app| match app.get("key") {
-            Some(serde_json::Value::String(key)) if key == app_key => Some(key.clone()),
-            _ => None,
-        })
-        .ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    let asset_key = find_app(&apps, app_key)
+        .and_then(|app| app.get("assetKey"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?
+        .to_string();
 
     let listing = fetch_listing(
         options,
@@ -266,16 +266,10 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    for app in apps {
-        if let Some(serde_json::Value::String(key)) = app.get("key") {
-            if key == app_key {
-                output.print_result(&serde_json::Value::Object(app))?;
-                return Ok(());
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!("App not found: {}", app_key))
+    let app =
+        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    output.print_result(&serde_json::Value::Object(app.clone()))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -309,5 +303,37 @@ mod tests {
         assert_eq!(compacted.len(), 5);
         assert!(!compacted.contains_key("modelDigest"));
         assert!(!compacted.contains_key("description"));
+    }
+
+    fn sample_apps() -> Vec<Map<String, Value>> {
+        let mut app1 = Map::new();
+        app1.insert("assetKey".to_string(), serde_json::json!("guid-1"));
+        app1.insert("name".to_string(), serde_json::json!("Zip"));
+
+        let mut app2 = Map::new();
+        app2.insert("assetKey".to_string(), serde_json::json!("guid-2"));
+        app2.insert("name".to_string(), serde_json::json!("MyApp"));
+
+        vec![app1, app2]
+    }
+
+    #[test]
+    fn test_find_app_by_asset_key() {
+        let apps = sample_apps();
+        let found = find_app(&apps, "guid-2").unwrap();
+        assert_eq!(found.get("name").unwrap(), "MyApp");
+    }
+
+    #[test]
+    fn test_find_app_by_name() {
+        let apps = sample_apps();
+        let found = find_app(&apps, "Zip").unwrap();
+        assert_eq!(found.get("assetKey").unwrap(), "guid-1");
+    }
+
+    #[test]
+    fn test_find_app_not_found() {
+        let apps = sample_apps();
+        assert!(find_app(&apps, "does-not-exist").is_none());
     }
 }
