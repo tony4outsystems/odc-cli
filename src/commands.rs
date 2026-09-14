@@ -2,7 +2,60 @@ use crate::cli::Options;
 use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
+use serde_json::{Map, Value};
 use std::sync::Arc;
+
+/// The result of a listing command: either a single page (with pagination metadata) or
+/// every page already combined.
+struct Listing {
+    items: Vec<Map<String, Value>>,
+    /// (offset, limit, next_offset) when a single page was requested.
+    page: Option<(i64, i64, Option<i64>)>,
+}
+
+/// Fetch a listing that supports offset-based pagination: a single page when
+/// `options.offset` is set, or every page combined otherwise.
+fn fetch_listing(
+    options: &Options,
+    page_fn: impl FnOnce(i64, i64) -> Result<(Vec<Map<String, Value>>, Option<i64>)>,
+    all_fn: impl FnOnce() -> Result<Vec<Map<String, Value>>>,
+) -> Result<Listing> {
+    match options.offset {
+        Some(offset) => {
+            let (items, next_offset) = page_fn(offset, options.limit)?;
+            Ok(Listing {
+                items,
+                page: Some((offset, options.limit, next_offset)),
+            })
+        }
+        None => Ok(Listing {
+            items: all_fn()?,
+            page: None,
+        }),
+    }
+}
+
+/// Print a `Listing`: a plain JSON/table array when every page was fetched, or a
+/// `{results, page}` envelope (in `--json` mode) carrying `page.nextOffset` when a single
+/// page was requested, so the next page can be fetched with `--offset <nextOffset>`.
+fn print_listing(output: &crate::output::Output, listing: Listing) -> Result<()> {
+    let results: Vec<Value> = listing.items.into_iter().map(Value::Object).collect();
+
+    match listing.page {
+        Some((offset, limit, next_offset)) if output.json => {
+            let mut page = Map::new();
+            page.insert("offset".to_string(), Value::from(offset));
+            page.insert("limit".to_string(), Value::from(limit));
+            page.insert("nextOffset".to_string(), Value::from(next_offset));
+
+            let mut body = Map::new();
+            body.insert("results".to_string(), Value::Array(results));
+            body.insert("page".to_string(), Value::Object(page));
+            output.print_result(&Value::Object(body))
+        }
+        _ => output.print_result(&Value::Array(results)),
+    }
+}
 
 /// Execute a command based on its name
 pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
@@ -70,31 +123,12 @@ async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()>
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    // With an explicit --offset, fetch just that page; otherwise fetch all pages.
-    if let Some(offset) = options.offset {
-        let (apps, next_offset) = client.list_apps_page(offset, options.limit)?;
-        let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
-
-        if options.json {
-            let mut page = serde_json::Map::new();
-            page.insert("offset".to_string(), serde_json::json!(offset));
-            page.insert("limit".to_string(), serde_json::json!(options.limit));
-            page.insert("nextOffset".to_string(), serde_json::json!(next_offset));
-
-            let mut body = serde_json::Map::new();
-            body.insert("results".to_string(), serde_json::Value::Array(result));
-            body.insert("page".to_string(), serde_json::Value::Object(page));
-            output.print_result(&serde_json::Value::Object(body))?;
-        } else {
-            output.print_result(&serde_json::Value::Array(result))?;
-        }
-        return Ok(());
-    }
-
-    let apps = client.list_apps()?;
-    let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
-    output.print_result(&serde_json::Value::Array(result))?;
-    Ok(())
+    let listing = fetch_listing(
+        options,
+        |offset, limit| client.list_apps_page(offset, limit),
+        || client.list_apps(),
+    )?;
+    print_listing(&output, listing)
 }
 
 async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> Result<()> {
@@ -102,10 +136,12 @@ async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> R
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
-    output.print_result(&serde_json::Value::Array(result))?;
-    Ok(())
+    let listing = fetch_listing(
+        options,
+        |offset, limit| client.list_apps_page(offset, limit),
+        || client.list_apps(),
+    )?;
+    print_listing(&output, listing)
 }
 
 async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
@@ -174,18 +210,20 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    for app in apps {
-        if let Some(serde_json::Value::String(key)) = app.get("key") {
-            if key == app_key {
-                if let Some(serde_json::Value::Array(revisions)) = app.get("revisions") {
-                    output.print_result(&serde_json::Value::Array(revisions.clone()))?;
-                    return Ok(());
-                }
-            }
-        }
-    }
+    let asset_key = apps
+        .iter()
+        .find_map(|app| match app.get("key") {
+            Some(serde_json::Value::String(key)) if key == app_key => Some(key.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
 
-    Err(anyhow::anyhow!("App not found: {}", app_key))
+    let listing = fetch_listing(
+        options,
+        |offset, limit| client.list_revisions_page(&asset_key, offset, limit),
+        || client.list_revisions(&asset_key),
+    )?;
+    print_listing(&output, listing)
 }
 
 async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {

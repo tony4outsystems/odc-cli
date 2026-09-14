@@ -194,14 +194,18 @@ impl Client {
         self.transport.send(req)
     }
 
-    /// Fetch a single page of apps starting at `offset`, up to `limit` results.
+    /// Default page size used when fetching every page of a paginated listing.
+    const DEFAULT_PAGE_SIZE: i64 = 100;
+
+    /// Fetch a single page from an endpoint that follows the ODC API's `results` /
+    /// `page.nextPageOffset` pagination convention (used by `/assets`,
+    /// `/assets/{key}/revisions`, `/deployed-assets`, and similar list endpoints).
+    /// `path` may already contain a `?query`; `limit`/`offset` are appended to it.
     /// Returns the page's items along with the offset of the next page, if any.
-    pub fn list_apps_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
-        let path = format!(
-            "/api/asset-repository/v1/assets?limit={}&offset={}",
-            limit, offset
-        );
-        let resp = self.call("GET", &path)?;
+    fn fetch_page(&self, path: &str, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+        let separator = if path.contains('?') { '&' } else { '?' };
+        let full_path = format!("{}{}limit={}&offset={}", path, separator, limit, offset);
+        let resp = self.call("GET", &full_path)?;
 
         let (results, page) = match resp {
             Value::Object(mut map) => {
@@ -210,7 +214,7 @@ impl Client {
                 (results, page)
             }
             Value::Array(items) => (Value::Array(items), None),
-            _ => return Err(anyhow::anyhow!("Expected object or array from /assets")),
+            _ => return Err(anyhow::anyhow!("Expected object or array from {}", path)),
         };
 
         let items = match results {
@@ -234,6 +238,32 @@ impl Client {
         Ok((items, next_offset))
     }
 
+    /// Fetch every page from an endpoint that follows the `results` / `page.nextPageOffset`
+    /// pagination convention, combining them into a single list.
+    fn fetch_all_pages(&self, path: &str) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let mut items = Vec::new();
+        let mut offset: i64 = 0;
+
+        loop {
+            let (page_items, next_offset) =
+                self.fetch_page(path, offset, Self::DEFAULT_PAGE_SIZE)?;
+            items.extend(page_items);
+
+            match next_offset {
+                Some(next) => offset = next,
+                None => break,
+            }
+        }
+
+        Ok(items)
+    }
+
+    /// Fetch a single page of apps starting at `offset`, up to `limit` results.
+    /// Returns the page's items along with the offset of the next page, if any.
+    pub fn list_apps_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+        self.fetch_page("/api/asset-repository/v1/assets", offset, limit)
+    }
+
     /// List all apps in the tenant, following pagination until exhausted.
     pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         {
@@ -243,24 +273,30 @@ impl Client {
             }
         }
 
-        let mut apps = Vec::new();
-        let mut offset: i64 = 0;
-        const PAGE_SIZE: i64 = 100;
-
-        loop {
-            let (items, next_offset) = self.list_apps_page(offset, PAGE_SIZE)?;
-            apps.extend(items);
-
-            match next_offset {
-                Some(next) => offset = next,
-                None => break,
-            }
-        }
+        let apps = self.fetch_all_pages("/api/asset-repository/v1/assets")?;
 
         let mut cache = self.apps_cache.lock().unwrap();
         *cache = Some(apps.clone());
 
         Ok(apps)
+    }
+
+    /// Fetch a single page of an app's revisions starting at `offset`, up to `limit` results.
+    /// Returns the page's items along with the offset of the next page, if any.
+    pub fn list_revisions_page(
+        &self,
+        asset_key: &str,
+        offset: i64,
+        limit: i64,
+    ) -> anyhow::Result<AppsPage> {
+        let path = format!("/api/asset-repository/v1/assets/{}/revisions", asset_key);
+        self.fetch_page(&path, offset, limit)
+    }
+
+    /// List all revisions of an app, following pagination until exhausted.
+    pub fn list_revisions(&self, asset_key: &str) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let path = format!("/api/asset-repository/v1/assets/{}/revisions", asset_key);
+        self.fetch_all_pages(&path)
     }
 
     /// List environments in the tenant
@@ -330,6 +366,27 @@ mod tests {
                 return crate::testutil::json_response(200, json!({"access_token": "test-token"}));
             }
 
+            if url.contains("/revisions") {
+                if url.contains("offset=0") {
+                    return crate::testutil::json_response(
+                        200,
+                        json!({
+                            "results": [{"revision": 1}],
+                            "page": {"nextPageOffset": 1, "totalResults": 2},
+                        }),
+                    );
+                }
+                if url.contains("offset=1") {
+                    return crate::testutil::json_response(
+                        200,
+                        json!({
+                            "results": [{"revision": 2}],
+                            "page": {"nextPageOffset": 0, "totalResults": 2},
+                        }),
+                    );
+                }
+            }
+
             if url.contains("/assets") {
                 if url.contains("offset=0") {
                     return crate::testutil::json_response(
@@ -372,6 +429,25 @@ mod tests {
         assert_eq!(items.len(), 1);
         // nextPageOffset of 0 (<= current offset) means there is no next page.
         assert_eq!(next_offset, None);
+    }
+
+    #[test]
+    fn test_list_revisions_follows_pagination() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let revisions = client.list_revisions("app1").unwrap();
+
+        assert_eq!(revisions.len(), 2);
+        assert_eq!(revisions[0].get("revision").unwrap(), 1);
+        assert_eq!(revisions[1].get("revision").unwrap(), 2);
+    }
+
+    #[test]
+    fn test_list_revisions_page_returns_next_offset() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let (items, next_offset) = client.list_revisions_page("app1", 0, 1).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(next_offset, Some(1));
     }
 
     #[test]

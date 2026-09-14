@@ -108,6 +108,20 @@ odc get-app MyApp --color always
 odc list-apps --json > apps.json
 ```
 
+## Pagination
+
+`list-apps`, `list-deployed-apps`, and `list-revisions` list results from API endpoints that
+page their results. By default each of these commands fetches every page and returns the
+combined result, so no flags are needed for the common case.
+
+- `--offset` — fetch a single page starting at this result index, instead of every page. With `--json`, the response is wrapped in `{"results": [...], "page": {"offset", "limit", "nextOffset"}}` so `page.nextOffset` can be passed as the next `--offset` (it is `null` once there are no more pages).
+- `--limit` — page size to request from the API (default `100`); applies whether or not `--offset` is set.
+
+```bash
+odc list-apps --offset 100 --limit 50
+odc list-revisions --app MyApp --offset 0 --limit 20 --json
+```
+
 ## Commands
 
 Commands are grouped by category in `odc --help`:
@@ -217,15 +231,12 @@ List apps visible to the API client (name, key, type).
 
 ```bash
 odc list-apps [--type WebApplication] [--search eGov]
-odc list-apps --offset 100 --limit 50
 ```
 
 - `--type` — filter by app type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
 - `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
-- `--offset` — fetch a single page starting at this result index instead of every page; with `--json`, the response includes `page.nextOffset` for fetching the next page
-- `--limit` — page size to request from the API (default `100`); applies whether or not `--offset` is set
 
-Without `--offset`, all pages are fetched and combined into one result.
+See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-deployed-apps
 
@@ -235,7 +246,7 @@ List apps deployed across all visible environments, including their deployed rev
 odc list-deployed-apps [--env <environment-name-or-key>] [--search <name-or-key-substring>]
 ```
 
-`--search` matches app names or keys case-insensitively. Omit `--env` to include all visible environments, or supply it to filter to one environment. Each row includes its environment key; all result pages are fetched.
+`--search` matches app names or keys case-insensitively. Omit `--env` to include all visible environments, or supply it to filter to one environment. Each row includes its environment key. See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-revisions / get-revision
 
@@ -246,7 +257,7 @@ odc list-revisions --app <app-name-or-key>
 odc get-revision --app <app-name-or-key> --revision <revision>
 ```
 
-Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number.
+Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
 
 #### download-source-code
 
