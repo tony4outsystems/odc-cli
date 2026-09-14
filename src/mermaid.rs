@@ -1,5 +1,5 @@
 use crate::value::objects;
-use serde_json::{Value};
+use serde_json::Value;
 use sha1_smol::Sha1;
 use std::collections::{BTreeMap, HashSet};
 
@@ -9,9 +9,9 @@ pub fn mermaid_node_id(app: &serde_json::Map<String, Value>) -> String {
     } else {
         String::new()
     };
-    
+
     let key_val = app.get("key").and_then(|v| v.as_str()).unwrap_or("unknown");
-    
+
     let digest = Sha1::from(format!("{}:{}", key_val, revision).as_bytes());
     let bytes = digest.digest().bytes();
     let hex: String = bytes.iter().take(6).map(|b| format!("{:02x}", b)).collect();
@@ -26,23 +26,26 @@ pub fn mermaid_label(app: &serde_json::Map<String, Value>) -> String {
     } else {
         "Unknown app".to_string()
     };
-    
+
     let mut details = Vec::new();
     if app.contains_key("revision") {
-        details.push(format!("rev {}", crate::value::go_fmt(app.get("revision").unwrap())));
+        details.push(format!(
+            "rev {}",
+            crate::value::go_fmt(app.get("revision").unwrap())
+        ));
     }
     if let Some(Value::String(s)) = app.get("type") {
         if !s.is_empty() {
             details.push(s.clone());
         }
     }
-    
+
     let full_label = if !details.is_empty() {
         format!("{}\n{}", label, details.join(" / "))
     } else {
         label
     };
-    
+
     // Escape backslash and quotes
     full_label.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -53,7 +56,7 @@ pub fn render_producer_graph(
 ) -> String {
     let mut nodes = BTreeMap::new();
     let mut edges = HashSet::new();
-    
+
     fn visit(
         parent: &serde_json::Map<String, Value>,
         children: &[serde_json::Map<String, Value>],
@@ -62,35 +65,35 @@ pub fn render_producer_graph(
     ) {
         let id = mermaid_node_id(parent);
         nodes.insert(id.clone(), mermaid_label(parent));
-        
+
         for child in children {
             let child_id = mermaid_node_id(child);
             edges.insert(format!("{} --> {}", id, child_id));
-            
+
             let child_producers = objects(child.get("producers").unwrap_or(&Value::Null));
             visit(child, &child_producers, nodes, edges);
         }
     }
-    
+
     visit(root, producers, &mut nodes, &mut edges);
-    
+
     let mut lines = vec![
         "---".to_string(),
         "title: Producer dependency graph".to_string(),
         "---".to_string(),
         "flowchart LR".to_string(),
     ];
-    
+
     for (id, label) in nodes {
         lines.push(format!("    {}[\"{}\" ]", id, label));
     }
-    
+
     let mut edges_sorted: Vec<_> = edges.into_iter().collect();
     edges_sorted.sort();
     for edge in edges_sorted {
         lines.push(format!("    {}", edge));
     }
-    
+
     lines.join("\n") + "\n"
 }
 
@@ -124,7 +127,7 @@ mod tests {
         let mut app = serde_json::Map::new();
         app.insert("key".to_string(), json!("test-app"));
         app.insert("revision".to_string(), json!(1));
-        
+
         let id = mermaid_node_id(&app);
         assert!(id.starts_with("app_"));
         assert_eq!(id.len(), 4 + 12); // "app_" + 12 hex chars for 6 bytes
@@ -147,7 +150,7 @@ mod tests {
         let mut app = serde_json::Map::new();
         app.insert("name".to_string(), json!("App \"Test\""));
         app.insert("type".to_string(), json!("Type\\Path"));
-        
+
         let label = mermaid_label(&app);
         assert!(label.contains("\\\""));
         assert!(label.contains("\\\\"));

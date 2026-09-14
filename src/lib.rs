@@ -63,7 +63,7 @@ pub async fn run(args: &[String]) -> Result<()> {
     let color = cli::parse_color(color_str)?;
 
     // Create output context
-    let output = Arc::new(output::Output::new(json, color));
+    let _output = Arc::new(output::Output::new(json, color));
 
     // Get the command name
     if cmd_args.is_empty() {
@@ -89,9 +89,11 @@ pub async fn run(args: &[String]) -> Result<()> {
         Vec::new()
     };
 
-    let mut options = cli::Options::default();
-    options.json = json;
-    options.color = color;
+    let options = cli::Options {
+        json,
+        color,
+        ..Default::default()
+    };
 
     // Dispatch to command executor
     commands::execute(cmd, &options, &positionals).await

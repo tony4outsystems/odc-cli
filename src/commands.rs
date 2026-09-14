@@ -4,7 +4,9 @@ use anyhow::Result;
 /// Execute a command based on its name
 pub async fn execute(cmd: &str, _options: &Options, _positionals: &[String]) -> Result<()> {
     match cmd {
-        "login" => Err(anyhow::anyhow!("Login should be handled in main run() function")),
+        "login" => Err(anyhow::anyhow!(
+            "Login should be handled in main run() function"
+        )),
         "discover" => Err(anyhow::anyhow!("discover: not yet implemented")),
         "list-environments" => Err(anyhow::anyhow!("list-environments: not yet implemented")),
         "list-apps" => Err(anyhow::anyhow!("list-apps: not yet implemented")),
@@ -25,7 +27,9 @@ pub async fn execute(cmd: &str, _options: &Options, _positionals: &[String]) -> 
         "batch-deploy" => Err(anyhow::anyhow!("batch-deploy: not yet implemented")),
         "batch-undeploy" => Err(anyhow::anyhow!("batch-undeploy: not yet implemented")),
         "batch-delete" => Err(anyhow::anyhow!("batch-delete: not yet implemented")),
-        "dangerous-batch-undeploy-all" => Err(anyhow::anyhow!("dangerous-batch-undeploy-all: not yet implemented")),
+        "dangerous-batch-undeploy-all" => Err(anyhow::anyhow!(
+            "dangerous-batch-undeploy-all: not yet implemented"
+        )),
         "get-user" => Err(anyhow::anyhow!("get-user: not yet implemented")),
         "update-user" => Err(anyhow::anyhow!("update-user: not yet implemented")),
         "grant-role" => Err(anyhow::anyhow!("grant-role: not yet implemented")),

@@ -241,9 +241,7 @@ pub fn parse_color(s: &str) -> anyhow::Result<crate::output::ColorMode> {
         "auto" => Ok(crate::output::ColorMode::Auto),
         "always" => Ok(crate::output::ColorMode::Always),
         "never" => Ok(crate::output::ColorMode::Never),
-        _ => Err(anyhow::anyhow!(
-            "--color must be auto, always, or never"
-        )),
+        _ => Err(anyhow::anyhow!("--color must be auto, always, or never")),
     }
 }
 
@@ -281,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_all_commands_defined() {
-        assert!(COMMANDS.len() > 0);
+        assert!(!COMMANDS.is_empty());
         assert!(find_command("login").is_some());
         assert!(find_command("dangerous-batch-undeploy-all").is_some());
     }

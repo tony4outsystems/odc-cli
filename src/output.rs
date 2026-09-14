@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde_json::Value;
-use std::io::{self, Write, IsTerminal};
+use std::io::{self, IsTerminal, Write};
 use std::sync::Mutex;
 use tabwriter::TabWriter;
 
@@ -75,10 +75,10 @@ pub fn paint(s: &str, code: &str, apply_color: bool) -> String {
 pub fn label(s: &str) -> String {
     // Replace asset -> app, Asset -> App
     let s = s.replace("asset", "app").replace("Asset", "App");
-    
+
     let mut result = String::new();
     let mut prev = '\0';
-    
+
     for (i, ch) in s.chars().enumerate() {
         match ch {
             '_' | '-' => {
@@ -99,27 +99,27 @@ pub fn label(s: &str) -> String {
             }
         }
     }
-    
+
     result
 }
 
 pub fn field_order(map: &serde_json::Map<String, Value>) -> Vec<String> {
     let mut keys: Vec<String> = map.keys().cloned().collect();
     keys.sort();
-    
+
     let mut ordered = Vec::new();
     for key in &["name", "key", "assetKey", "type", "status"] {
         if map.contains_key(*key) {
             ordered.push(key.to_string());
         }
     }
-    
+
     for key in keys {
         if !ordered.contains(&key) {
             ordered.push(key);
         }
     }
-    
+
     ordered
 }
 
@@ -131,17 +131,20 @@ pub fn scalar(v: &Value, apply_color: bool) -> String {
         Value::String(text) => text.clone(),
         Value::Array(_) | Value::Object(_) => serde_json::to_string(v).unwrap_or_default(),
     };
-    
+
     // Replace control characters with spaces
-    s = s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
-    
+    s = s
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+
     let color_code = match s.to_lowercase().as_str() {
         "success" | "succeeded" | "completed" | "true" | "active" => Some("32"),
         "failed" | "failure" | "error" | "false" => Some("31"),
         "pending" | "running" | "inprogress" | "in progress" | "queued" => Some("33"),
         _ => None,
     };
-    
+
     if let Some(code) = color_code {
         paint(&s, code, apply_color)
     } else {
@@ -149,19 +152,14 @@ pub fn scalar(v: &Value, apply_color: bool) -> String {
     }
 }
 
-pub fn render_pretty(
-    w: &mut dyn Write,
-    v: &Value,
-    indent: &str,
-    apply_color: bool,
-) -> Result<()> {
+pub fn render_pretty(w: &mut dyn Write, v: &Value, indent: &str, apply_color: bool) -> Result<()> {
     match v {
         Value::Object(map) => {
             if map.is_empty() {
                 writeln!(w, "{}(empty)", indent)?;
                 return Ok(());
             }
-            
+
             for key in field_order(map) {
                 if let Some(value) = map.get(&key) {
                     let heading = format!("{}{}", indent, paint(&label(&key), "1;36", apply_color));
@@ -182,11 +180,11 @@ pub fn render_pretty(
                 writeln!(w, "{}No results.", indent)?;
                 return Ok(());
             }
-            
+
             // Check if this is a table (homogeneous array of flat maps)
             let mut union = serde_json::Map::new();
             let mut is_table = true;
-            
+
             for row in arr {
                 match row {
                     Value::Object(m) if !m.is_empty() => {
@@ -204,7 +202,7 @@ pub fn render_pretty(
                     }
                 }
             }
-            
+
             if is_table && !union.is_empty() {
                 render_table(w, arr, &union, indent, apply_color)?;
             } else {
@@ -237,28 +235,31 @@ fn render_table(
     apply_color: bool,
 ) -> Result<()> {
     let keys = field_order(union);
-    
+
     // First render to buffer without colors to get proper tab alignment
     let mut table_buf = Vec::new();
     let mut tw = TabWriter::new(&mut table_buf);
-    
+
     // Write header
     let headers: Vec<String> = keys.iter().map(|k| label(k).to_uppercase()).collect();
     writeln!(tw, "{}", headers.join("\t"))?;
-    
+
     // Write rows with color disabled for alignment
     for row in rows {
         if let Value::Object(m) = row {
-            let cells: Vec<String> = keys.iter().map(|k| scalar(m.get(k).unwrap_or(&Value::Null), false)).collect();
+            let cells: Vec<String> = keys
+                .iter()
+                .map(|k| scalar(m.get(k).unwrap_or(&Value::Null), false))
+                .collect();
             writeln!(tw, "{}", cells.join("\t"))?;
         }
     }
     tw.flush()?;
-    
+
     // Now render the table with colors applied after alignment
     let table_str = String::from_utf8(table_buf)?;
     let lines: Vec<&str> = table_str.trim_end().split('\n').collect();
-    
+
     for (i, line) in lines.iter().enumerate() {
         let formatted_line = if i == 0 {
             // Header line: paint it
@@ -283,10 +284,10 @@ fn render_table(
         } else {
             line.to_string()
         };
-        
+
         writeln!(w, "{}{}", indent, formatted_line)?;
     }
-    
+
     writeln!(w, "{}{} results", indent, rows.len())?;
     Ok(())
 }
@@ -298,15 +299,15 @@ pub fn write_result(
     apply_color: bool,
 ) -> Result<()> {
     let encoded = serde_json::to_string_pretty(value)?;
-    
+
     if as_json {
         writeln!(w, "{}", encoded)?;
         return Ok(());
     }
-    
+
     // Parse with arbitrary precision preservation
     let normalized: Value = serde_json::from_str(&encoded)?;
-    
+
     render_pretty(w, &normalized, "", apply_color)?;
     Ok(())
 }

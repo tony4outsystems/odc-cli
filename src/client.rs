@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 use std::sync::Mutex;
 
 /// HTTP client for ODC API
+#[allow(dead_code)]
 pub struct Client {
     pub settings: Settings,
     pub output: std::sync::Arc<crate::output::Output>,
@@ -36,9 +37,9 @@ impl Client {
         settings: Settings,
         output: std::sync::Arc<crate::output::Output>,
         transport: T,
-    ) -> Self 
+    ) -> Self
     where
-        T: Transport + 'static
+        T: Transport + 'static,
     {
         Self {
             settings,
@@ -73,7 +74,10 @@ mod tests {
             client_id: "test-id".to_string(),
             client_secret: "test-secret".to_string(),
         };
-        let output = std::sync::Arc::new(crate::output::Output::new(false, crate::output::ColorMode::Never));
+        let output = std::sync::Arc::new(crate::output::Output::new(
+            false,
+            crate::output::ColorMode::Never,
+        ));
         let _client = Client::new(settings, output);
     }
 }

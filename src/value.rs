@@ -57,7 +57,10 @@ pub fn first(values: &[&Value]) -> Option<Value> {
 }
 
 /// Keep only specified fields from a map if they are non-nil and non-empty
-pub fn compact_map(payload: &serde_json::Map<String, Value>, fields: &[&str]) -> serde_json::Map<String, Value> {
+pub fn compact_map(
+    payload: &serde_json::Map<String, Value>,
+    fields: &[&str],
+) -> serde_json::Map<String, Value> {
     let mut out = serde_json::Map::new();
     for field in fields {
         if let Some(value) = payload.get(*field) {
@@ -116,8 +119,8 @@ pub fn go_fmt(v: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_integer_from_number() {
@@ -161,8 +164,11 @@ mod tests {
 
         let result = compact_map(&map, &["name", "age", "city", "country", "state"]);
         assert_eq!(result.len(), 2);
-        assert_eq!(result.get("name").map(|v| v.as_str()).flatten(), Some("Alice"));
-        assert_eq!(result.get("age").map(|v| v.as_i64()).flatten(), Some(30));
+        assert_eq!(
+            result.get("name").and_then(|v| v.as_str()),
+            Some("Alice")
+        );
+        assert_eq!(result.get("age").and_then(|v| v.as_i64()), Some(30));
     }
 
     #[test]
