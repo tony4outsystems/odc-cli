@@ -3,6 +3,7 @@ use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
 use std::sync::Arc;
+use serde_json::json;
 
 /// Execute a command based on its name
 pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
@@ -13,11 +14,11 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "discover" => cmd_discover(options).await,
         "list-environments" => cmd_list_environments(options).await,
         "list-apps" => cmd_list_apps(options, positionals).await,
-        "list-deployed-apps" => Err(anyhow::anyhow!("list-deployed-apps: not yet implemented")),
-        "get-app" => Err(anyhow::anyhow!("get-app: not yet implemented")),
-        "latest-revision" => Err(anyhow::anyhow!("latest-revision: not yet implemented")),
-        "list-revisions" => Err(anyhow::anyhow!("list-revisions: not yet implemented")),
-        "get-revision" => Err(anyhow::anyhow!("get-revision: not yet implemented")),
+        "list-deployed-apps" => cmd_list_deployed_apps(options, positionals).await,
+        "get-app" => cmd_get_app(options, positionals).await,
+        "latest-revision" => cmd_latest_revision(options, positionals).await,
+        "list-revisions" => cmd_list_revisions(options, positionals).await,
+        "get-revision" => cmd_get_revision(options, positionals).await,
         "producer-graph" => Err(anyhow::anyhow!("producer-graph: not yet implemented")),
         "download-source-code" => Err(anyhow::anyhow!("download-source-code: not yet implemented")),
         "upload-source-code" => Err(anyhow::anyhow!("upload-source-code: not yet implemented")),
@@ -44,7 +45,6 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
     }
 }
 
-/// Show the OAuth discovery document
 async fn cmd_discover(options: &Options) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
@@ -55,7 +55,6 @@ async fn cmd_discover(options: &Options) -> Result<()> {
     Ok(())
 }
 
-/// List environments in the tenant
 async fn cmd_list_environments(options: &Options) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
@@ -67,7 +66,6 @@ async fn cmd_list_environments(options: &Options) -> Result<()> {
     Ok(())
 }
 
-/// List apps in the tenant
 async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
@@ -77,6 +75,117 @@ async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()>
     let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
     output.print_result(&serde_json::Value::Array(result))?;
     Ok(())
+}
+
+async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
+    output.print_result(&serde_json::Value::Array(result))?;
+    Ok(())
+}
+
+async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("get-app requires an app name or key"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+
+    for app in apps {
+        if let Some(serde_json::Value::String(key)) = app.get("key") {
+            if key == app_key {
+                output.print_result(&serde_json::Value::Object(app))?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!("App not found: {}", app_key))
+}
+
+async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("latest-revision requires an app name or key"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+
+    for app in apps {
+        if let Some(serde_json::Value::String(key)) = app.get("key") {
+            if key == app_key {
+                if let Some(revision) = app.get("revision") {
+                    output.print_result(revision)?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!("App not found: {}", app_key))
+}
+
+async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("list-revisions requires an app name or key"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+
+    for app in apps {
+        if let Some(serde_json::Value::String(key)) = app.get("key") {
+            if key == app_key {
+                if let Some(serde_json::Value::Array(revisions)) = app.get("revisions") {
+                    output.print_result(&serde_json::Value::Array(revisions.clone()))?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!("App not found: {}", app_key))
+}
+
+async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!("get-revision requires <app> --revision <number>"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+
+    for app in apps {
+        if let Some(serde_json::Value::String(key)) = app.get("key") {
+            if key == app_key {
+                output.print_result(&serde_json::Value::Object(app))?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!("App not found: {}", app_key))
 }
 
 #[cfg(test)]

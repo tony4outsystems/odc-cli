@@ -7,7 +7,7 @@ rust-version = "1.85"
 [dependencies]
 clap = { version = "4", features = ["string"] }
 clap_complete = "4"
-ureq = { version = "3", features = ["native-tls"] }
+reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 url = "2"

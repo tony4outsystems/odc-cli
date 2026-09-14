@@ -1,6 +1,6 @@
 use crate::settings::Settings;
-use crate::transport::{HttpRequest, HttpResponse, Transport};
-use serde_json::{Map, Value};
+use crate::transport::{Transport, HttpRequest, HttpResponse};
+use serde_json::{Map, Value, json};
 use std::sync::Mutex;
 use url::Url;
 
@@ -14,20 +14,20 @@ pub struct Client {
     apps_cache: Mutex<Option<Vec<Map<String, Value>>>>,
 }
 
-#[allow(dead_code)]
 #[derive(Default)]
 struct AuthState {
+    token: Option<String>,
     discovery: Option<Map<String, Value>>,
 }
 
 impl Client {
     /// Create a new client with production transport
     pub fn new(settings: Settings, output: std::sync::Arc<crate::output::Output>) -> Self {
-        use crate::transport::UreqTransport;
+        use crate::transport::ReqwestTransport;
         Self {
             settings,
             output,
-            transport: Box::new(UreqTransport::new()),
+            transport: Box::new(ReqwestTransport::new()),
             auth_mutex: Mutex::new(AuthState::default()),
             apps_cache: Mutex::new(None),
         }
@@ -53,36 +53,110 @@ impl Client {
 
     /// Get the OpenID discovery document
     pub fn discover(&self) -> anyhow::Result<Map<String, Value>> {
-        // TODO: HTTP discover call
-        Err(anyhow::anyhow!(
-            "discover: HTTP transport not yet implemented"
-        ))
+        let mut auth = self.auth_mutex.lock().unwrap();
+
+        if let Some(disc) = &auth.discovery {
+            return Ok(disc.clone());
+        }
+
+        let tenant_origin = self.settings.tenant_origin();
+        let url = format!("{}/identity/.well-known/openid-configuration", tenant_origin);
+        let resp = self.call_raw("GET", &url, Vec::new(), None)?;
+
+        if resp.status >= 400 {
+            let body_str = String::from_utf8(resp.body).unwrap_or_default();
+            return Err(anyhow::anyhow!(
+                "Discovery failed with {}: {}",
+                resp.status, body_str
+            ));
+        }
+
+        let body_str = String::from_utf8(resp.body)?;
+        let discovery: Map<String, Value> = serde_json::from_str(&body_str)?;
+        auth.discovery = Some(discovery.clone());
+
+        Ok(discovery)
     }
 
     /// Get an access token
     pub fn token(&self) -> anyhow::Result<String> {
-        // TODO: OAuth token request
-        Err(anyhow::anyhow!("token: HTTP transport not yet implemented"))
+        let mut auth = self.auth_mutex.lock().unwrap();
+
+        if let Some(token) = &auth.token {
+            return Ok(token.clone());
+        }
+
+        drop(auth); // Release lock before calling discover
+
+        let discovery = self.discover()?;
+
+        let token_endpoint = crate::value::str(discovery.get("token_endpoint").unwrap_or(&Value::Null));
+        if token_endpoint.is_empty() {
+            return Err(anyhow::anyhow!("token_endpoint not found in discovery"));
+        }
+
+        let body = format!(
+            "grant_type=client_credentials&client_id={}&client_secret={}",
+            self.settings.client_id, self.settings.client_secret
+        );
+
+        let resp = self.call_raw(
+            "POST",
+            &token_endpoint,
+            vec![("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string())],
+            Some(body.into_bytes()),
+        )?;
+
+        if resp.status >= 400 {
+            let body_str = String::from_utf8(resp.body).unwrap_or_default();
+            return Err(anyhow::anyhow!("Token request failed with {}: {}", resp.status, body_str));
+        }
+
+        let body_str = String::from_utf8(resp.body)?;
+        let token_resp: Value = serde_json::from_str(&body_str)?;
+
+        let token = crate::value::require_string(
+            token_resp.get("access_token").unwrap_or(&Value::Null),
+            "access_token",
+        )?;
+
+        let mut auth = self.auth_mutex.lock().unwrap();
+        auth.token = Some(token.clone());
+
+        Ok(token)
     }
 
-    /// List all apps in the tenant
-    pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
-        // TODO: HTTP /assets call
-        Err(anyhow::anyhow!(
-            "list_apps: HTTP transport not yet implemented"
-        ))
+    /// Call an API endpoint and return parsed JSON
+    pub fn call(&self, method: &str, path: &str) -> anyhow::Result<Value> {
+        let token = self.token()?;
+        let tenant_origin = self.settings.tenant_origin();
+        let url = format!("{}{}", tenant_origin, path);
+
+        let headers = vec![
+            ("Authorization".to_string(), format!("Bearer {}", token)),
+            ("Content-Type".to_string(), "application/json".to_string()),
+        ];
+
+        let resp = self.call_raw(method, &url, headers, None)?;
+
+        if resp.status >= 400 {
+            let body_str = String::from_utf8(resp.body).unwrap_or_default();
+            return Err(anyhow::anyhow!(
+                "{} {} failed with {}: {}",
+                method, path, resp.status, body_str
+            ));
+        }
+
+        if resp.body.is_empty() {
+            return Ok(json!({}));
+        }
+
+        let body_str = String::from_utf8(resp.body)?;
+        serde_json::from_str(&body_str)
+            .map_err(|_| anyhow::anyhow!("Invalid JSON response from {}", path))
     }
 
-    /// List environments in the tenant
-    pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
-        // TODO: HTTP /environments call
-        Err(anyhow::anyhow!(
-            "list_environments: HTTP transport not yet implemented"
-        ))
-    }
-
-    /// Low-level HTTP call (for future implementation)
-    #[allow(dead_code)]
+    /// Low-level HTTP call
     fn call_raw(
         &self,
         method: &str,
@@ -100,6 +174,43 @@ impl Client {
         };
 
         self.transport.send(req)
+    }
+
+    /// List all apps in the tenant
+    pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let resp = self.call("GET", "/api/asset-repository/v1/assets")?;
+
+        match resp {
+            Value::Array(items) => {
+                let mut result = Vec::new();
+                for item in items {
+                    if let Value::Object(map) = item {
+                        result.push(map);
+                    }
+                }
+                Ok(result)
+            }
+            Value::Object(map) => Ok(vec![map]),
+            _ => Err(anyhow::anyhow!("Expected array or object from /assets")),
+        }
+    }
+
+    /// List environments in the tenant
+    pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let resp = self.call("GET", "/api/portfolios/v2/environments")?;
+
+        match resp {
+            Value::Array(items) => {
+                let mut result = Vec::new();
+                for item in items {
+                    if let Value::Object(map) = item {
+                        result.push(map);
+                    }
+                }
+                Ok(result)
+            }
+            _ => Err(anyhow::anyhow!("Expected array from /environments")),
+        }
     }
 }
 

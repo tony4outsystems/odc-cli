@@ -23,27 +23,67 @@ pub trait Transport: Send + Sync {
     fn send(&self, req: HttpRequest) -> Result<HttpResponse>;
 }
 
-/// Ureq-based transport implementation
-pub struct UreqTransport;
+/// Reqwest-based HTTP transport
+pub struct ReqwestTransport {
+    client: reqwest::Client,
+}
 
-impl UreqTransport {
+impl ReqwestTransport {
     pub fn new() -> Self {
-        Self
+        let client = reqwest::Client::new();
+        Self { client }
     }
 }
 
-impl Default for UreqTransport {
+impl Default for ReqwestTransport {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Transport for UreqTransport {
-    fn send(&self, _req: HttpRequest) -> Result<HttpResponse> {
-        // TODO: Implement full ureq integration
-        // For now, all HTTP requests return an error
-        Err(anyhow::anyhow!("HTTP transport: not yet implemented"))
+impl Transport for ReqwestTransport {
+    fn send(&self, req: HttpRequest) -> Result<HttpResponse> {
+        // Block in place to safely call async from sync context
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                send_request_async(&self.client, req).await
+            })
+        })
     }
+}
+
+async fn send_request_async(
+    client: &reqwest::Client,
+    req: HttpRequest,
+) -> Result<HttpResponse> {
+    let mut request = match req.method.to_uppercase().as_str() {
+        "GET" => client.get(req.url.clone()),
+        "POST" => client.post(req.url.clone()),
+        "PUT" => client.put(req.url.clone()),
+        "DELETE" => client.delete(req.url.clone()),
+        m => return Err(anyhow::anyhow!("Unsupported HTTP method: {}", m)),
+    };
+
+    // Add headers
+    for (name, value) in &req.headers {
+        request = request.header(name, value);
+    }
+
+    // Add body if present
+    if !req.body.is_empty() {
+        request = request.body(req.body.clone());
+    }
+
+    // Send request
+    let resp = request.send().await?;
+    let status = resp.status().as_u16();
+    let body = resp.bytes().await?.to_vec();
+
+    Ok(HttpResponse {
+        status,
+        headers: Vec::new(),
+        body,
+    })
 }
 
 /// A closure-based transport for testing
