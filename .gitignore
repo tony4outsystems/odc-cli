@@ -9,3 +9,9 @@ output/*
 /bin/
 /coverage.out
 /dist/
+
+
+# Added by cargo
+
+/target
+/target/
