@@ -1,43 +1,37 @@
 # OutSystems ODC CLI
 
-Small Go CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
+Rust CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
+
+A production-ready Rust port of the original Go CLI with identical behavior, output formatting, and API compatibility. Built with `tokio` async runtime and `reqwest` HTTP client for multi-target binary distribution.
 
 ![odc demo](demo.gif)
 
 ## Install
 
-On macOS, install with Homebrew:
-
-```bash
-brew install tony4outsystems/tap/odc-cli
-```
-
-To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. Homebrew builds the Go binary from source.
-
 ### Download a binary
 
-Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your operating system (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` for Intel/AMD, `arm64` for ARM, including Apple silicon). Extract it and put `odc` (or `odc.exe` on Windows) in a directory on your `PATH`. No Go installation is required.
+Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your operating system (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` for Intel/AMD, `arm64` for ARM, including Apple silicon). Extract it and put `odc` (or `odc.exe` on Windows) in a directory on your `PATH`. No Rust installation is required.
 
-Windows archives use `.zip`; macOS and Linux archives use `.tar.gz`. Each binary release includes `checksums.txt` with SHA-256 hashes of the archives.
+Windows archives use `.zip`; macOS and Linux archives use `.tar.xz`. Each binary release includes `checksums.txt` with SHA-256 hashes of the archives.
 
 ### Build from source
 
-Requires Go 1.23 or later. Build and install from a checkout:
+Requires Rust 1.85 or later (install with [rustup](https://rustup.rs)). Build and install from a checkout:
 
 ```bash
 git clone https://github.com/tony4outsystems/odc-cli.git
 cd odc-cli
-go install ./cmd/odc
+cargo install --path .
 ```
 
-Ensure `$(go env GOPATH)/bin` is on your `PATH`. To build a local binary instead:
+Ensure `~/.cargo/bin` is on your `PATH`. To build a local binary instead:
 
 ```bash
-go build -o bin/odc ./cmd/odc
-./bin/odc --help
+cargo build --release
+./target/release/odc --help
 ```
 
-During development, use `go run ./cmd/odc ...`. The CLI uses [Cobra](https://github.com/spf13/cobra) for command and flag parsing. The compiled binary needs no separate runtime. Run `odc completion --help` for shell completion setup.
+During development, use `cargo run -- ...`. The compiled binary needs no separate runtime. Run `odc completion --help` for shell completion setup.
 
 ## Setup
 
@@ -92,6 +86,37 @@ odc list-apps
 odc get-app MyApp --color always
 odc list-apps --json > apps.json
 ```
+
+## Architecture
+
+The Rust codebase is organized into 12 modules mirroring the original Go structure:
+
+| Module | Purpose |
+|--------|---------|
+| `main.rs` | Entry point and error handling (exit code 1 on failure) |
+| `lib.rs` | Argument parsing and command dispatch |
+| `cli.rs` | Command table (30 commands in 6 help groups), option flags, and help text |
+| `commands.rs` | Command handlers for all 30 commands |
+| `client.rs` | HTTP client for ODC API with discovery, token caching, and pagination |
+| `transport.rs` | HTTP abstraction layer using `reqwest` with async/sync bridging |
+| `value.rs` | JSON helpers for number fidelity and value extraction |
+| `output.rs` | Pretty-printing engine with color codes and table alignment |
+| `settings.rs` | Configuration loading from `.env` with variable expansion |
+| `login.rs` | OAuth2 client credentials flow and config persistence |
+| `resolve.rs` | Name-to-GUID resolution with partial matching and suggestions |
+| `workflows.rs`, `inspection.rs`, `mermaid.rs`, `upload.rs` | Command-specific logic and helpers |
+
+### Testing
+
+The codebase includes 42 unit tests covering:
+- JSON value parsing and formatting
+- Output formatting and field ordering
+- Settings loading and `.env` expansion
+- OAuth2 discovery and token flow
+- App/environment resolution and API pagination
+- Mermaid diagram generation
+
+Run tests with `cargo test`. All tests use the `Transport` trait for mocking HTTP responses, allowing end-to-end command testing without network calls.
 
 ## Commands
 
@@ -418,16 +443,16 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-The `Release binaries` workflow runs tests and vet, then uses GoReleaser (configured in `.goreleaser.yaml`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
+The `Release binaries` workflow runs tests and clippy checks, then uses cargo-dist (configured in `Cargo.toml.dist`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
 
-To validate the release locally without publishing (requires GoReleaser):
+To validate the release locally without publishing (requires [cargo-dist](https://github.com/axo-dev/cargo-dist)):
 
 ```bash
-goreleaser check
-goreleaser release --snapshot --clean
+cargo dist plan
+cargo dist build --artifacts=local
 ```
 
-Artifacts are written to `dist/`.
+Artifacts are written to `target/distrib/`.
 
 ## TODO
 
