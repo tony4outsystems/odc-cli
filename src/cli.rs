@@ -84,14 +84,14 @@ pub const COMMANDS: &[CommandDefinition] = &[
     },
     CommandDefinition {
         name: "list-apps",
-        short: "List apps in the tenant.",
-        positional: "",
+        short: "List apps in the tenant, optionally filtered by name/key.",
+        positional: "[name-or-key-substring]",
         group: "inspect",
     },
     CommandDefinition {
         name: "list-deployed-apps",
-        short: "List deployed apps.",
-        positional: "",
+        short: "List deployed apps, optionally filtered by environment and name/key.",
+        positional: "[name-or-key-substring]",
         group: "inspect",
     },
     CommandDefinition {

@@ -59,11 +59,40 @@ fn resolve_app<'a>(
     find_app(apps, &asset_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", identifier))
 }
 
-/// Columns shown for `list-apps` / `list-deployed-apps` table output. `--json` still returns
-/// every field the API sent; this only narrows what the human-readable table displays, since
-/// showing all ~20 asset fields (guids, digests, tagging metadata, ...) makes the table
-/// unreadable.
+/// Keep only items where `fields` contains `filter` as a case-insensitive substring.
+/// A `None`/empty filter is a no-op.
+fn filter_by_substring(
+    items: Vec<Map<String, Value>>,
+    filter: Option<&str>,
+    fields: &[&str],
+) -> Vec<Map<String, Value>> {
+    let filter = match filter {
+        Some(f) if !f.is_empty() => f.to_lowercase(),
+        _ => return items,
+    };
+
+    items
+        .into_iter()
+        .filter(|item| {
+            fields.iter().any(|field| {
+                item.get(*field)
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| s.to_lowercase().contains(&filter))
+            })
+        })
+        .collect()
+}
+
+/// Columns shown for `list-apps` table output. `--json` still returns every field the API
+/// sent; this only narrows what the human-readable table displays, since showing all ~20
+/// asset fields (guids, digests, tagging metadata, ...) makes the table unreadable.
 const APP_TABLE_COLUMNS: &[&str] = &["name", "assetKey", "assetType", "revision", "tag"];
+
+/// Columns shown for `list-deployed-apps` table output; rows are one per app/environment
+/// deployment (see `inspection::deployed_app_rows`), enriched with a resolved `environment`
+/// name column alongside the raw `environmentKey` guid.
+const DEPLOYED_APP_TABLE_COLUMNS: &[&str] =
+    &["name", "key", "type", "environment", "revision", "tag"];
 
 /// Columns shown for `list-revisions` table output; see `APP_TABLE_COLUMNS`.
 const REVISION_TABLE_COLUMNS: &[&str] = &["revision", "tag", "createdAt", "createdBy"];
@@ -136,7 +165,7 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "dangerous-batch-undeploy-all" => Err(anyhow::anyhow!(
             "dangerous-batch-undeploy-all: not yet implemented"
         )),
-        "get-user" => Err(anyhow::anyhow!("get-user: not yet implemented")),
+        "get-user" => cmd_get_user(options, positionals).await,
         "update-user" => Err(anyhow::anyhow!("update-user: not yet implemented")),
         "grant-role" => Err(anyhow::anyhow!("grant-role: not yet implemented")),
         "revoke-role" => Err(anyhow::anyhow!("revoke-role: not yet implemented")),
@@ -168,30 +197,60 @@ async fn cmd_list_environments(options: &Options) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()> {
+async fn cmd_list_apps(options: &Options, positionals: &[String]) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let listing = fetch_listing(
+    let mut listing = fetch_listing(
         options,
         |offset, limit| client.list_apps_page(offset, limit),
         || client.list_apps(),
     )?;
+    listing.items = filter_by_substring(
+        listing.items,
+        positionals.first().map(String::as_str),
+        &["name", "assetKey"],
+    );
     print_listing(&output, listing, APP_TABLE_COLUMNS)
 }
 
-async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> Result<()> {
+async fn cmd_list_deployed_apps(options: &Options, positionals: &[String]) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let listing = fetch_listing(
+    let environments = client.list_environments()?;
+
+    // Resolve --env (name or key) up front so a typo fails loudly instead of silently
+    // matching nothing.
+    let env_key = if options.env.is_empty() {
+        String::new()
+    } else {
+        crate::resolve::resolve(&options.env, "environment", &environments, "key")?
+    };
+    let env_names: std::collections::HashMap<&str, &str> = environments
+        .iter()
+        .filter_map(|e| Some((e.get("key")?.as_str()?, e.get("name")?.as_str()?)))
+        .collect();
+
+    let mut listing = fetch_listing(
         options,
-        |offset, limit| client.list_apps_page(offset, limit),
-        || client.list_apps(),
+        |offset, limit| client.list_deployed_apps_page(offset, limit),
+        || client.list_deployed_apps(),
     )?;
-    print_listing(&output, listing, APP_TABLE_COLUMNS)
+
+    let search = positionals.first().map(String::as_str).unwrap_or("");
+    let mut rows = crate::inspection::deployed_app_rows(&listing.items, &env_key, search);
+    for row in &mut rows {
+        if let Some(Value::String(key)) = row.get("environmentKey").cloned() {
+            let name = env_names.get(key.as_str()).copied().unwrap_or(&key);
+            row.insert("environment".to_string(), Value::String(name.to_string()));
+        }
+    }
+    listing.items = rows;
+
+    print_listing(&output, listing, DEPLOYED_APP_TABLE_COLUMNS)
 }
 
 async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
@@ -277,6 +336,26 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
 
     let app = resolve_app(&apps, app_key)?;
     output.print_result(&serde_json::Value::Object(app.clone()))?;
+    Ok(())
+}
+
+async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("get-user requires a user key or email"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let identifier = &positionals[0];
+    let user = if identifier.contains('@') {
+        client.find_user_by_email(identifier)?
+    } else {
+        client.get_user(identifier)?
+    };
+
+    output.print_result(&serde_json::Value::Object(user))?;
     Ok(())
 }
 

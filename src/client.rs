@@ -303,18 +303,68 @@ impl Client {
     pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         let resp = self.call("GET", "/api/portfolios/v2/environments")?;
 
-        match resp {
-            Value::Array(items) => {
-                let mut result = Vec::new();
-                for item in items {
-                    if let Value::Object(map) = item {
-                        result.push(map);
-                    }
-                }
-                Ok(result)
+        let items = match resp {
+            // EnvironmentListResponse: {"results": [...]}
+            Value::Object(mut map) => map.remove("results").unwrap_or(Value::Array(Vec::new())),
+            Value::Array(items) => Value::Array(items),
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Expected object or array from /environments"
+                ))
             }
-            _ => Err(anyhow::anyhow!("Expected array from /environments")),
+        };
+
+        match items {
+            Value::Array(items) => Ok(items
+                .into_iter()
+                .filter_map(|item| match item {
+                    Value::Object(map) => Some(map),
+                    _ => None,
+                })
+                .collect()),
+            _ => Err(anyhow::anyhow!("Expected array from /environments results")),
         }
+    }
+
+    /// Fetch a single page of deployed assets starting at `offset`, up to `limit` results.
+    /// Returns the page's items along with the offset of the next page, if any.
+    pub fn list_deployed_apps_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+        self.fetch_page("/api/portfolios/v2/deployed-assets", offset, limit)
+    }
+
+    /// List all deployed assets in the tenant, following pagination until exhausted.
+    pub fn list_deployed_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        self.fetch_all_pages("/api/portfolios/v2/deployed-assets")
+    }
+
+    /// Fetch a user by key (guid) via the identity API.
+    pub fn get_user(&self, key: &str) -> anyhow::Result<Map<String, Value>> {
+        let path = format!("/api/identity/v1/users/{}", key);
+        let resp = self.call("GET", &path)?;
+        match resp {
+            Value::Object(map) => Ok(map),
+            _ => Err(anyhow::anyhow!("Expected object from {}", path)),
+        }
+    }
+
+    /// Find a user by exact email (case-insensitive) via the identity API's substring search.
+    pub fn find_user_by_email(&self, email: &str) -> anyhow::Result<Map<String, Value>> {
+        let encoded =
+            percent_encoding::utf8_percent_encode(email, percent_encoding::NON_ALPHANUMERIC);
+        let path = format!(
+            "/api/identity/v1/users?nameOrEmailOrUsernameContains={}",
+            encoded
+        );
+        let users = self.fetch_all_pages(&path)?;
+
+        users
+            .into_iter()
+            .find(|u| {
+                u.get("email")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case(email))
+            })
+            .ok_or_else(|| anyhow::anyhow!("User not found: {}", email))
     }
 }
 
@@ -408,8 +458,84 @@ mod tests {
                 }
             }
 
+            if url.contains("/environments") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({"results": [{"key": "env1", "name": "Development"}]}),
+                );
+            }
+
+            if url.contains("/deployed-assets") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({
+                        "results": [{"key": "app1", "type": "WebApplication"}],
+                        "page": {"nextPageOffset": 0, "totalResults": 1},
+                    }),
+                );
+            }
+
+            if url.contains("/users/user-1") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({"key": "user-1", "name": "Demo", "email": "demo@example.com"}),
+                );
+            }
+
+            if url.contains("/users?") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({
+                        "results": [{"key": "user-1", "name": "Demo", "email": "demo@example.com"}],
+                        "page": {"nextPageOffset": 0, "totalResults": 1},
+                    }),
+                );
+            }
+
             crate::testutil::json_response(404, json!({"error": "not found"}))
         })
+    }
+
+    #[test]
+    fn test_list_environments_parses_results_envelope() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let envs = client.list_environments().unwrap();
+
+        assert_eq!(envs.len(), 1);
+        assert_eq!(envs[0].get("name").unwrap(), "Development");
+    }
+
+    #[test]
+    fn test_list_deployed_apps() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let apps = client.list_deployed_apps().unwrap();
+
+        assert_eq!(apps.len(), 1);
+        assert_eq!(apps[0].get("key").unwrap(), "app1");
+    }
+
+    #[test]
+    fn test_get_user_by_key() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let user = client.get_user("user-1").unwrap();
+
+        assert_eq!(user.get("email").unwrap(), "demo@example.com");
+    }
+
+    #[test]
+    fn test_find_user_by_email() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let user = client.find_user_by_email("demo@example.com").unwrap();
+
+        assert_eq!(user.get("key").unwrap(), "user-1");
+    }
+
+    #[test]
+    fn test_find_user_by_email_not_found() {
+        let client = Client::with_transport(test_settings(), test_output(), mock_transport());
+        let result = client.find_user_by_email("nope@example.com");
+
+        assert!(result.is_err());
     }
 
     #[test]

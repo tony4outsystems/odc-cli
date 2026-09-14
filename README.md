@@ -145,8 +145,8 @@ Inspection:
   get-app                      Retrieve app metadata.
   get-revision                 Retrieve a specific app revision.
   latest-revision              Print the latest revision number of an app.
-  list-apps                    List apps in the tenant, optionally filtered by type or name.
-  list-deployed-apps           List deployed apps, optionally filtered by environment, name or key.
+  list-apps                    List apps in the tenant, optionally filtered by name/key.
+  list-deployed-apps           List deployed apps, optionally filtered by environment and name/key.
   list-environments            List environments in the tenant.
   list-revisions               List all revisions of an app.
   producer-graph               Render an app's producer dependency graph as Mermaid.
@@ -232,18 +232,22 @@ odc list-environments
 List apps visible to the API client (name, key, type).
 
 ```bash
-odc list-apps
+odc list-apps [name-or-key-substring]
 ```
+
+An optional positional filters to apps whose name or key contains it (case-insensitive).
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-deployed-apps
 
-List apps deployed across all visible environments, including their deployed revision, tag, URL, and deployment details.
+List apps deployed across all visible environments, including their deployed revision, tag, and environment. One row per app/environment deployment.
 
 ```bash
-odc list-deployed-apps
+odc list-deployed-apps [name-or-key-substring] [--env <environment-name-or-key>]
 ```
+
+The positional filters to apps whose name or key contains it (case-insensitive). `--env` narrows to one environment (name, key, or unambiguous partial name — an unresolvable value is an error, it never matches nothing silently); omit it to include every environment the app is deployed to.
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 

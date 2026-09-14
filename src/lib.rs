@@ -40,6 +40,7 @@ pub async fn run(args: &[String]) -> Result<()> {
     let mut color_str = "auto";
     let mut offset: Option<i64> = None;
     let mut limit: i64 = 100;
+    let mut env = String::new();
     let mut cmd_args = Vec::new();
     let mut skip_next = false;
 
@@ -54,6 +55,12 @@ pub async fn run(args: &[String]) -> Result<()> {
             "--color" => {
                 if i + 1 < args.len() {
                     color_str = &args[i + 1];
+                    skip_next = true;
+                }
+            }
+            "--env" => {
+                if i + 1 < args.len() {
+                    env = args[i + 1].clone();
                     skip_next = true;
                 }
             }
@@ -118,6 +125,7 @@ pub async fn run(args: &[String]) -> Result<()> {
         color,
         offset,
         limit,
+        env,
         ..Default::default()
     };
 
