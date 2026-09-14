@@ -321,11 +321,12 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
 }
 
 async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
-    if positionals.len() < 2 {
-        return Err(anyhow::anyhow!(
-            "get-revision requires <app> --revision <number>"
-        ));
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("get-revision requires an app name or key"));
     }
+    let revision = options
+        .revision
+        .ok_or_else(|| anyhow::anyhow!("get-revision requires --revision <number>"))?;
 
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
@@ -334,8 +335,19 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app = resolve_app(&apps, app_key)?;
-    output.print_result(&serde_json::Value::Object(app.clone()))?;
+    let asset_key = resolve_app(&apps, app_key)?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
+        .to_string();
+
+    let revisions = client.list_revisions(&asset_key)?;
+    let found = revisions
+        .into_iter()
+        .find(|r| r.get("revision").and_then(|v| v.as_i64()) == Some(revision as i64))
+        .ok_or_else(|| anyhow::anyhow!("Revision {} not found for app {}", revision, app_key))?;
+
+    output.print_result(&serde_json::Value::Object(found))?;
     Ok(())
 }
 

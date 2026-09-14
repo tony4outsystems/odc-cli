@@ -2,6 +2,8 @@
 
 This document covers building, testing, and releasing this repo. For installing and using the `odc` CLI, see [README.md](README.md).
 
+During development, use `cargo run -- ...`. 
+
 ## Architecture
 
 The Rust codebase is organized into 12 modules:
