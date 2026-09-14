@@ -1,15 +1,18 @@
 use crate::cli::Options;
+use crate::client::Client;
+use crate::settings;
 use anyhow::Result;
+use std::sync::Arc;
 
 /// Execute a command based on its name
-pub async fn execute(cmd: &str, _options: &Options, _positionals: &[String]) -> Result<()> {
+pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
     match cmd {
         "login" => Err(anyhow::anyhow!(
             "Login should be handled in main run() function"
         )),
-        "discover" => Err(anyhow::anyhow!("discover: not yet implemented")),
-        "list-environments" => Err(anyhow::anyhow!("list-environments: not yet implemented")),
-        "list-apps" => Err(anyhow::anyhow!("list-apps: not yet implemented")),
+        "discover" => cmd_discover(options).await,
+        "list-environments" => cmd_list_environments(options).await,
+        "list-apps" => cmd_list_apps(options, positionals).await,
         "list-deployed-apps" => Err(anyhow::anyhow!("list-deployed-apps: not yet implemented")),
         "get-app" => Err(anyhow::anyhow!("get-app: not yet implemented")),
         "latest-revision" => Err(anyhow::anyhow!("latest-revision: not yet implemented")),
@@ -39,6 +42,41 @@ pub async fn execute(cmd: &str, _options: &Options, _positionals: &[String]) -> 
         "internal-deploy" => Err(anyhow::anyhow!("internal-deploy: not yet implemented")),
         _ => Err(anyhow::anyhow!("Unknown command: {}", cmd)),
     }
+}
+
+/// Show the OAuth discovery document
+async fn cmd_discover(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let discovery = client.discover()?;
+    output.print_result(&serde_json::Value::Object(discovery))?;
+    Ok(())
+}
+
+/// List environments in the tenant
+async fn cmd_list_environments(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let envs = client.list_environments()?;
+    let result: Vec<_> = envs.into_iter().map(serde_json::Value::Object).collect();
+    output.print_result(&serde_json::Value::Array(result))?;
+    Ok(())
+}
+
+/// List apps in the tenant
+async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let result: Vec<_> = apps.into_iter().map(serde_json::Value::Object).collect();
+    output.print_result(&serde_json::Value::Array(result))?;
+    Ok(())
 }
 
 #[cfg(test)]

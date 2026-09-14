@@ -164,10 +164,7 @@ mod tests {
 
         let result = compact_map(&map, &["name", "age", "city", "country", "state"]);
         assert_eq!(result.len(), 2);
-        assert_eq!(
-            result.get("name").and_then(|v| v.as_str()),
-            Some("Alice")
-        );
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("Alice"));
         assert_eq!(result.get("age").and_then(|v| v.as_i64()), Some(30));
     }
 

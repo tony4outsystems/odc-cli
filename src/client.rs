@@ -1,7 +1,8 @@
 use crate::settings::Settings;
-use crate::transport::Transport;
+use crate::transport::{HttpRequest, HttpResponse, Transport};
 use serde_json::{Map, Value};
 use std::sync::Mutex;
+use url::Url;
 
 /// HTTP client for ODC API
 #[allow(dead_code)]
@@ -52,14 +53,53 @@ impl Client {
 
     /// Get the OpenID discovery document
     pub fn discover(&self) -> anyhow::Result<Map<String, Value>> {
-        // TODO: Implement
-        Err(anyhow::anyhow!("Not yet implemented"))
+        // TODO: HTTP discover call
+        Err(anyhow::anyhow!(
+            "discover: HTTP transport not yet implemented"
+        ))
     }
 
     /// Get an access token
     pub fn token(&self) -> anyhow::Result<String> {
-        // TODO: Implement
-        Err(anyhow::anyhow!("Not yet implemented"))
+        // TODO: OAuth token request
+        Err(anyhow::anyhow!("token: HTTP transport not yet implemented"))
+    }
+
+    /// List all apps in the tenant
+    pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        // TODO: HTTP /assets call
+        Err(anyhow::anyhow!(
+            "list_apps: HTTP transport not yet implemented"
+        ))
+    }
+
+    /// List environments in the tenant
+    pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        // TODO: HTTP /environments call
+        Err(anyhow::anyhow!(
+            "list_environments: HTTP transport not yet implemented"
+        ))
+    }
+
+    /// Low-level HTTP call (for future implementation)
+    #[allow(dead_code)]
+    fn call_raw(
+        &self,
+        method: &str,
+        url: &str,
+        headers: Vec<(String, String)>,
+        body: Option<Vec<u8>>,
+    ) -> anyhow::Result<HttpResponse> {
+        let url = Url::parse(url)?;
+
+        let req = HttpRequest {
+            method: method.to_string(),
+            url,
+            headers,
+            body: body.unwrap_or_default(),
+        };
+
+        self.transport.send(req)
     }
 }
 

@@ -40,8 +40,9 @@ impl Default for UreqTransport {
 
 impl Transport for UreqTransport {
     fn send(&self, _req: HttpRequest) -> Result<HttpResponse> {
-        // TODO: Implement ureq integration
-        Err(anyhow::anyhow!("Not yet implemented"))
+        // TODO: Implement full ureq integration
+        // For now, all HTTP requests return an error
+        Err(anyhow::anyhow!("HTTP transport: not yet implemented"))
     }
 }
 

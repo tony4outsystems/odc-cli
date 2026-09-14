@@ -113,10 +113,7 @@ mod tests {
 
         let rows = deployed_app_rows(&[app_with_deploy], "prod", "");
         assert_eq!(rows.len(), 1);
-        assert_eq!(
-            rows[0].get("key").and_then(|v| v.as_str()),
-            Some("app1")
-        );
+        assert_eq!(rows[0].get("key").and_then(|v| v.as_str()), Some("app1"));
     }
 
     #[test]
