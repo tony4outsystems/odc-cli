@@ -99,6 +99,8 @@ Use `--app` wherever commands previously used `--asset`. Help, messages, and ide
 
 Results use readable tables and labeled fields by default. Terminal output includes colored headings and status values; redirected output is plain text.
 
+List commands (`list-apps`, `list-deployed-apps`, `list-revisions`) show only a few key columns in their table (e.g. name, key, type, revision, tag) rather than every field the API returns — the full record, guids and all, is always available with `--json`.
+
 - `--json` prints JSON for scripts. Commands with multiple stages emit successive JSON values, with progress messages on stderr.
 - `--color auto|always|never` controls ANSI colors (default `auto`). Automatic color respects `NO_COLOR` and `TERM=dumb`.
 

@@ -35,11 +35,37 @@ fn fetch_listing(
     }
 }
 
+/// Columns shown for `list-apps` / `list-deployed-apps` table output. `--json` still returns
+/// every field the API sent; this only narrows what the human-readable table displays, since
+/// showing all ~20 asset fields (guids, digests, tagging metadata, ...) makes the table
+/// unreadable.
+const APP_TABLE_COLUMNS: &[&str] = &["name", "assetKey", "assetType", "revision", "tag"];
+
+/// Columns shown for `list-revisions` table output; see `APP_TABLE_COLUMNS`.
+const REVISION_TABLE_COLUMNS: &[&str] = &["revision", "tag", "createdAt", "createdBy"];
+
 /// Print a `Listing`: a plain JSON/table array when every page was fetched, or a
 /// `{results, page}` envelope (in `--json` mode) carrying `page.nextOffset` when a single
 /// page was requested, so the next page can be fetched with `--offset <nextOffset>`.
-fn print_listing(output: &crate::output::Output, listing: Listing) -> Result<()> {
-    let results: Vec<Value> = listing.items.into_iter().map(Value::Object).collect();
+///
+/// In table mode, rows are narrowed to `table_columns` first so wide/unreadable fields (guids,
+/// digests, tagging metadata, ...) don't blow up the table; `--json` output is unaffected and
+/// always includes every field the API returned.
+fn print_listing(
+    output: &crate::output::Output,
+    listing: Listing,
+    table_columns: &[&str],
+) -> Result<()> {
+    let items = if output.json {
+        listing.items
+    } else {
+        listing
+            .items
+            .iter()
+            .map(|item| crate::value::compact_map(item, table_columns))
+            .collect()
+    };
+    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
 
     match listing.page {
         Some((offset, limit, next_offset)) if output.json => {
@@ -128,7 +154,7 @@ async fn cmd_list_apps(options: &Options, _positionals: &[String]) -> Result<()>
         |offset, limit| client.list_apps_page(offset, limit),
         || client.list_apps(),
     )?;
-    print_listing(&output, listing)
+    print_listing(&output, listing, APP_TABLE_COLUMNS)
 }
 
 async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> Result<()> {
@@ -141,7 +167,7 @@ async fn cmd_list_deployed_apps(options: &Options, _positionals: &[String]) -> R
         |offset, limit| client.list_apps_page(offset, limit),
         || client.list_apps(),
     )?;
-    print_listing(&output, listing)
+    print_listing(&output, listing, APP_TABLE_COLUMNS)
 }
 
 async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
@@ -223,7 +249,7 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
         |offset, limit| client.list_revisions_page(&asset_key, offset, limit),
         || client.list_revisions(&asset_key),
     )?;
-    print_listing(&output, listing)
+    print_listing(&output, listing, REVISION_TABLE_COLUMNS)
 }
 
 async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
@@ -262,5 +288,26 @@ mod tests {
         let result = execute("nonexistent", &opts, &[]).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Unknown command"));
+    }
+
+    #[test]
+    fn test_app_table_columns_drop_wide_fields() {
+        let mut app = Map::new();
+        app.insert("name".to_string(), serde_json::json!("MyApp"));
+        app.insert("assetKey".to_string(), serde_json::json!("guid-1"));
+        app.insert("assetType".to_string(), serde_json::json!("WebApplication"));
+        app.insert("revision".to_string(), serde_json::json!(3));
+        app.insert("tag".to_string(), serde_json::json!("1.0.0"));
+        app.insert("modelDigest".to_string(), serde_json::json!("digest-guid"));
+        app.insert(
+            "description".to_string(),
+            serde_json::json!("a very long description"),
+        );
+
+        let compacted = crate::value::compact_map(&app, APP_TABLE_COLUMNS);
+
+        assert_eq!(compacted.len(), 5);
+        assert!(!compacted.contains_key("modelDigest"));
+        assert!(!compacted.contains_key("description"));
     }
 }
