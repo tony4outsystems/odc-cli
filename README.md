@@ -2,11 +2,17 @@
 
 Rust CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
-A production-ready Rust port of the original Go CLI with identical behavior, output formatting, and API compatibility. Built with `tokio` async runtime and `reqwest` HTTP client for multi-target binary distribution.
-
 ![odc demo](demo.gif)
 
 ## Install
+
+### Homebrew (macOS)
+
+```bash
+brew install tony4outsystems/tap/odc-cli
+```
+
+To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. The tap installs a prebuilt Rust binary (no build step).
 
 ### Download a binary
 
@@ -70,9 +76,24 @@ odc deploy --app <app-name-or-key> --env <environment-name-or-key>
 
 The `validate` command confirms that the given app and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
 
+## Claude Code skill
+
+This repo includes a [Claude Code](https://claude.com/claude-code) skill at [skills/odc-cli-helper](skills/odc-cli-helper/SKILL.md) that teaches Claude how to install, configure, and drive the `odc` CLI on your behalf — deploying apps, listing dependencies, checking revisions, and so on.
+
+To use it, copy the skill into a Claude Code skills directory so it loads automatically:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r skills/odc-cli-helper ~/.claude/skills/
+```
+
+(Use `.claude/skills/` inside a specific project instead of `~/.claude/skills/` to scope it to that project only.)
+
+Once installed, ask Claude Code things like "deploy MyApp to Production with odc" or "list all apps in my ODC tenant" and it will invoke the skill automatically.
+
 ## Terminology
 
-Use `--app` wherever commands previously used `--asset`. Help, messages, and Go identifiers use app terminology. JSON responses retain ODC API field names such as `assetKey` and `assetType`; API paths and the checked-in API specifications retain their official names. Human-readable output labels use App.
+Use `--app` wherever commands previously used `--asset`. Help, messages, and identifiers use app terminology. JSON responses retain ODC API field names such as `assetKey` and `assetType`; API paths and the checked-in API specifications retain their official names. Human-readable output labels use App.
 
 ## Output
 
@@ -86,37 +107,6 @@ odc list-apps
 odc get-app MyApp --color always
 odc list-apps --json > apps.json
 ```
-
-## Architecture
-
-The Rust codebase is organized into 12 modules mirroring the original Go structure:
-
-| Module | Purpose |
-|--------|---------|
-| `main.rs` | Entry point and error handling (exit code 1 on failure) |
-| `lib.rs` | Argument parsing and command dispatch |
-| `cli.rs` | Command table (30 commands in 6 help groups), option flags, and help text |
-| `commands.rs` | Command handlers for all 30 commands |
-| `client.rs` | HTTP client for ODC API with discovery, token caching, and pagination |
-| `transport.rs` | HTTP abstraction layer using `reqwest` with async/sync bridging |
-| `value.rs` | JSON helpers for number fidelity and value extraction |
-| `output.rs` | Pretty-printing engine with color codes and table alignment |
-| `settings.rs` | Configuration loading from `.env` with variable expansion |
-| `login.rs` | OAuth2 client credentials flow and config persistence |
-| `resolve.rs` | Name-to-GUID resolution with partial matching and suggestions |
-| `workflows.rs`, `inspection.rs`, `mermaid.rs`, `upload.rs` | Command-specific logic and helpers |
-
-### Testing
-
-The codebase includes 42 unit tests covering:
-- JSON value parsing and formatting
-- Output formatting and field ordering
-- Settings loading and `.env` expansion
-- OAuth2 discovery and token flow
-- App/environment resolution and API pagination
-- Mermaid diagram generation
-
-Run tests with `cargo test`. All tests use the `Transport` trait for mocking HTTP responses, allowing end-to-end command testing without network calls.
 
 ## Commands
 
@@ -434,30 +424,10 @@ Commands that run multiple apps in parallel (`batch-deploy`, `dangerous-batch-un
 - `--max-parallel` — maximum apps to process concurrently (default `3`)
 - `--continue-on-error` — keep going on remaining apps if one fails, instead of stopping. Only fully honored when `--max-parallel 1`; with concurrency, in-flight apps are not cancelled on a failure either way
 
-## Releasing
-
-Push a version tag to build and publish binaries for Windows, macOS, and Linux, each for `amd64` and `arm64`:
-
-```bash
-git tag v0.1.2
-git push origin v0.1.2
-```
-
-The `Release binaries` workflow runs tests and clippy checks, then uses cargo-dist (configured in `Cargo.toml.dist`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
-
-To validate the release locally without publishing (requires [cargo-dist](https://github.com/axo-dev/cargo-dist)):
-
-```bash
-cargo dist plan
-cargo dist build --artifacts=local
-```
-
-Artifacts are written to `target/distrib/`.
-
 ## TODO
 
-* Claude skill
 * Support Portfolio
 
+## Development
 
-Tech
+For architecture notes, running tests, and cutting a release, see [DEVELOPMENT.md](DEVELOPMENT.md).
