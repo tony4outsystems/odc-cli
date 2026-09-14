@@ -45,17 +45,13 @@ impl Transport for ReqwestTransport {
     fn send(&self, req: HttpRequest) -> Result<HttpResponse> {
         // Block in place to safely call async from sync context
         tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                send_request_async(&self.client, req).await
-            })
+            tokio::runtime::Handle::current()
+                .block_on(async { send_request_async(&self.client, req).await })
         })
     }
 }
 
-async fn send_request_async(
-    client: &reqwest::Client,
-    req: HttpRequest,
-) -> Result<HttpResponse> {
+async fn send_request_async(client: &reqwest::Client, req: HttpRequest) -> Result<HttpResponse> {
     let mut request = match req.method.to_uppercase().as_str() {
         "GET" => client.get(req.url.clone()),
         "POST" => client.post(req.url.clone()),

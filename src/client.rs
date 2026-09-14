@@ -1,6 +1,6 @@
 use crate::settings::Settings;
-use crate::transport::{Transport, HttpRequest, HttpResponse};
-use serde_json::{Map, Value, json};
+use crate::transport::{HttpRequest, HttpResponse, Transport};
+use serde_json::{json, Map, Value};
 use std::sync::Mutex;
 use url::Url;
 
@@ -60,14 +60,18 @@ impl Client {
         }
 
         let tenant_origin = self.settings.tenant_origin();
-        let url = format!("{}/identity/.well-known/openid-configuration", tenant_origin);
+        let url = format!(
+            "{}/identity/.well-known/openid-configuration",
+            tenant_origin
+        );
         let resp = self.call_raw("GET", &url, Vec::new(), None)?;
 
         if resp.status >= 400 {
             let body_str = String::from_utf8(resp.body).unwrap_or_default();
             return Err(anyhow::anyhow!(
                 "Discovery failed with {}: {}",
-                resp.status, body_str
+                resp.status,
+                body_str
             ));
         }
 
@@ -80,7 +84,7 @@ impl Client {
 
     /// Get an access token
     pub fn token(&self) -> anyhow::Result<String> {
-        let mut auth = self.auth_mutex.lock().unwrap();
+        let auth = self.auth_mutex.lock().unwrap();
 
         if let Some(token) = &auth.token {
             return Ok(token.clone());
@@ -90,7 +94,8 @@ impl Client {
 
         let discovery = self.discover()?;
 
-        let token_endpoint = crate::value::str(discovery.get("token_endpoint").unwrap_or(&Value::Null));
+        let token_endpoint =
+            crate::value::str(discovery.get("token_endpoint").unwrap_or(&Value::Null));
         if token_endpoint.is_empty() {
             return Err(anyhow::anyhow!("token_endpoint not found in discovery"));
         }
@@ -103,13 +108,20 @@ impl Client {
         let resp = self.call_raw(
             "POST",
             &token_endpoint,
-            vec![("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string())],
+            vec![(
+                "Content-Type".to_string(),
+                "application/x-www-form-urlencoded".to_string(),
+            )],
             Some(body.into_bytes()),
         )?;
 
         if resp.status >= 400 {
             let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!("Token request failed with {}: {}", resp.status, body_str));
+            return Err(anyhow::anyhow!(
+                "Token request failed with {}: {}",
+                resp.status,
+                body_str
+            ));
         }
 
         let body_str = String::from_utf8(resp.body)?;
@@ -143,7 +155,10 @@ impl Client {
             let body_str = String::from_utf8(resp.body).unwrap_or_default();
             return Err(anyhow::anyhow!(
                 "{} {} failed with {}: {}",
-                method, path, resp.status, body_str
+                method,
+                path,
+                resp.status,
+                body_str
             ));
         }
 

@@ -3,7 +3,6 @@ use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
 use std::sync::Arc;
-use serde_json::json;
 
 /// Execute a command based on its name
 pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
@@ -114,7 +113,9 @@ async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
 
 async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
-        return Err(anyhow::anyhow!("latest-revision requires an app name or key"));
+        return Err(anyhow::anyhow!(
+            "latest-revision requires an app name or key"
+        ));
     }
 
     let settings = settings::load_settings()?;
@@ -140,7 +141,9 @@ async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Resul
 
 async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
-        return Err(anyhow::anyhow!("list-revisions requires an app name or key"));
+        return Err(anyhow::anyhow!(
+            "list-revisions requires an app name or key"
+        ));
     }
 
     let settings = settings::load_settings()?;
@@ -166,7 +169,9 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
 
 async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
-        return Err(anyhow::anyhow!("get-revision requires <app> --revision <number>"));
+        return Err(anyhow::anyhow!(
+            "get-revision requires <app> --revision <number>"
+        ));
     }
 
     let settings = settings::load_settings()?;
