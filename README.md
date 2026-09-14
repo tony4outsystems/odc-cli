@@ -232,11 +232,8 @@ odc list-environments
 List apps visible to the API client (name, key, type).
 
 ```bash
-odc list-apps [--type WebApplication] [--search eGov]
+odc list-apps
 ```
-
-- `--type` — filter by app type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
-- `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 
@@ -245,10 +242,10 @@ See [Pagination](#pagination) for `--offset`/`--limit`.
 List apps deployed across all visible environments, including their deployed revision, tag, URL, and deployment details.
 
 ```bash
-odc list-deployed-apps [--env <environment-name-or-key>] [--search <name-or-key-substring>]
+odc list-deployed-apps
 ```
 
-`--search` matches app names or keys case-insensitively. Omit `--env` to include all visible environments, or supply it to filter to one environment. Each row includes its environment key. See [Pagination](#pagination) for `--offset`/`--limit`.
+See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-revisions / get-revision
 

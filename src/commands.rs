@@ -35,9 +35,8 @@ fn fetch_listing(
     }
 }
 
-/// Find an app by key or name. The asset-repository API identifies an app by `assetKey`
-/// (not `key`), so this matches on `assetKey` first and falls back to `name` since commands
-/// accept "an app name or key" (per README) and both are common ways users refer to an app.
+/// Find an app by exact `assetKey` or exact `name`. The asset-repository API identifies an
+/// app by `assetKey` (not `key`).
 fn find_app<'a>(
     apps: &'a [Map<String, Value>],
     identifier: &str,
@@ -46,6 +45,18 @@ fn find_app<'a>(
         Some(Value::String(key)) if key == identifier => true,
         _ => matches!(app.get("name"), Some(Value::String(name)) if name == identifier),
     })
+}
+
+/// Resolve a user-supplied app name/key to the app it refers to. Supports a GUID, an exact
+/// name or key, or an unambiguous substring of the name/key — falling back to a "did you
+/// mean" error listing the candidates when the input is ambiguous or matches nothing exactly
+/// (via `resolve::resolve`).
+fn resolve_app<'a>(
+    apps: &'a [Map<String, Value>],
+    identifier: &str,
+) -> Result<&'a Map<String, Value>> {
+    let asset_key = crate::resolve::resolve(identifier, "app", apps, "assetKey")?;
+    find_app(apps, &asset_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", identifier))
 }
 
 /// Columns shown for `list-apps` / `list-deployed-apps` table output. `--json` still returns
@@ -195,8 +206,7 @@ async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app =
-        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    let app = resolve_app(&apps, app_key)?;
     output.print_result(&serde_json::Value::Object(app.clone()))?;
     Ok(())
 }
@@ -215,8 +225,7 @@ async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Resul
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app =
-        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    let app = resolve_app(&apps, app_key)?;
     let revision = app
         .get("revision")
         .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?;
@@ -238,10 +247,10 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let asset_key = find_app(&apps, app_key)
-        .and_then(|app| app.get("assetKey"))
+    let asset_key = resolve_app(&apps, app_key)?
+        .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
         .to_string();
 
     let listing = fetch_listing(
@@ -266,8 +275,7 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app =
-        find_app(&apps, app_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", app_key))?;
+    let app = resolve_app(&apps, app_key)?;
     output.print_result(&serde_json::Value::Object(app.clone()))?;
     Ok(())
 }

@@ -93,6 +93,11 @@ pub async fn run(args: &[String]) -> Result<()> {
 
     let cmd = &cmd_args[0];
 
+    // `odc <command> --help` / `-h`: show that command's usage instead of running it.
+    if cmd_args[1..].iter().any(|a| a == "--help" || a == "-h") {
+        return print_command_help(cmd);
+    }
+
     // Handle login specially (doesn't need auth)
     if cmd == "login" {
         if cmd_args.len() != 3 {
@@ -118,6 +123,36 @@ pub async fn run(args: &[String]) -> Result<()> {
 
     // Dispatch to command executor
     commands::execute(cmd, &options, &positionals).await
+}
+
+/// Print usage for a single command in response to `odc <command> --help`/`-h`.
+fn print_command_help(cmd: &str) -> Result<()> {
+    let def = cli::find_command(cmd).ok_or_else(|| anyhow::anyhow!("Unknown command: {}", cmd))?;
+
+    if def.positional.is_empty() {
+        println!("Usage: odc {}", def.name);
+    } else {
+        println!("Usage: odc {} {}", def.name, def.positional);
+    }
+    println!();
+    println!("{}", def.short);
+
+    if matches!(
+        def.name,
+        "list-apps" | "list-deployed-apps" | "list-revisions"
+    ) {
+        println!();
+        println!("Flags:");
+        println!(
+            "  --offset <n>            Fetch a single page starting at this result index (default: fetch every page)"
+        );
+        println!("  --limit <n>             Page size to request from the API (default: 100)");
+    }
+
+    println!();
+    println!("Global flags: --json, --color auto|always|never");
+
+    Ok(())
 }
 
 fn print_help() {
