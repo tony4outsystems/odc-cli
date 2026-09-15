@@ -220,6 +220,7 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "get-group" => cmd_get_group(options, positionals).await,
         "update-group" => cmd_update_group(options, positionals).await,
         "list-group-members" => cmd_list_group_members(options, positionals).await,
+        "list-group-roles" => cmd_list_group_roles(options, positionals).await,
         "add-user-to-group" => cmd_add_user_to_group(options, positionals).await,
         "remove-user-from-group" => cmd_remove_user_from_group(options, positionals).await,
         "grant-group-role" => cmd_grant_group_role(options, positionals).await,
@@ -1329,7 +1330,43 @@ async fn cmd_list_group_members(options: &Options, positionals: &[String]) -> Re
     } else {
         members
             .iter()
-            .map(|item| crate::value::compact_map(item, GROUP_USER_TABLE_COLUMNS))
+            .map(|item| {
+                let mut flat = item
+                    .get("user")
+                    .and_then(|v| v.as_object())
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(membership) = item.get("membershipTypes") {
+                    flat.insert("membershipTypes".to_string(), membership.clone());
+                }
+                crate::value::compact_map(&flat, GROUP_USER_TABLE_COLUMNS)
+            })
+            .collect()
+    };
+    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
+    output.print_result(&Value::Array(results))
+}
+
+async fn cmd_list_group_roles(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "list-group-roles", "a group name or key")?;
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?;
+    let roles = client.list_group_application_roles(group_key)?;
+
+    let items = if output.json {
+        roles
+    } else {
+        roles
+            .iter()
+            .map(|item| crate::value::compact_map(item, ROLE_TABLE_COLUMNS))
             .collect()
     };
     let results: Vec<Value> = items.into_iter().map(Value::Object).collect();

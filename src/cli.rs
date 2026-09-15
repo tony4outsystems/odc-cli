@@ -62,6 +62,7 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "get-group",
             "update-group",
             "list-group-members",
+            "list-group-roles",
             "add-user-to-group",
             "remove-user-from-group",
             "grant-group-role",
@@ -525,6 +526,9 @@ pub enum Commands {
     /// List the members of an end-user group.
     ListGroupMembers { group: String },
 
+    /// List the application roles assigned to an end-user group.
+    ListGroupRoles { group: String },
+
     /// Add a user to an end-user group.
     AddUserToGroup { group: String, user: String },
 
@@ -700,6 +704,7 @@ impl Commands {
             Commands::GetGroup { .. } => "get-group",
             Commands::UpdateGroup { .. } => "update-group",
             Commands::ListGroupMembers { .. } => "list-group-members",
+            Commands::ListGroupRoles { .. } => "list-group-roles",
             Commands::AddUserToGroup { .. } => "add-user-to-group",
             Commands::RemoveUserFromGroup { .. } => "remove-user-from-group",
             Commands::GrantGroupRole { .. } => "grant-group-role",
@@ -920,7 +925,9 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetGroup { group } | Commands::ListGroupMembers { group } => {
+            Commands::GetGroup { group }
+            | Commands::ListGroupMembers { group }
+            | Commands::ListGroupRoles { group } => {
                 positionals = vec![group];
             }
             Commands::UpdateGroup {
