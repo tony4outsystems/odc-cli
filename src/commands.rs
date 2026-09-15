@@ -1050,7 +1050,7 @@ async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()
     output.print_result(&serde_json::Value::Object(updated))
 }
 
-const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "assetKey", "environment"];
+const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
 const ROLE_USER_TABLE_COLUMNS: &[&str] = &["role", "name", "email", "key", "status"];
 
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
