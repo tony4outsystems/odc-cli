@@ -176,7 +176,7 @@ fn print_listing(
 /// Execute a command based on its name
 pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
     match cmd {
-        "login" | "login-mentor" => Err(anyhow::anyhow!(
+        "login" => Err(anyhow::anyhow!(
             "Login should be handled in main run() function"
         )),
         "discover" => cmd_discover(options).await,

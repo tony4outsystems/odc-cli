@@ -47,9 +47,6 @@ pub async fn run(args: &[String]) -> Result<()> {
     if cmd == "login" {
         return login::login(&positionals[0], &positionals[1]);
     }
-    if cmd == "login-mentor" {
-        return login::login_mentor(&positionals[0], &positionals[1]);
-    }
 
     commands::execute(cmd, &options, &positionals).await
 }

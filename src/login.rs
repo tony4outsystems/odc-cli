@@ -70,63 +70,13 @@ pub fn login(tenant_url: &str, client_id: &str) -> Result<()> {
     }
 
     // Save settings
-    // Preserve any existing mentor credentials already on disk.
-    let existing = load_existing_settings().unwrap_or_default();
-
     let path = save_settings(&Settings {
         tenant_url: tenant_url.to_string(),
         client_id: client_id.to_string(),
         client_secret: secret,
-        ..existing
     })?;
 
     // Output result
-    let result = json!({"configuration": path.to_string_lossy().to_string()});
-    let output = std::sync::Arc::new(crate::output::Output::new(
-        false,
-        crate::output::ColorMode::Never,
-    ));
-    output.print_result(&result)?;
-
-    Ok(())
-}
-
-/// Load the settings currently on disk, if any, so a `login`/`login-mentor` call only
-/// overwrites the fields it's responsible for.
-fn load_existing_settings() -> Result<Settings> {
-    let path = config_path()?;
-    let data = fs::read_to_string(&path)?;
-    Ok(serde_json::from_str(&data)?)
-}
-
-/// Execute the login-mentor command: saves Mentor's own OAuth2 client credentials
-/// (separate from the main ODC API client) alongside any existing configuration.
-pub fn login_mentor(token_url: &str, client_id: &str) -> Result<()> {
-    let url = Url::parse(token_url)?;
-    if url.host().is_none() || (url.scheme() != "https" && url.scheme() != "http") {
-        return Err(anyhow!(
-            "token URL must be an absolute HTTP or HTTPS URL"
-        ));
-    }
-
-    if client_id.trim().is_empty() {
-        return Err(anyhow!("client ID must not be empty"));
-    }
-
-    let secret = prompt_secret()?;
-    if secret.trim().is_empty() {
-        return Err(anyhow!("client secret must not be empty"));
-    }
-
-    let existing = load_existing_settings().unwrap_or_default();
-
-    let path = save_settings(&Settings {
-        mentor_token_url: Some(token_url.to_string()),
-        mentor_client_id: Some(client_id.to_string()),
-        mentor_client_secret: Some(secret),
-        ..existing
-    })?;
-
     let result = json!({"configuration": path.to_string_lossy().to_string()});
     let output = std::sync::Arc::new(crate::output::Output::new(
         false,
