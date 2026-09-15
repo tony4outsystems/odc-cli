@@ -1091,11 +1091,7 @@ const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &["role", "environment", "type", 
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
 /// `list-role-assignments`.
-fn resolve_app_roles(
-    client: &Client,
-    app: &str,
-    env: &str,
-) -> Result<Vec<Map<String, Value>>> {
+fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<String, Value>>> {
     let asset_key = resolve_app(client, app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
@@ -1546,12 +1542,8 @@ async fn cmd_download_source_code(options: &Options, positionals: &[String]) -> 
             as i32,
     };
 
-    let (output_path, _bytes) = crate::inspection::download_source_code(
-        &client,
-        app_key,
-        revision,
-        &options.output,
-    )?;
+    let (output_path, _bytes) =
+        crate::inspection::download_source_code(&client, app_key, revision, &options.output)?;
 
     if options.json {
         output.print_result(&serde_json::json!({ "output": output_path }))?;

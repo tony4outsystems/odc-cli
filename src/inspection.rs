@@ -228,13 +228,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let output_path = dir.path().join("out.oml");
 
-        let (path, bytes) = download_source_code(
-            &client,
-            "App One",
-            3,
-            output_path.to_str().unwrap(),
-        )
-        .unwrap();
+        let (path, bytes) =
+            download_source_code(&client, "App One", 3, output_path.to_str().unwrap()).unwrap();
 
         assert_eq!(path, output_path.to_str().unwrap());
         assert_eq!(bytes, 6);
