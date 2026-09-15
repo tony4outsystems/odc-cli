@@ -538,6 +538,89 @@ impl Client {
         Ok(())
     }
 
+    /// List end-user groups, optionally filtered by name (case-insensitive, server-side) and/or
+    /// environment key.
+    pub fn list_groups(
+        &self,
+        name_contains: &str,
+        environment_key: &str,
+    ) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let mut query = Vec::new();
+        if !name_contains.is_empty() {
+            let encoded = percent_encoding::utf8_percent_encode(
+                name_contains,
+                percent_encoding::NON_ALPHANUMERIC,
+            );
+            query.push(format!("nameContains={}", encoded));
+        }
+        if !environment_key.is_empty() {
+            query.push(format!("environmentKey={}", environment_key));
+        }
+        let path = format!("/api/identity/v1/groups?{}", query.join("&"));
+        self.fetch_all_pages(&path)
+    }
+
+    /// Retrieve a single end-user group by key.
+    pub fn get_group(&self, key: &str) -> anyhow::Result<Map<String, Value>> {
+        let path = format!("/api/identity/v1/groups/{}", key);
+        let resp = self.call("GET", &path)?;
+        Self::expect_object(resp, &path)
+    }
+
+    /// Update a group's mutable fields (name, description).
+    pub fn update_group(&self, key: &str, updates: &Map<String, Value>) -> anyhow::Result<()> {
+        let path = format!("/api/identity/v1/groups/{}", key);
+        self.call_with_body("PATCH", &path, Some(Value::Object(updates.clone())))?;
+        Ok(())
+    }
+
+    /// List the members of an end-user group.
+    pub fn list_group_users(&self, group_key: &str) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let path = format!("/api/identity/v1/groups/{}/users", group_key);
+        self.fetch_all_pages(&path)
+    }
+
+    /// Add and/or remove users from an end-user group.
+    pub fn patch_group_users(
+        &self,
+        group_key: &str,
+        user_keys_to_add: &[String],
+        user_keys_to_remove: &[String],
+    ) -> anyhow::Result<()> {
+        let path = format!("/api/identity/v1/groups/{}/users", group_key);
+        let body = serde_json::json!({
+            "userKeysToAdd": user_keys_to_add,
+            "userKeysToRemove": user_keys_to_remove,
+        });
+        self.call_with_body("PATCH", &path, Some(body))?;
+        Ok(())
+    }
+
+    /// List the application roles assigned to an end-user group.
+    pub fn list_group_application_roles(
+        &self,
+        group_key: &str,
+    ) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let path = format!("/api/identity/v1/groups/{}/application-roles", group_key);
+        self.fetch_all_pages(&path)
+    }
+
+    /// Add and/or remove application roles from an end-user group.
+    pub fn patch_group_application_roles(
+        &self,
+        group_key: &str,
+        role_keys_to_add: &[String],
+        role_keys_to_remove: &[String],
+    ) -> anyhow::Result<()> {
+        let path = format!("/api/identity/v1/groups/{}/application-roles", group_key);
+        let body = serde_json::json!({
+            "applicationRoleKeysToAdd": role_keys_to_add,
+            "applicationRoleKeysToRemove": role_keys_to_remove,
+        });
+        self.call_with_body("PATCH", &path, Some(body))?;
+        Ok(())
+    }
+
     /// Permanently delete an asset (app).
     pub fn delete_asset(&self, asset_key: &str) -> anyhow::Result<()> {
         let path = format!("/api/asset-repository/v1/assets/{}", asset_key);

@@ -56,6 +56,19 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "Groups",
+        &[
+            "list-groups",
+            "get-group",
+            "update-group",
+            "list-group-members",
+            "add-user-to-group",
+            "remove-user-from-group",
+            "grant-group-role",
+            "revoke-group-role",
+        ],
+    ),
+    (
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
     ),
@@ -488,6 +501,53 @@ pub enum Commands {
         user: String,
     },
 
+    /// List end-user groups, optionally filtered by name and/or environment.
+    ListGroups {
+        /// Substring to filter groups by name
+        filter: Option<String>,
+        /// Environment name, key, or unambiguous partial name
+        #[arg(long)]
+        env: Option<String>,
+    },
+
+    /// Retrieve an end-user group's details.
+    GetGroup { group: String },
+
+    /// Update a group's name or description.
+    UpdateGroup {
+        group: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+    },
+
+    /// List the members of an end-user group.
+    ListGroupMembers { group: String },
+
+    /// Add a user to an end-user group.
+    AddUserToGroup { group: String, user: String },
+
+    /// Remove a user from an end-user group.
+    RemoveUserFromGroup { group: String, user: String },
+
+    /// Grant an application role to an end-user group.
+    GrantGroupRole {
+        /// App the role belongs to (name or key)
+        app: String,
+        /// Role name or key
+        role: String,
+        /// Group name or key
+        group: String,
+    },
+
+    /// Revoke an application role from an end-user group.
+    RevokeGroupRole {
+        app: String,
+        role: String,
+        group: String,
+    },
+
     /// Start a build for an app revision.
     InternalBuild {
         #[arg(long)]
@@ -636,6 +696,14 @@ impl Commands {
             Commands::ListAppRoleUsers { .. } => "list-app-role-users",
             Commands::GrantRole { .. } => "grant-role",
             Commands::RevokeRole { .. } => "revoke-role",
+            Commands::ListGroups { .. } => "list-groups",
+            Commands::GetGroup { .. } => "get-group",
+            Commands::UpdateGroup { .. } => "update-group",
+            Commands::ListGroupMembers { .. } => "list-group-members",
+            Commands::AddUserToGroup { .. } => "add-user-to-group",
+            Commands::RemoveUserFromGroup { .. } => "remove-user-from-group",
+            Commands::GrantGroupRole { .. } => "grant-group-role",
+            Commands::RevokeGroupRole { .. } => "revoke-group-role",
             Commands::InternalBuild { .. } => "internal-build",
             Commands::InternalPublish { .. } => "internal-publish",
             Commands::InternalDeploy { .. } => "internal-deploy",
@@ -845,6 +913,39 @@ impl Commands {
             Commands::GrantRole { app, role, user } | Commands::RevokeRole { app, role, user } => {
                 options.app = app;
                 positionals = vec![user, role];
+            }
+            Commands::ListGroups { filter, env } => {
+                options.env = env.unwrap_or_default();
+                if let Some(f) = filter {
+                    positionals.push(f);
+                }
+            }
+            Commands::GetGroup { group } | Commands::ListGroupMembers { group } => {
+                positionals = vec![group];
+            }
+            Commands::UpdateGroup {
+                group,
+                name,
+                description,
+            } => {
+                positionals = vec![group];
+                if let Some(name) = name {
+                    options.updates.insert("name".to_string(), name.into());
+                }
+                if let Some(description) = description {
+                    options
+                        .updates
+                        .insert("description".to_string(), description.into());
+                }
+            }
+            Commands::AddUserToGroup { group, user }
+            | Commands::RemoveUserFromGroup { group, user } => {
+                positionals = vec![group, user];
+            }
+            Commands::GrantGroupRole { app, role, group }
+            | Commands::RevokeGroupRole { app, role, group } => {
+                options.app = app;
+                positionals = vec![group, role];
             }
             Commands::InternalBuild {
                 app,

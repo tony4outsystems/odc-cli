@@ -216,6 +216,14 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "list-app-role-users" => cmd_list_app_role_users(options, positionals).await,
         "grant-role" => cmd_grant_role(options, positionals).await,
         "revoke-role" => cmd_revoke_role(options, positionals).await,
+        "list-groups" => cmd_list_groups(options, positionals).await,
+        "get-group" => cmd_get_group(options, positionals).await,
+        "update-group" => cmd_update_group(options, positionals).await,
+        "list-group-members" => cmd_list_group_members(options, positionals).await,
+        "add-user-to-group" => cmd_add_user_to_group(options, positionals).await,
+        "remove-user-from-group" => cmd_remove_user_from_group(options, positionals).await,
+        "grant-group-role" => cmd_grant_group_role(options, positionals).await,
+        "revoke-group-role" => cmd_revoke_group_role(options, positionals).await,
         "internal-build" => cmd_internal_build(options).await,
         "internal-publish" => cmd_internal_publish(options).await,
         "internal-deploy" => cmd_internal_deploy(options).await,
@@ -641,6 +649,31 @@ fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>>
         .ok_or_else(|| anyhow::anyhow!("User not found: {}", identifier))
 }
 
+/// Resolve a group by key (GUID) or name (exact/unambiguous substring), optionally
+/// disambiguated by environment (name/key), following the same contract as `resolve_app`.
+fn resolve_group(
+    client: &Client,
+    identifier: &str,
+    env_filter: &str,
+) -> Result<Map<String, Value>> {
+    if crate::resolve::is_guid(identifier) {
+        return client.get_group(identifier);
+    }
+
+    let env_key = if env_filter.is_empty() {
+        String::new()
+    } else {
+        resolve_env(client, env_filter)?
+    };
+
+    let candidates = client.list_groups(identifier, &env_key)?;
+    let key = crate::resolve::resolve(identifier, "group", &candidates, "key")?;
+    candidates
+        .into_iter()
+        .find(|g| g.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
+        .ok_or_else(|| anyhow::anyhow!("Group not found: {}", identifier))
+}
+
 /// Resolve a role name/key to its key, optionally disambiguated by app (name/key).
 fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Result<String> {
     let mut roles = client.list_application_roles(role_input)?;
@@ -655,7 +688,7 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
         roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
     }
 
-    crate::resolve::resolve(role_input, "role", &roles, "key")
+    crate::resolve::resolve_role(role_input, &roles)
 }
 
 fn analysis_is_terminal(map: &Map<String, Value>) -> bool {
@@ -1209,6 +1242,213 @@ async fn cmd_revoke_role(options: &Options, positionals: &[String]) -> Result<()
     client.revoke_role(&user_key, &role_key)?;
     output.println_locked(&format!(
         "Revoked role {} from {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+const GROUP_TABLE_COLUMNS: &[&str] = &["name", "key", "environmentKey", "description"];
+const GROUP_USER_TABLE_COLUMNS: &[&str] = &["name", "email", "key", "status"];
+
+async fn cmd_list_groups(options: &Options, positionals: &[String]) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let env_key = if options.env.is_empty() {
+        String::new()
+    } else {
+        resolve_env(&client, &options.env)?
+    };
+    let filter = positionals.first().map(String::as_str).unwrap_or("");
+    let groups = client.list_groups(filter, &env_key)?;
+
+    let items = if output.json {
+        groups
+    } else {
+        groups
+            .iter()
+            .map(|item| crate::value::compact_map(item, GROUP_TABLE_COLUMNS))
+            .collect()
+    };
+    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
+    output.print_result(&Value::Array(results))
+}
+
+async fn cmd_get_group(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "get-group", "a group name or key")?;
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    output.print_result(&Value::Object(group))
+}
+
+async fn cmd_update_group(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "update-group", "a group name or key")?;
+    if options.updates.is_empty() {
+        return Err(anyhow::anyhow!(
+            "update-group requires at least one of --name or --description"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .to_string();
+
+    client.update_group(&group_key, &options.updates)?;
+    let updated = client.get_group(&group_key)?;
+    output.print_result(&Value::Object(updated))
+}
+
+async fn cmd_list_group_members(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "list-group-members", "a group name or key")?;
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?;
+    let members = client.list_group_users(group_key)?;
+
+    let items = if output.json {
+        members
+    } else {
+        members
+            .iter()
+            .map(|item| crate::value::compact_map(item, GROUP_USER_TABLE_COLUMNS))
+            .collect()
+    };
+    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
+    output.print_result(&Value::Array(results))
+}
+
+async fn cmd_add_user_to_group(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!(
+            "add-user-to-group requires a group and a user"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .to_string();
+    let user = resolve_user(&client, &positionals[1])?;
+    let user_key = user
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[1]))?
+        .to_string();
+
+    client.patch_group_users(&group_key, &[user_key], &[])?;
+    output.println_locked(&format!(
+        "Added {} to group {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+async fn cmd_remove_user_from_group(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!(
+            "remove-user-from-group requires a group and a user"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .to_string();
+    let user = resolve_user(&client, &positionals[1])?;
+    let user_key = user
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[1]))?
+        .to_string();
+
+    client.patch_group_users(&group_key, &[], &[user_key])?;
+    output.println_locked(&format!(
+        "Removed {} from group {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+async fn cmd_grant_group_role(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!(
+            "grant-group-role requires a group and a role"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .to_string();
+    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+
+    client.patch_group_application_roles(&group_key, &[role_key], &[])?;
+    output.println_locked(&format!(
+        "Granted role {} to group {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+async fn cmd_revoke_group_role(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!(
+            "revoke-group-role requires a group and a role"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let group = resolve_group(&client, &positionals[0], "")?;
+    let group_key = group
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .to_string();
+    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+
+    client.patch_group_application_roles(&group_key, &[], &[role_key])?;
+    output.println_locked(&format!(
+        "Revoked role {} from group {}",
         positionals[1], positionals[0]
     ));
     Ok(())
