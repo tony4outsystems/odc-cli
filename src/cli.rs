@@ -46,8 +46,15 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "Users & Roles",
-        &["get-user", "update-user", "grant-role", "revoke-role"],
+        &[
+            "get-user",
+            "update-user",
+            "list-roles",
+            "grant-role",
+            "revoke-role",
+        ],
     ),
+    ("Design-Time Model", &["list-design-roles"]),
     (
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
@@ -446,6 +453,18 @@ pub enum Commands {
         photo_url: Option<String>,
     },
 
+    /// List application roles defined for an app.
+    ListRoles {
+        /// App the roles belong to (name or key)
+        app: String,
+    },
+
+    /// List roles as defined in an app's design-time model (not tied to any environment).
+    ListDesignRoles {
+        /// App the roles belong to (name or key)
+        app: String,
+    },
+
     /// Grant an application role to a user.
     GrantRole {
         /// App the role belongs to (name or key)
@@ -607,6 +626,8 @@ impl Commands {
             Commands::DangerousBatchUndeployAll { .. } => "dangerous-batch-undeploy-all",
             Commands::GetUser { .. } => "get-user",
             Commands::UpdateUser { .. } => "update-user",
+            Commands::ListRoles { .. } => "list-roles",
+            Commands::ListDesignRoles { .. } => "list-design-roles",
             Commands::GrantRole { .. } => "grant-role",
             Commands::RevokeRole { .. } => "revoke-role",
             Commands::InternalBuild { .. } => "internal-build",
@@ -668,7 +689,10 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetApp { app } | Commands::LatestRevision { app } => {
+            Commands::GetApp { app }
+            | Commands::LatestRevision { app }
+            | Commands::ListRoles { app }
+            | Commands::ListDesignRoles { app } => {
                 positionals = vec![app];
             }
             Commands::ListRevisions { app, offset, limit } => {
