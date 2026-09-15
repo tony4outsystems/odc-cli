@@ -57,6 +57,7 @@ async fn send_request_async(client: &reqwest::Client, req: HttpRequest) -> Resul
         "POST" => client.post(req.url.clone()),
         "PUT" => client.put(req.url.clone()),
         "DELETE" => client.delete(req.url.clone()),
+        "PATCH" => client.patch(req.url.clone()),
         m => return Err(anyhow::anyhow!("Unsupported HTTP method: {}", m)),
     };
 
