@@ -3,6 +3,7 @@ pub mod client;
 pub mod commands;
 pub mod inspection;
 pub mod login;
+pub mod mentor;
 pub mod mermaid;
 pub mod output;
 pub mod resolve;
@@ -45,6 +46,9 @@ pub async fn run(args: &[String]) -> Result<()> {
     // Handle login specially (doesn't need auth)
     if cmd == "login" {
         return login::login(&positionals[0], &positionals[1]);
+    }
+    if cmd == "login-mentor" {
+        return login::login_mentor(&positionals[0], &positionals[1]);
     }
 
     commands::execute(cmd, &options, &positionals).await

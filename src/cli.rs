@@ -4,7 +4,7 @@ use std::time::Duration;
 
 /// Command names grouped by category, in display order, for the categorized top-level help.
 const HELP_CATEGORIES: &[(&str, &[&str])] = &[
-    ("Auth", &["discover", "login"]),
+    ("Auth", &["discover", "login", "login-mentor"]),
     (
         "Apps & Environments",
         &[
@@ -51,6 +51,21 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
     (
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
+    ),
+    (
+        "Mentor",
+        &[
+            "mentor-start-session",
+            "mentor-create-asset",
+            "mentor-load-asset",
+            "mentor-prompt",
+            "mentor-get-run",
+            "mentor-get-event",
+            "mentor-cancel-prompt",
+            "mentor-request-upload",
+            "mentor-publish",
+            "mentor-close-session",
+        ],
     ),
     ("Misc", &["completion"]),
 ];
@@ -163,6 +178,30 @@ impl AppType {
             AppType::McpConnection => "MCPConnection",
             AppType::A2aConnection => "A2AConnection",
             AppType::KnowledgeBase => "KnowledgeBase",
+        }
+    }
+}
+
+/// Asset types Mentor can create, per `mentor_create_asset`'s `assetType` parameter.
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum MentorAssetType {
+    #[value(name = "WebApplication")]
+    WebApplication,
+    #[value(name = "Agent")]
+    Agent,
+    #[value(name = "Library")]
+    Library,
+    #[value(name = "Workflow")]
+    Workflow,
+}
+
+impl MentorAssetType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MentorAssetType::WebApplication => "WebApplication",
+            MentorAssetType::Agent => "Agent",
+            MentorAssetType::Library => "Library",
+            MentorAssetType::Workflow => "Workflow",
         }
     }
 }
@@ -464,6 +503,85 @@ pub enum Commands {
         poll: PollArgs,
     },
 
+    /// Save Mentor's OAuth2 client credentials (prompts for client secret).
+    LoginMentor {
+        token_url: String,
+        client_id: String,
+    },
+
+    /// Start a new Mentor session; prints the sessionId used for follow-up commands.
+    MentorStartSession,
+
+    /// Create a new asset in a Mentor session, so `mentor-prompt` can edit it.
+    MentorCreateAsset {
+        session_id: String,
+        #[arg(long = "type", value_enum)]
+        asset_type: MentorAssetType,
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        portfolio_key: String,
+        #[arg(long)]
+        description: Option<String>,
+        /// Clone from an existing AVS application instead of the built-in template
+        #[arg(long)]
+        template_asset_key: Option<String>,
+    },
+
+    /// Load an existing app into a Mentor session, so `mentor-prompt` can edit it.
+    MentorLoadAsset {
+        session_id: String,
+        asset_key: String,
+        /// Defaults to the latest revision
+        #[arg(long)]
+        revision: Option<i32>,
+    },
+
+    /// Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run`.
+    MentorPrompt {
+        session_id: String,
+        message: String,
+        /// Attachment id(s) from a prior `mentor-request-upload`
+        #[arg(long = "attachment-ref")]
+        attachment_refs: Vec<String>,
+    },
+
+    /// Poll a Mentor run's progress events and status.
+    MentorGetRun {
+        session_id: String,
+        run_id: String,
+        /// Re-read from this position instead of only new events (0 = from the start)
+        #[arg(long)]
+        cursor: Option<i64>,
+    },
+
+    /// Fetch the full body of a truncated Mentor run event.
+    MentorGetEvent {
+        session_id: String,
+        run_id: String,
+        event_id: i64,
+    },
+
+    /// Cancel the in-flight prompt for a Mentor session.
+    MentorCancelPrompt { session_id: String, run_id: String },
+
+    /// Close a Mentor session and release its resources.
+    MentorCloseSession { session_id: String },
+
+    /// Mint a presigned upload URL for a Mentor session attachment.
+    MentorRequestUpload {
+        session_id: String,
+        file_name: String,
+        size_bytes: i64,
+    },
+
+    /// Publish the asset loaded in a Mentor session to the connected dev environment.
+    MentorPublish {
+        session_id: String,
+        #[arg(long)]
+        comment: Option<String>,
+    },
+
     /// Generate shell completion scripts.
     Completion { shell: clap_complete::Shell },
 }
@@ -501,6 +619,17 @@ impl Commands {
             Commands::InternalPublish { .. } => "internal-publish",
             Commands::InternalDeploy { .. } => "internal-deploy",
             Commands::Completion { .. } => "completion",
+            Commands::LoginMentor { .. } => "login-mentor",
+            Commands::MentorStartSession => "mentor-start-session",
+            Commands::MentorCreateAsset { .. } => "mentor-create-asset",
+            Commands::MentorLoadAsset { .. } => "mentor-load-asset",
+            Commands::MentorPrompt { .. } => "mentor-prompt",
+            Commands::MentorGetRun { .. } => "mentor-get-run",
+            Commands::MentorGetEvent { .. } => "mentor-get-event",
+            Commands::MentorCancelPrompt { .. } => "mentor-cancel-prompt",
+            Commands::MentorCloseSession { .. } => "mentor-close-session",
+            Commands::MentorRequestUpload { .. } => "mentor-request-upload",
+            Commands::MentorPublish { .. } => "mentor-publish",
         }
     }
 
@@ -730,6 +859,84 @@ impl Commands {
                 options.build_key = build_key;
                 apply_poll(&mut options, poll);
             }
+            Commands::LoginMentor {
+                token_url,
+                client_id,
+            } => {
+                positionals = vec![token_url, client_id];
+            }
+            Commands::MentorStartSession => {}
+            Commands::MentorCreateAsset {
+                session_id,
+                asset_type,
+                name,
+                portfolio_key,
+                description,
+                template_asset_key,
+            } => {
+                options.session_id = session_id;
+                options.mentor_asset_type = asset_type.as_str().to_string();
+                options.name = name;
+                options.portfolio_key = portfolio_key;
+                options.description = description.unwrap_or_default();
+                options.template_asset_key = template_asset_key.unwrap_or_default();
+            }
+            Commands::MentorLoadAsset {
+                session_id,
+                asset_key,
+                revision,
+            } => {
+                options.session_id = session_id;
+                options.revision = revision;
+                positionals = vec![asset_key];
+            }
+            Commands::MentorPrompt {
+                session_id,
+                message,
+                attachment_refs,
+            } => {
+                options.session_id = session_id;
+                options.message = message;
+                options.attachment_refs = attachment_refs;
+            }
+            Commands::MentorGetRun {
+                session_id,
+                run_id,
+                cursor,
+            } => {
+                options.session_id = session_id;
+                options.run_id = run_id;
+                options.cursor = cursor;
+            }
+            Commands::MentorGetEvent {
+                session_id,
+                run_id,
+                event_id,
+            } => {
+                options.session_id = session_id;
+                options.run_id = run_id;
+                options.event_id = event_id;
+            }
+            Commands::MentorCancelPrompt { session_id, run_id } => {
+                options.session_id = session_id;
+                options.run_id = run_id;
+            }
+            Commands::MentorCloseSession { session_id } => {
+                options.session_id = session_id;
+            }
+            Commands::MentorRequestUpload {
+                session_id,
+                file_name,
+                size_bytes,
+            } => {
+                options.session_id = session_id;
+                options.file_name = file_name;
+                options.size_bytes = size_bytes;
+            }
+            Commands::MentorPublish { session_id, comment } => {
+                options.session_id = session_id;
+                options.comment = comment.unwrap_or_default();
+            }
         }
 
         (options, positionals)
@@ -772,6 +979,21 @@ pub struct Options {
     pub skip_dependencies: bool,
     pub all_producers: bool,
     pub updates: Map<String, serde_json::Value>,
+    // Mentor
+    pub session_id: String,
+    pub run_id: String,
+    pub message: String,
+    pub attachment_refs: Vec<String>,
+    pub cursor: Option<i64>,
+    pub event_id: i64,
+    pub mentor_asset_type: String,
+    pub name: String,
+    pub portfolio_key: String,
+    pub description: String,
+    pub template_asset_key: String,
+    pub file_name: String,
+    pub size_bytes: i64,
+    pub comment: String,
 }
 
 impl Default for Options {
@@ -798,6 +1020,20 @@ impl Default for Options {
             skip_dependencies: false,
             all_producers: false,
             updates: Map::new(),
+            session_id: String::new(),
+            run_id: String::new(),
+            message: String::new(),
+            attachment_refs: Vec::new(),
+            cursor: None,
+            event_id: 0,
+            mentor_asset_type: String::new(),
+            name: String::new(),
+            portfolio_key: String::new(),
+            description: String::new(),
+            template_asset_key: String::new(),
+            file_name: String::new(),
+            size_bytes: 0,
+            comment: String::new(),
         }
     }
 }

@@ -74,11 +74,21 @@ async fn send_request_async(client: &reqwest::Client, req: HttpRequest) -> Resul
     // Send request
     let resp = request.send().await?;
     let status = resp.status().as_u16();
+    let headers = resp
+        .headers()
+        .iter()
+        .filter_map(|(name, value)| {
+            value
+                .to_str()
+                .ok()
+                .map(|v| (name.as_str().to_string(), v.to_string()))
+        })
+        .collect();
     let body = resp.bytes().await?.to_vec();
 
     Ok(HttpResponse {
         status,
-        headers: Vec::new(),
+        headers,
         body,
     })
 }
