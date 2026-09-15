@@ -153,7 +153,6 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "producer-graph" => Err(anyhow::anyhow!("producer-graph: not yet implemented")),
         "download-source-code" => Err(anyhow::anyhow!("download-source-code: not yet implemented")),
         "upload-source-code" => Err(anyhow::anyhow!("upload-source-code: not yet implemented")),
-        "validate" => Err(anyhow::anyhow!("validate: not yet implemented")),
         "analyze-deployment" => Err(anyhow::anyhow!("analyze-deployment: not yet implemented")),
         "analyze-deletion" => Err(anyhow::anyhow!("analyze-deletion: not yet implemented")),
         "deploy" => Err(anyhow::anyhow!("deploy: not yet implemented")),
