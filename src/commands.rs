@@ -211,6 +211,8 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         }
         "get-user" => cmd_get_user(options, positionals).await,
         "update-user" => cmd_update_user(options, positionals).await,
+        "list-roles" => cmd_list_roles(options, positionals).await,
+        "list-design-roles" => cmd_list_design_roles(options, positionals).await,
         "grant-role" => cmd_grant_role(options, positionals).await,
         "revoke-role" => cmd_revoke_role(options, positionals).await,
         "internal-build" => cmd_internal_build(options).await,
@@ -900,6 +902,54 @@ async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()
 
     let updated = client.update_user(user_key, &options.updates)?;
     output.print_result(&serde_json::Value::Object(updated))
+}
+
+const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "assetKey"];
+
+async fn cmd_list_roles(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "list-roles", "an app name or key")?;
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let asset_key = resolve_app(&apps, &positionals[0])?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", positionals[0]))?
+        .to_string();
+
+    let mut roles = client.list_application_roles("")?;
+    roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
+
+    let items = if output.json {
+        roles
+    } else {
+        roles
+            .iter()
+            .map(|item| crate::value::compact_map(item, ROLE_TABLE_COLUMNS))
+            .collect()
+    };
+    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
+    output.print_result(&Value::Array(results))
+}
+
+async fn cmd_list_design_roles(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "list-design-roles", "an app name or key")?;
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    resolve_app(&apps, &positionals[0])?;
+
+    Err(anyhow::anyhow!(
+        "list-design-roles is not yet implemented: no documented API in this client exposes \
+         design-time/model role definitions (only environment-associated roles via list-roles). \
+         See CLAUDE.md / ask the team about the Context Service endpoint before implementing this."
+    ))
 }
 
 async fn cmd_grant_role(options: &Options, positionals: &[String]) -> Result<()> {
