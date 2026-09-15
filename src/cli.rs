@@ -1,6 +1,91 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use serde_json::Map;
 use std::time::Duration;
+
+/// Command names grouped by category, in display order, for the categorized top-level help.
+const HELP_CATEGORIES: &[(&str, &[&str])] = &[
+    ("Auth", &["discover", "login"]),
+    (
+        "Apps & Environments",
+        &[
+            "list-environments",
+            "list-apps",
+            "list-deployed-apps",
+            "get-app",
+        ],
+    ),
+    (
+        "Revisions & Source",
+        &[
+            "latest-revision",
+            "list-revisions",
+            "get-revision",
+            "producer-graph",
+            "download-source-code",
+            "upload-source-code",
+        ],
+    ),
+    (
+        "Deployment",
+        &[
+            "analyze-deployment",
+            "analyze-deletion",
+            "deploy",
+            "undeploy",
+            "delete-app",
+        ],
+    ),
+    (
+        "Batch Operations",
+        &[
+            "batch-deploy",
+            "batch-undeploy",
+            "batch-delete",
+            "dangerous-batch-undeploy-all",
+        ],
+    ),
+    (
+        "Users & Roles",
+        &["get-user", "update-user", "grant-role", "revoke-role"],
+    ),
+    (
+        "Internal (Advanced)",
+        &["internal-build", "internal-publish", "internal-deploy"],
+    ),
+    ("Misc", &["completion"]),
+];
+
+/// Prints the top-level `odc --help` output with commands grouped into categories, since
+/// clap doesn't support heading grouping for subcommands.
+pub fn print_categorized_help() {
+    let app = Cli::command();
+    println!("{}\n", app.get_about().unwrap());
+    println!("Usage: odc [OPTIONS] <COMMAND>\n");
+
+    let name_width = app
+        .get_subcommands()
+        .map(|c| c.get_name().len())
+        .max()
+        .unwrap_or(0)
+        + 2;
+
+    for (category, names) in HELP_CATEGORIES {
+        println!("{category}:");
+        for name in *names {
+            if let Some(sub) = app.find_subcommand(name) {
+                let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
+                println!("  {:<width$}  {}", name, about, width = name_width);
+            }
+        }
+        println!();
+    }
+
+    println!("Options:");
+    println!("      --json           Output in JSON format");
+    println!("      --color <COLOR>  Control color output [default: auto]");
+    println!("  -h, --help           Print help");
+    println!("  -V, --version        Print version");
+}
 
 /// odc: OutSystems Developer Cloud CLI
 #[derive(Parser, Debug)]
@@ -210,19 +295,6 @@ pub enum Commands {
     /// Upload an OML/XIF file, creating a new asset or revision.
     UploadSourceCode { oml_file: String },
 
-    /// Validate that an app can be deployed to an environment.
-    Validate {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        env: String,
-        /// Defaults to the app's current revision (falls back to the latest)
-        #[arg(long)]
-        revision: Option<i32>,
-        #[command(flatten)]
-        poll: PollArgs,
-    },
-
     /// Analyze the impact of deploying an app revision.
     AnalyzeDeployment {
         #[arg(long)]
@@ -412,7 +484,6 @@ impl Commands {
             Commands::ProducerGraph { .. } => "producer-graph",
             Commands::DownloadSourceCode { .. } => "download-source-code",
             Commands::UploadSourceCode { .. } => "upload-source-code",
-            Commands::Validate { .. } => "validate",
             Commands::AnalyzeDeployment { .. } => "analyze-deployment",
             Commands::AnalyzeDeletion { .. } => "analyze-deletion",
             Commands::Deploy { .. } => "deploy",
@@ -515,17 +586,6 @@ impl Commands {
             }
             Commands::UploadSourceCode { oml_file } => {
                 positionals = vec![oml_file];
-            }
-            Commands::Validate {
-                app,
-                env,
-                revision,
-                poll,
-            } => {
-                options.app = app;
-                options.env = env;
-                options.revision = revision;
-                apply_poll(&mut options, poll);
             }
             Commands::AnalyzeDeployment {
                 app,

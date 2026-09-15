@@ -18,6 +18,11 @@ use cli::{Cli, Commands};
 
 /// Main entry point for the CLI
 pub async fn run(args: &[String]) -> Result<()> {
+    if args == ["--help"] || args == ["-h"] {
+        cli::print_categorized_help();
+        return Ok(());
+    }
+
     let cli =
         match Cli::try_parse_from(std::iter::once("odc".to_string()).chain(args.iter().cloned())) {
             Ok(cli) => cli,

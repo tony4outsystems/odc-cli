@@ -67,12 +67,11 @@ App and environment are not read from `.env` — pass `--app`/`--env` explicitly
 
 ```bash
 odc discover
-odc validate --app <app-name-or-key> --env <environment-name-or-key>
 odc latest-revision --app <app-name-or-key>
 odc deploy --app <app-name-or-key> --env <environment-name-or-key>
 ```
 
-The `validate` command confirms that the given app and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
+The `deploy` command confirms the given app and environment keys are visible to the API client, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
 
 ## Claude Code skill
 
@@ -114,37 +113,50 @@ OutSystems ODC CLI
 
 Usage: odc [OPTIONS] <COMMAND>
 
-Commands:
-  discover                      Show the OAuth discovery document (issuer, endpoints, scopes)
-  login                         Save credentials in ~/.odc/config.json (prompts for client secret)
-  list-environments             List environments in the tenant
-  list-apps                     List apps in the tenant, optionally filtered by name/key and/or type
-  list-deployed-apps            List deployed apps, optionally filtered by environment and name/key
-  get-app                       Retrieve app metadata
-  latest-revision               Print the latest revision number of an app
-  list-revisions                List all revisions of an app
-  get-revision                  Retrieve a specific app revision
-  producer-graph                Render an app's producer dependency graph as Mermaid
-  download-source-code          Download the OML source code of an app revision
-  upload-source-code            Upload an OML/XIF file, creating a new asset or revision
-  validate                      Validate that an app can be deployed to an environment
-  analyze-deployment            Analyze the impact of deploying an app revision
-  analyze-deletion              Analyze the impact of deleting an app
-  deploy                        Deploy an app to an environment
-  undeploy                      Undeploy an app from an environment
-  delete-app                    Delete an app
-  batch-deploy                  Deploy multiple apps listed in a file
-  batch-undeploy                Undeploy multiple apps listed in a file
-  batch-delete                  Delete multiple apps listed in a file
-  dangerous-batch-undeploy-all  Undeploy all apps from an environment
-  get-user                      Retrieve a user's details
-  update-user                   Update a user's name, active status, or photo URL
-  grant-role                    Grant an application role to a user
-  revoke-role                   Revoke an application role from a user
-  internal-build                Start a build for an app revision
-  internal-publish              Publish a build to an environment
-  internal-deploy               Deploy an existing build to an environment
-  completion                    Generate shell completion scripts
+Auth:
+  discover                        Show the OAuth discovery document (issuer, endpoints, scopes)
+  login                           Save credentials in ~/.odc/config.json (prompts for client secret)
+
+Apps & Environments:
+  list-environments               List environments in the tenant
+  list-apps                       List apps in the tenant, optionally filtered by name/key and/or type
+  list-deployed-apps              List deployed apps, optionally filtered by environment and name/key
+  get-app                         Retrieve app metadata
+
+Revisions & Source:
+  latest-revision                 Print the latest revision number of an app
+  list-revisions                  List all revisions of an app
+  get-revision                    Retrieve a specific app revision
+  producer-graph                  Render an app's producer dependency graph as Mermaid
+  download-source-code            Download the OML source code of an app revision
+  upload-source-code              Upload an OML/XIF file, creating a new asset or revision
+
+Deployment:
+  analyze-deployment              Analyze the impact of deploying an app revision
+  analyze-deletion                Analyze the impact of deleting an app
+  deploy                          Deploy an app to an environment
+  undeploy                        Undeploy an app from an environment
+  delete-app                      Delete an app
+
+Batch Operations:
+  batch-deploy                    Deploy multiple apps listed in a file
+  batch-undeploy                  Undeploy multiple apps listed in a file
+  batch-delete                    Delete multiple apps listed in a file
+  dangerous-batch-undeploy-all    Undeploy all apps from an environment
+
+Users & Roles:
+  get-user                        Retrieve a user's details
+  update-user                     Update a user's name, active status, or photo URL
+  grant-role                      Grant an application role to a user
+  revoke-role                     Revoke an application role from a user
+
+Internal (Advanced):
+  internal-build                  Start a build for an app revision
+  internal-publish                Publish a build to an environment
+  internal-deploy                 Deploy an existing build to an environment
+
+Misc:
+  completion                      Generate shell completion scripts
 
 Options:
       --json           Output in JSON format
@@ -166,16 +178,6 @@ Fetch OIDC discovery metadata (issuer, token endpoint, supported scopes).
 ```bash
 odc discover
 ```
-
-#### validate
-
-Confirm the given app and environment are visible to the API client.
-
-```bash
-odc validate --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
-```
-
-- `--revision` — defaults to the app's current revision (falls back to the latest if that isn't available)
 
 #### latest-revision
 
@@ -298,7 +300,7 @@ odc get-user <user-key-or-email>
 
 #### deploy
 
-Validate, select the current app revision, build (Release by default), wait for the build to finish, then deploy — all for one app/environment.
+Confirm the given app and environment are visible to the API client, select the current app revision, build (Release by default), wait for the build to finish, then deploy — all for one app/environment.
 
 ```bash
 odc deploy --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
@@ -412,7 +414,7 @@ odc list-revisions --app MyApp --offset 0 --limit 20 --json
 
 ### Shared polling and parallel options
 
-Every command that starts and waits on an operation (`validate`, `deploy`, `internal-build`, `internal-publish`, `internal-deploy`, `undeploy`, `batch-deploy`, `dangerous-batch-undeploy-all`) accepts:
+Every command that starts and waits on an operation (`deploy`, `internal-build`, `internal-publish`, `internal-deploy`, `undeploy`, `batch-deploy`, `dangerous-batch-undeploy-all`) accepts:
 
 - `--poll-interval` — seconds between status polls (default `10`)
 - `--timeout` — positive seconds to wait before giving up (default `1800`)

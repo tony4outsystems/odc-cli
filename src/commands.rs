@@ -189,7 +189,6 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "producer-graph" => cmd_producer_graph(options, positionals).await,
         "download-source-code" => cmd_download_source_code(options, positionals).await,
         "upload-source-code" => cmd_upload_source_code(options, positionals).await,
-        "validate" => cmd_validate(options).await,
         "analyze-deployment" => cmd_analyze_deployment(options).await,
         "analyze-deletion" => cmd_analyze_deletion(options).await,
         "deploy" => cmd_deploy(options).await,
@@ -492,30 +491,6 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
     }
 
     crate::resolve::resolve(role_input, "role", &roles, "key")
-}
-
-async fn cmd_validate(options: &Options) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Client::new(settings, output.clone());
-
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
-    let asset_key = app
-        .get("assetKey")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
-        .to_string();
-    let env_key = resolve_env(&client, &options.env)?;
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
-
-    output.print_result(&serde_json::json!({
-        "app": asset_key,
-        "environment": env_key,
-        "revision": revision,
-        "valid": true,
-    }))?;
-    Ok(())
 }
 
 fn analysis_is_terminal(map: &Map<String, Value>) -> bool {
