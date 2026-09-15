@@ -28,23 +28,27 @@ brew install tony4outsystems/tap/odc-cli
 
 To upgrade: `brew update && brew upgrade odc-cli`
 
-### Windows, Linux, or building from source
+### Windows, Linux, or a specific binary release
 
-Requires Go 1.23 or later:
+Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your OS (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` or `arm64`). Extract it and put `odc` (or `odc.exe` on Windows) on your `PATH`. No Rust installation is required.
+
+### Building from source
+
+Requires Rust 1.85 or later (install with [rustup](https://rustup.rs)):
 
 ```bash
 git clone https://github.com/tony4outsystems/odc-cli.git
 cd odc-cli
-go install ./cmd/odc
+cargo install --path .
 ```
 
-Ensure `$(go env GOPATH)/bin` is on your `PATH`. On Windows, this is typically `%USERPROFILE%\go\bin` — add it to your system PATH via Settings > System > Environment Variables.
+Ensure `~/.cargo/bin` is on your `PATH`.
 
 To build a local binary without installing globally:
 
 ```bash
-go build -o bin/odc ./cmd/odc
-./bin/odc --help  # or bin\odc --help on Windows
+cargo build --release
+./target/release/odc --help
 ```
 
 ## Configuration
@@ -207,7 +211,7 @@ odc list-apps --color auto     # auto (default)
 
 **"Command not found: odc"**
 - macOS: Did Homebrew installation complete? Try `brew install tony4outsystems/tap/odc-cli` again, then restart your terminal.
-- Other platforms: Ensure `$(go env GOPATH)/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your system `PATH`.
+- Other platforms: Ensure the extracted binary's directory (or `~/.cargo/bin` if built from source) is in your system `PATH`.
 
 **"invalid credentials" or "unauthorized"**
 - Run `odc discover` to verify the tenant URL is correct (should return OIDC metadata).

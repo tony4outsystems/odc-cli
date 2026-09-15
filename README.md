@@ -1,43 +1,41 @@
 # OutSystems ODC CLI
 
-Small Go CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
+Rust CLI (`odc`) for driving the OutSystems Developer Cloud (ODC) APIs described in `api-specs/`.
 
 ![odc demo](demo.gif)
 
 ## Install
 
-On macOS, install with Homebrew:
+### Homebrew (macOS)
 
 ```bash
 brew install tony4outsystems/tap/odc-cli
 ```
 
-To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. Homebrew builds the Go binary from source.
+To upgrade an existing installation, run `brew update && brew upgrade odc-cli`. The tap installs a prebuilt Rust binary (no build step).
 
 ### Download a binary
 
-Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your operating system (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` for Intel/AMD, `arm64` for ARM, including Apple silicon). Extract it and put `odc` (or `odc.exe` on Windows) in a directory on your `PATH`. No Go installation is required.
+Download an archive from [GitHub Releases](https://github.com/tony4outsystems/odc-cli/releases) for your operating system (`windows`, `darwin` for macOS, or `linux`) and architecture (`amd64` for Intel/AMD, `arm64` for ARM, including Apple silicon). Extract it and put `odc` (or `odc.exe` on Windows) in a directory on your `PATH`. No Rust installation is required.
 
-Windows archives use `.zip`; macOS and Linux archives use `.tar.gz`. Each binary release includes `checksums.txt` with SHA-256 hashes of the archives.
+Windows archives use `.zip`; macOS and Linux archives use `.tar.xz`. Each binary release includes `checksums.txt` with SHA-256 hashes of the archives.
 
 ### Build from source
 
-Requires Go 1.23 or later. Build and install from a checkout:
+Requires Rust 1.85 or later (install with [rustup](https://rustup.rs)). Build and install from a checkout:
 
 ```bash
 git clone https://github.com/tony4outsystems/odc-cli.git
 cd odc-cli
-go install ./cmd/odc
+cargo install --path .
 ```
 
-Ensure `$(go env GOPATH)/bin` is on your `PATH`. To build a local binary instead:
+Ensure `~/.cargo/bin` is on your `PATH`. To build a local binary instead:
 
 ```bash
-go build -o bin/odc ./cmd/odc
-./bin/odc --help
+cargo build --release
+./target/release/odc --help
 ```
-
-During development, use `go run ./cmd/odc ...`. The CLI uses [Cobra](https://github.com/spf13/cobra) for command and flag parsing. The compiled binary needs no separate runtime. Run `odc completion --help` for shell completion setup.
 
 ## Setup
 
@@ -69,20 +67,32 @@ App and environment are not read from `.env` — pass `--app`/`--env` explicitly
 
 ```bash
 odc discover
-odc validate --app <app-name-or-key> --env <environment-name-or-key>
 odc latest-revision --app <app-name-or-key>
 odc deploy --app <app-name-or-key> --env <environment-name-or-key>
 ```
 
-The `validate` command confirms that the given app and environment keys are visible to the API client, then prints a short summary of both objects. The `deploy` command runs the same validation, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
+The `deploy` command confirms the given app and environment keys are visible to the API client, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
 
-## Terminology
+## Claude Code skill
 
-Use `--app` wherever commands previously used `--asset`. Help, messages, and Go identifiers use app terminology. JSON responses retain ODC API field names such as `assetKey` and `assetType`; API paths and the checked-in API specifications retain their official names. Human-readable output labels use App.
+This repo includes a [Claude Code](https://claude.com/claude-code) skill at [skills/odc-cli-helper](skills/odc-cli-helper/SKILL.md) that teaches Claude how to install, configure, and drive the `odc` CLI on your behalf — deploying apps, listing dependencies, checking revisions, and so on.
+
+To use it, copy the skill into a Claude Code skills directory so it loads automatically:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r skills/odc-cli-helper ~/.claude/skills/
+```
+
+(Use `.claude/skills/` inside a specific project instead of `~/.claude/skills/` to scope it to that project only.)
+
+Once installed, ask Claude Code things like "deploy MyApp to Production with odc" or "list all apps in my ODC tenant" and it will invoke the skill automatically.
 
 ## Output
 
 Results use readable tables and labeled fields by default. Terminal output includes colored headings and status values; redirected output is plain text.
+
+List commands (`list-apps`, `list-deployed-apps`, `list-revisions`) show only a few key columns in their table (e.g. name, key, type, revision, tag) rather than every field the API returns — the full record, guids and all, is always available with `--json`.
 
 - `--json` prints JSON for scripts. Commands with multiple stages emit successive JSON values, with progress messages on stderr.
 - `--color auto|always|never` controls ANSI colors (default `auto`). Automatic color respects `NO_COLOR` and `TERM=dumb`.
@@ -95,68 +105,67 @@ odc list-apps --json > apps.json
 
 ## Commands
 
-Commands are grouped by category in `odc --help`:
+CLI parsing, per-command `--help`, and shell completion are all generated by [clap](https://docs.rs/clap) from the command definitions in [src/cli.rs](src/cli.rs) — this listing is always in sync with `odc --help`, which is the source of truth if it ever drifts from this README:
 
 ```
 $ odc --help
 OutSystems ODC CLI
 
-Usage:
-  odc <command> [flags]
-  odc [command]
+Usage: odc [OPTIONS] <COMMAND>
 
-Authentication:
-  discover                     Show the OAuth discovery document (issuer, endpoints, scopes).
-  login                        Save credentials in ~/.odc/config.json (prompts for client secret).
+Auth:
+  discover                        Show the OAuth discovery document (issuer, endpoints, scopes)
+  login                           Save credentials in ~/.odc/config.json (prompts for client secret)
 
-Inspection:
-  download-source-code         Download the OML source code of an app revision.
-  get-app                      Retrieve app metadata.
-  get-revision                 Retrieve a specific app revision.
-  latest-revision              Print the latest revision number of an app.
-  list-apps                    List apps in the tenant, optionally filtered by type or name.
-  list-deployed-apps           List deployed apps, optionally filtered by environment, name or key.
-  list-environments            List environments in the tenant.
-  list-revisions               List all revisions of an app.
-  producer-graph               Render an app's producer dependency graph as Mermaid.
-  upload-source-code           Upload an OML/XIF file, creating a new asset or revision.
-  validate                     Validate that an app can be deployed to an environment.
+Apps & Environments:
+  list-environments               List environments in the tenant
+  list-apps                       List apps in the tenant, optionally filtered by name/key and/or type
+  list-deployed-apps              List deployed apps, optionally filtered by environment and name/key
+  get-app                         Retrieve app metadata
 
-Analysis:
-  analyze-deletion             Analyze the impact of deleting an app.
-  analyze-deployment           Analyze the impact of deploying an app revision.
+Revisions & Source:
+  latest-revision                 Print the latest revision number of an app
+  list-revisions                  List all revisions of an app
+  get-revision                    Retrieve a specific app revision
+  producer-graph                  Render an app's producer dependency graph as Mermaid
+  download-source-code            Download the OML source code of an app revision
+  upload-source-code              Upload an OML/XIF file, creating a new asset or revision
 
 Deployment:
-  batch-delete                 Delete multiple apps listed in a file.
-  batch-deploy                 Deploy multiple apps listed in a file.
-  batch-undeploy               Undeploy multiple apps listed in a file.
-  dangerous-batch-undeploy-all Undeploy all apps from an environment.
-  delete-app                   Delete an app.
-  deploy                       Deploy an app to an environment.
-  undeploy                     Undeploy an app from an environment.
+  analyze-deployment              Analyze the impact of deploying an app revision
+  analyze-deletion                Analyze the impact of deleting an app
+  deploy                          Deploy an app to an environment
+  undeploy                        Undeploy an app from an environment
+  delete-app                      Delete an app
+
+Batch Operations:
+  batch-deploy                    Deploy multiple apps listed in a file
+  batch-undeploy                  Undeploy multiple apps listed in a file
+  batch-delete                    Delete multiple apps listed in a file
+  dangerous-batch-undeploy-all    Undeploy all apps from an environment
 
 Users & Roles:
-  get-user                     Retrieve a user's details.
-  grant-role                   Grant an application role to a user.
-  revoke-role                  Revoke an application role from a user.
-  update-user                  Update a user's name, active status, or photo URL.
+  get-user                        Retrieve a user's details
+  update-user                     Update a user's name, active status, or photo URL
+  grant-role                      Grant an application role to a user
+  revoke-role                     Revoke an application role from a user
 
 Internal (Advanced):
-  internal-build               Start a build for an app revision.
-  internal-deploy              Deploy an existing build to an environment.
-  internal-publish             Publish a build to an environment.
+  internal-build                  Start a build for an app revision
+  internal-publish                Publish a build to an environment
+  internal-deploy                 Deploy an existing build to an environment
 
-Additional Commands:
-  completion                   Generate the autocompletion script for the specified shell
-  help                         Help about any command
+Misc:
+  completion                      Generate shell completion scripts
 
-Flags:
-      --color string   Color mode: auto, always, or never; auto respects NO_COLOR. (default "auto")
-  -h, --help           help for odc
-      --json           Print JSON results (progress goes to stderr).
-
-Use "odc [command] --help" for more information about a command.
+Options:
+      --json           Output in JSON format
+      --color <COLOR>  Control color output [default: auto]
+  -h, --help           Print help
+  -V, --version        Print version
 ```
+
+Run `odc <command> --help` for that command's exact flags. To enable completion, generate the script for your shell and source or install it — e.g. for bash, `source <(odc completion bash)` for the current session, or `odc completion bash > /etc/bash_completion.d/odc` to install it; `zsh`, `fish`, `powershell`, and `elvish` are also supported.
 
 In the usage examples below, arguments in `[brackets]` are optional (with a default or a resolved fallback); everything else is required.
 
@@ -169,16 +178,6 @@ Fetch OIDC discovery metadata (issuer, token endpoint, supported scopes).
 ```bash
 odc discover
 ```
-
-#### validate
-
-Confirm the given app and environment are visible to the API client.
-
-```bash
-odc validate --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
-```
-
-- `--revision` — defaults to the app's current revision (falls back to the latest if that isn't available)
 
 #### latest-revision
 
@@ -201,21 +200,24 @@ odc list-environments
 List apps visible to the API client (name, key, type).
 
 ```bash
-odc list-apps [--type WebApplication] [--search eGov]
+odc list-apps [name-or-key-substring] [--type WebApplication]
 ```
 
-- `--type` — filter by app type: `WebApplication`, `MobileApplication`, `LowCodeLibrary`, `ExtensionLibrary`, `ExternalConnection`, `ExternalLibrary`, `Workflow`, `WidgetLibrary`, `AIModelConnection`, `SearchServiceConnection`, `Agent`, `MCPConnection`, `A2AConnection`, `KnowledgeBase`
-- `--search` — filter by a name/key substring (case-insensitive); combine with `--type` to narrow further
+An optional positional filters to apps whose name or key contains it (case-insensitive). `--type` filters to an exact asset type; run `odc list-apps --help` for the full list of recognized values (`WebApplication`, `Agent`, `LowCodeLibrary`, ...).
+
+See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-deployed-apps
 
-List apps deployed across all visible environments, including their deployed revision, tag, URL, and deployment details.
+List apps deployed across all visible environments, including their deployed revision, tag, and environment. One row per app/environment deployment.
 
 ```bash
-odc list-deployed-apps [--env <environment-name-or-key>] [--search <name-or-key-substring>]
+odc list-deployed-apps [name-or-key-substring] [--env <environment-name-or-key>]
 ```
 
-`--search` matches app names or keys case-insensitively. Omit `--env` to include all visible environments, or supply it to filter to one environment. Each row includes its environment key; all result pages are fetched.
+The positional filters to apps whose name or key contains it (case-insensitive). `--env` narrows to one environment (name, key, or unambiguous partial name — an unresolvable value is an error, it never matches nothing silently); omit it to include every environment the app is deployed to.
+
+See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-revisions / get-revision
 
@@ -226,7 +228,7 @@ odc list-revisions --app <app-name-or-key>
 odc get-revision --app <app-name-or-key> --revision <revision>
 ```
 
-Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number.
+Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
 
 #### download-source-code
 
@@ -298,7 +300,7 @@ odc get-user <user-key-or-email>
 
 #### deploy
 
-Validate, select the current app revision, build (Release by default), wait for the build to finish, then deploy — all for one app/environment.
+Confirm the given app and environment are visible to the API client, select the current app revision, build (Release by default), wait for the build to finish, then deploy — all for one app/environment.
 
 ```bash
 odc deploy --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
@@ -373,11 +375,11 @@ odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-u
 
 #### grant-role / revoke-role
 
-Grant or revoke an application role for a user. The role can be given by name or key; if the same role name exists on multiple apps, pass `--app` to disambiguate.
+Grant or revoke an application role for a user. The app disambiguates which app's role to use when the same role name exists on multiple apps.
 
 ```bash
-odc grant-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
-odc revoke-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
+odc grant-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
+odc revoke-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
 ```
 
 The API client needs the **User management > Manage end-user access** permission.
@@ -396,9 +398,23 @@ odc internal-deploy --app <app-name-or-key> --env <environment-name-or-key> [--r
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)
 - `internal-deploy` also requires `--build-key <build-key>`
 
+## Pagination
+
+`list-apps`, `list-deployed-apps`, and `list-revisions` list results from API endpoints that
+page their results. By default each of these commands fetches every page and returns the
+combined result, so no flags are needed for the common case.
+
+- `--offset` — fetch a single page starting at this result index, instead of every page. With `--json`, the response is wrapped in `{"results": [...], "page": {"offset", "limit", "nextOffset"}}` so `page.nextOffset` can be passed as the next `--offset` (it is `null` once there are no more pages).
+- `--limit` — page size to request from the API (default `100`); applies whether or not `--offset` is set.
+
+```bash
+odc list-apps --offset 100 --limit 50
+odc list-revisions --app MyApp --offset 0 --limit 20 --json
+```
+
 ### Shared polling and parallel options
 
-Every command that starts and waits on an operation (`validate`, `deploy`, `internal-build`, `internal-publish`, `internal-deploy`, `undeploy`, `batch-deploy`, `dangerous-batch-undeploy-all`) accepts:
+Every command that starts and waits on an operation (`deploy`, `internal-build`, `internal-publish`, `internal-deploy`, `undeploy`, `batch-deploy`, `dangerous-batch-undeploy-all`) accepts:
 
 - `--poll-interval` — seconds between status polls (default `10`)
 - `--timeout` — positive seconds to wait before giving up (default `1800`)
@@ -409,30 +425,6 @@ Commands that run multiple apps in parallel (`batch-deploy`, `dangerous-batch-un
 - `--max-parallel` — maximum apps to process concurrently (default `3`)
 - `--continue-on-error` — keep going on remaining apps if one fails, instead of stopping. Only fully honored when `--max-parallel 1`; with concurrency, in-flight apps are not cancelled on a failure either way
 
-## Releasing
+## Development
 
-Push a version tag to build and publish binaries for Windows, macOS, and Linux, each for `amd64` and `arm64`:
-
-```bash
-git tag v0.1.2
-git push origin v0.1.2
-```
-
-The `Release binaries` workflow runs tests and vet, then uses GoReleaser (configured in `.goreleaser.yaml`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
-
-To validate the release locally without publishing (requires GoReleaser):
-
-```bash
-goreleaser check
-goreleaser release --snapshot --clean
-```
-
-Artifacts are written to `dist/`.
-
-## TODO
-
-* Claude skill
-* Support Portfolio
-
-
-Tech
+For architecture notes, running tests, and cutting a release, see [DEVELOPMENT.md](DEVELOPMENT.md).
