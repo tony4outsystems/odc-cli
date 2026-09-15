@@ -228,7 +228,7 @@ fn resolve_file_apps(
     let mut resolved: HashMap<String, i32> = HashMap::new();
 
     for file_app in file_apps {
-        let app = crate::commands::resolve_app(&apps_list, &file_app.key)?;
+        let app = crate::commands::resolve_app_in(&apps_list, &file_app.key)?;
         let asset_key = app
             .get("assetKey")
             .and_then(|v| v.as_str())
@@ -391,7 +391,7 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = crate::commands::resolve_app(&apps_list, &file_app.key)?
+        let asset_key = crate::commands::resolve_app_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
@@ -434,7 +434,7 @@ pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = crate::commands::resolve_app(&apps_list, &file_app.key)?
+        let asset_key = crate::commands::resolve_app_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?

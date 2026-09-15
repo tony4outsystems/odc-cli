@@ -56,16 +56,32 @@ fn require_positional(positionals: &[String], command: &str, what: &str) -> Resu
     Ok(())
 }
 
-/// Resolve a user-supplied app name/key to the app it refers to. Supports a GUID, an exact
-/// name or key, or an unambiguous substring of the name/key — falling back to a "did you
-/// mean" error listing the candidates when the input is ambiguous or matches nothing exactly
-/// (via `resolve::resolve`).
-pub(crate) fn resolve_app<'a>(
+/// Resolve a user-supplied app name/key against an already-fetched list of apps. Supports a
+/// GUID, an exact name or key, or an unambiguous substring of the name/key — falling back to a
+/// "did you mean" error listing the candidates when the input is ambiguous or matches nothing
+/// exactly (via `resolve::resolve`). Used when the caller already has the full app list handy
+/// (e.g. resolving many apps from a workflow file against one shared listing).
+pub(crate) fn resolve_app_in<'a>(
     apps: &'a [Map<String, Value>],
     identifier: &str,
 ) -> Result<&'a Map<String, Value>> {
     let asset_key = crate::resolve::resolve(identifier, "app", apps, "assetKey")?;
     find_app(apps, &asset_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", identifier))
+}
+
+/// Resolve a user-supplied app name/key to the app it refers to, without fetching every app in
+/// the tenant. A GUID is looked up directly by key; otherwise the asset-repository API's
+/// server-side `nameContains` filter narrows the candidates before applying the same
+/// exact/unambiguous-partial-match/"did you mean" contract as `resolve_app_in`.
+pub(crate) fn resolve_app(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
+    if identifier.is_empty() {
+        return Err(anyhow::anyhow!("app is required"));
+    }
+    if crate::resolve::is_guid(identifier) {
+        return client.get_app(identifier);
+    }
+    let candidates = client.find_apps_by_name(identifier)?;
+    resolve_app_in(&candidates, identifier).cloned()
 }
 
 /// Resolve the revision to act on: an explicit `--revision`, else the app's current revision,
@@ -467,11 +483,10 @@ async fn cmd_get_app(options: &Options, positionals: &[String]) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app = resolve_app(&apps, app_key)?;
-    output.print_result(&serde_json::Value::Object(app.clone()))?;
+    let app = resolve_app(&client, app_key)?;
+    output.print_result(&serde_json::Value::Object(app))?;
     Ok(())
 }
 
@@ -486,10 +501,9 @@ async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Resul
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let app = resolve_app(&apps, app_key)?;
+    let app = resolve_app(&client, app_key)?;
     let revision = app
         .get("revision")
         .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?;
@@ -508,10 +522,9 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let asset_key = resolve_app(&apps, app_key)?
+    let asset_key = resolve_app(&client, app_key)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
@@ -520,7 +533,7 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let listing = fetch_listing(
         options,
         |offset, limit| client.list_revisions_page(&asset_key, offset, limit),
-        || crate::inspection::list_revisions(&client, &apps, app_key),
+        || crate::inspection::list_revisions(&client, app_key),
     )?;
     print_listing(&output, listing, REVISION_TABLE_COLUMNS)
 }
@@ -537,10 +550,9 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let found = crate::inspection::get_revision(&client, &apps, app_key, revision)?;
+    let found = crate::inspection::get_revision(&client, app_key, revision)?;
 
     output.print_result(&serde_json::Value::Object(found))?;
     Ok(())
@@ -557,9 +569,8 @@ async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Result
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
-    let app = resolve_app(&apps, app_key)?;
+    let app = resolve_app(&client, app_key)?;
 
     let asset_key = app
         .get("assetKey")
@@ -679,8 +690,7 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
     let mut roles = client.list_application_roles(role_input)?;
 
     if !app_filter.is_empty() {
-        let apps = client.list_apps()?;
-        let asset_key = resolve_app(&apps, app_filter)?
+        let asset_key = resolve_app(client, app_filter)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_filter))?
@@ -700,15 +710,14 @@ async fn cmd_analyze_deployment(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
+    let app = resolve_app(&client, &options.app)?;
     let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+    let revision = resolve_revision(&client, &app, &asset_key, options.revision)?;
 
     let started = client.start_deployment_analysis(&asset_key, revision, &env_key)?;
     let analysis_key = started
@@ -745,8 +754,7 @@ async fn cmd_analyze_deletion(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let asset_key = resolve_app(&apps, &options.app)?
+    let asset_key = resolve_app(&client, &options.app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
@@ -836,14 +844,13 @@ async fn cmd_internal_build(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
+    let app = resolve_app(&client, &options.app)?;
     let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
         .to_string();
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+    let revision = resolve_revision(&client, &app, &asset_key, options.revision)?;
 
     let (build_key, result) = run_build(&client, options, &asset_key, revision).await?;
 
@@ -858,15 +865,14 @@ async fn cmd_internal_publish(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
+    let app = resolve_app(&client, &options.app)?;
     let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+    let revision = resolve_revision(&client, &app, &asset_key, options.revision)?;
 
     let started = client.start_publish(&asset_key, revision, &env_key)?;
     let operation_key = started
@@ -907,15 +913,14 @@ async fn cmd_internal_deploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
+    let app = resolve_app(&client, &options.app)?;
     let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+    let revision = resolve_revision(&client, &app, &asset_key, options.revision)?;
 
     let (operation_key, result) = run_deployment_operation(
         &client,
@@ -982,15 +987,14 @@ async fn cmd_deploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let app = resolve_app(&apps, &options.app)?;
+    let app = resolve_app(&client, &options.app)?;
     let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
-    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+    let revision = resolve_revision(&client, &app, &asset_key, options.revision)?;
 
     if options.no_wait {
         // --no-wait doesn't make sense for a multi-step composite command: we always need
@@ -1023,8 +1027,7 @@ async fn cmd_undeploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let asset_key = resolve_app(&apps, &options.app)?
+    let asset_key = resolve_app(&client, &options.app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
@@ -1047,8 +1050,7 @@ async fn cmd_delete_app(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let asset_key = resolve_app(&apps, &options.app)?
+    let asset_key = resolve_app(&client, &options.app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
@@ -1084,26 +1086,17 @@ async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()
 }
 
 const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
-const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &[
-    "role",
-    "environment",
-    "assigneeType",
-    "name",
-    "email",
-    "key",
-    "status",
-];
+const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &["role", "environment", "type", "name", "key"];
 
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
 /// `list-role-assignments`.
 fn resolve_app_roles(
     client: &Client,
-    apps: &[Map<String, Value>],
     app: &str,
     env: &str,
 ) -> Result<Vec<Map<String, Value>>> {
-    let asset_key = resolve_app(apps, app)?
+    let asset_key = resolve_app(client, app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app))?
@@ -1147,8 +1140,7 @@ async fn cmd_list_roles(options: &Options, positionals: &[String]) -> Result<()>
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let roles = resolve_app_roles(&client, &apps, &positionals[0], &options.env)?;
+    let roles = resolve_app_roles(&client, &positionals[0], &options.env)?;
 
     let items = if output.json {
         roles
@@ -1169,8 +1161,7 @@ async fn cmd_list_role_assignments(options: &Options, positionals: &[String]) ->
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
-    let roles = resolve_app_roles(&client, &apps, &positionals[0], &options.env)?;
+    let roles = resolve_app_roles(&client, &positionals[0], &options.env)?;
 
     let want_users = options.filter.is_empty() || options.filter == "User";
     let want_groups = options.filter.is_empty() || options.filter == "Group";
@@ -1192,10 +1183,7 @@ async fn cmd_list_role_assignments(options: &Options, positionals: &[String]) ->
             let users = client.list_application_role_users(role_key)?;
             for mut user in users {
                 user.insert("role".to_string(), Value::String(role_name.clone()));
-                user.insert(
-                    "assigneeType".to_string(),
-                    Value::String("User".to_string()),
-                );
+                user.insert("type".to_string(), Value::String("User".to_string()));
                 if let Some(env) = role.get("environment").cloned() {
                     user.insert("environment".to_string(), env);
                 }
@@ -1248,10 +1236,7 @@ async fn cmd_list_role_assignments(options: &Options, positionals: &[String]) ->
 
                 let mut row = group.clone();
                 row.insert("role".to_string(), Value::String(role_name.clone()));
-                row.insert(
-                    "assigneeType".to_string(),
-                    Value::String("Group".to_string()),
-                );
+                row.insert("type".to_string(), Value::String("Group".to_string()));
                 if let Some(env) = role.get("environment").cloned() {
                     row.insert("environment".to_string(), env);
                 }
@@ -1549,9 +1534,8 @@ async fn cmd_download_source_code(options: &Options, positionals: &[String]) -> 
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let apps = client.list_apps()?;
     let app_key = &positionals[0];
-    let app = resolve_app(&apps, app_key)?;
+    let app = resolve_app(&client, app_key)?;
 
     let revision = match options.revision {
         Some(revision) => revision,
@@ -1564,7 +1548,6 @@ async fn cmd_download_source_code(options: &Options, positionals: &[String]) -> 
 
     let (output_path, _bytes) = crate::inspection::download_source_code(
         &client,
-        &apps,
         app_key,
         revision,
         &options.output,

@@ -275,6 +275,20 @@ impl Client {
         self.fetch_page("/api/asset-repository/v1/assets", offset, limit)
     }
 
+    /// Find apps whose name contains `name_contains` (case-insensitive, server-side),
+    /// following pagination until exhausted. Does not use or populate `list_apps`'s cache.
+    pub fn find_apps_by_name(
+        &self,
+        name_contains: &str,
+    ) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let encoded = percent_encoding::utf8_percent_encode(
+            name_contains,
+            percent_encoding::NON_ALPHANUMERIC,
+        );
+        let path = format!("/api/asset-repository/v1/assets?nameContains={}", encoded);
+        self.fetch_all_pages(&path)
+    }
+
     /// List all apps in the tenant, following pagination until exhausted.
     pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         {
@@ -619,6 +633,13 @@ impl Client {
         });
         self.call_with_body("PATCH", &path, Some(body))?;
         Ok(())
+    }
+
+    /// Fetch a single app by its exact `assetKey`.
+    pub fn get_app(&self, asset_key: &str) -> anyhow::Result<Map<String, Value>> {
+        let path = format!("/api/asset-repository/v1/assets/{}", asset_key);
+        let resp = self.call("GET", &path)?;
+        Self::expect_object(resp, &path)
     }
 
     /// Permanently delete an asset (app).

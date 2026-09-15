@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Map, Value};
 
 /// Resolve `app_identifier` (name, key, or unambiguous substring) to its `assetKey`.
-fn asset_key_of(apps: &[Map<String, Value>], app_identifier: &str) -> Result<String> {
-    resolve_app(apps, app_identifier)?
+fn asset_key_of(client: &Client, app_identifier: &str) -> Result<String> {
+    resolve_app(client, app_identifier)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .map(str::to_string)
@@ -14,23 +14,18 @@ fn asset_key_of(apps: &[Map<String, Value>], app_identifier: &str) -> Result<Str
 }
 
 /// List all revisions of an app, following pagination until exhausted.
-pub fn list_revisions(
-    client: &Client,
-    apps: &[Map<String, Value>],
-    app_identifier: &str,
-) -> Result<Vec<Map<String, Value>>> {
-    let asset_key = asset_key_of(apps, app_identifier)?;
+pub fn list_revisions(client: &Client, app_identifier: &str) -> Result<Vec<Map<String, Value>>> {
+    let asset_key = asset_key_of(client, app_identifier)?;
     client.list_revisions(&asset_key)
 }
 
 /// Get a specific revision of an app.
 pub fn get_revision(
     client: &Client,
-    apps: &[Map<String, Value>],
     app_identifier: &str,
     revision: i32,
 ) -> Result<Map<String, Value>> {
-    let asset_key = asset_key_of(apps, app_identifier)?;
+    let asset_key = asset_key_of(client, app_identifier)?;
     client
         .list_revisions(&asset_key)?
         .into_iter()
@@ -53,12 +48,11 @@ fn default_source_code_path(asset_key: &str, revision: i32) -> String {
 /// when empty), returning the number of bytes written.
 pub fn download_source_code(
     client: &Client,
-    apps: &[Map<String, Value>],
     app_identifier: &str,
     revision: i32,
     output: &str,
 ) -> Result<(String, u64)> {
-    let asset_key = asset_key_of(apps, app_identifier)?;
+    let asset_key = asset_key_of(client, app_identifier)?;
     let url = client.get_source_code_url(&asset_key, revision)?;
     let bytes = client.download_file_bytes(&url)?;
 
@@ -183,6 +177,15 @@ mod tests {
                     body: b"<oml/>".to_vec(),
                 });
             }
+            if url.contains("/assets?nameContains=") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({
+                        "results": [{"assetKey": "app1", "name": "App One"}],
+                        "page": {"nextPageOffset": 0, "totalResults": 1},
+                    }),
+                );
+            }
             if url.contains("/revisions") {
                 return crate::testutil::json_response(
                     200,
@@ -198,31 +201,24 @@ mod tests {
         Client::with_transport(test_settings(), test_output(), transport)
     }
 
-    fn test_apps() -> Vec<Map<String, Value>> {
-        let mut app = Map::new();
-        app.insert("assetKey".to_string(), json!("app1"));
-        app.insert("name".to_string(), json!("App One"));
-        vec![app]
-    }
-
     #[test]
     fn test_list_revisions_resolves_app_and_fetches() {
         let client = mock_client();
-        let revisions = list_revisions(&client, &test_apps(), "App One").unwrap();
+        let revisions = list_revisions(&client, "App One").unwrap();
         assert_eq!(revisions.len(), 2);
     }
 
     #[test]
     fn test_get_revision_finds_matching_revision() {
         let client = mock_client();
-        let revision = get_revision(&client, &test_apps(), "App One", 3).unwrap();
+        let revision = get_revision(&client, "App One", 3).unwrap();
         assert_eq!(revision.get("revision").unwrap(), 3);
     }
 
     #[test]
     fn test_get_revision_not_found() {
         let client = mock_client();
-        let result = get_revision(&client, &test_apps(), "App One", 99);
+        let result = get_revision(&client, "App One", 99);
         assert!(result.is_err());
     }
 
@@ -234,7 +230,6 @@ mod tests {
 
         let (path, bytes) = download_source_code(
             &client,
-            &test_apps(),
             "App One",
             3,
             output_path.to_str().unwrap(),
