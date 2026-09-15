@@ -467,13 +467,30 @@ pub(crate) fn resolve_env(client: &Client, env_input: &str) -> Result<String> {
     crate::resolve::resolve(env_input, "environment", &environments, "key")
 }
 
-/// Resolve a user by key (GUID) or exact email.
+/// Resolve a user by key (GUID), exact email, or name/email search — following the same
+/// exact-match/unambiguous-partial-match/"did you mean" contract as `resolve_app`/`resolve_env`.
 fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
-    if identifier.contains('@') {
-        client.find_user_by_email(identifier)
-    } else {
-        client.get_user(identifier)
+    if crate::resolve::is_guid(identifier) {
+        return client.get_user(identifier);
     }
+
+    let candidates = client.search_users(identifier)?;
+
+    if identifier.contains('@') {
+        if let Some(exact) = candidates.iter().find(|u| {
+            u.get("email")
+                .and_then(|v| v.as_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case(identifier))
+        }) {
+            return Ok(exact.clone());
+        }
+    }
+
+    let key = crate::resolve::resolve(identifier, "user", &candidates, "key")?;
+    candidates
+        .into_iter()
+        .find(|u| u.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
+        .ok_or_else(|| anyhow::anyhow!("User not found: {}", identifier))
 }
 
 /// Resolve a role name/key to its key, optionally disambiguated by app (name/key).
@@ -996,9 +1013,14 @@ async fn cmd_upload_source_code(options: &Options, positionals: &[String]) -> Re
     output.print_result(&serde_json::Value::Object(created))
 }
 
+/// Columns shown for `get-user`'s search-list table output; see `APP_TABLE_COLUMNS`.
+const USER_TABLE_COLUMNS: &[&str] = &["key", "name", "email", "status"];
+
 async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
-        return Err(anyhow::anyhow!("get-user requires a user key or email"));
+        return Err(anyhow::anyhow!(
+            "get-user requires a user key, email, or name"
+        ));
     }
 
     let settings = settings::load_settings()?;
@@ -1006,14 +1028,28 @@ async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<()> {
     let client = Client::new(settings, output.clone());
 
     let identifier = &positionals[0];
-    let user = if identifier.contains('@') {
-        client.find_user_by_email(identifier)?
-    } else {
-        client.get_user(identifier)?
-    };
 
-    output.print_result(&serde_json::Value::Object(user))?;
-    Ok(())
+    // A GUID or exact email unambiguously names one user; anything else searches by
+    // name/email/username and returns every match, since "tony" could be several people.
+    if crate::resolve::is_guid(identifier) {
+        let user = client.get_user(identifier)?;
+        return output.print_result(&serde_json::Value::Object(user));
+    }
+    if identifier.contains('@') {
+        let user = client.find_user_by_email(identifier)?;
+        return output.print_result(&serde_json::Value::Object(user));
+    }
+
+    let users = client.search_users(identifier)?;
+    let items: Vec<Value> = if output.json {
+        users.into_iter().map(Value::Object).collect()
+    } else {
+        users
+            .iter()
+            .map(|u| Value::Object(crate::value::compact_map(u, USER_TABLE_COLUMNS)))
+            .collect()
+    };
+    output.print_result(&Value::Array(items))
 }
 
 #[cfg(test)]

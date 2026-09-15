@@ -460,15 +460,7 @@ impl Client {
 
     /// Find a user by exact email (case-insensitive) via the identity API's substring search.
     pub fn find_user_by_email(&self, email: &str) -> anyhow::Result<Map<String, Value>> {
-        let encoded =
-            percent_encoding::utf8_percent_encode(email, percent_encoding::NON_ALPHANUMERIC);
-        let path = format!(
-            "/api/identity/v1/users?nameOrEmailOrUsernameContains={}",
-            encoded
-        );
-        let users = self.fetch_all_pages(&path)?;
-
-        users
+        self.search_users(email)?
             .into_iter()
             .find(|u| {
                 u.get("email")
@@ -476,6 +468,18 @@ impl Client {
                     .is_some_and(|e| e.eq_ignore_ascii_case(email))
             })
             .ok_or_else(|| anyhow::anyhow!("User not found: {}", email))
+    }
+
+    /// Search users whose name, email, or username contains `query` (case-insensitive,
+    /// server-side), following pagination until exhausted.
+    pub fn search_users(&self, query: &str) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let encoded =
+            percent_encoding::utf8_percent_encode(query, percent_encoding::NON_ALPHANUMERIC);
+        let path = format!(
+            "/api/identity/v1/users?nameOrEmailOrUsernameContains={}",
+            encoded
+        );
+        self.fetch_all_pages(&path)
     }
 
     /// Update a user's mutable fields (name, isActive, photoUrl).

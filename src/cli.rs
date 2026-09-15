@@ -409,19 +409,19 @@ pub enum Commands {
 
     /// Grant an application role to a user.
     GrantRole {
-        user: String,
+        /// App the role belongs to (name or key)
+        app: String,
+        /// Role name or key
         role: String,
-        /// Disambiguates when the same role name exists on multiple apps
-        #[arg(long)]
-        app: Option<String>,
+        /// User key or email
+        user: String,
     },
 
     /// Revoke an application role from a user.
     RevokeRole {
-        user: String,
+        app: String,
         role: String,
-        #[arg(long)]
-        app: Option<String>,
+        user: String,
     },
 
     /// Start a build for an app revision.
@@ -689,8 +689,8 @@ impl Commands {
                         .insert("photoUrl".to_string(), photo_url.into());
                 }
             }
-            Commands::GrantRole { user, role, app } | Commands::RevokeRole { user, role, app } => {
-                options.app = app.unwrap_or_default();
+            Commands::GrantRole { app, role, user } | Commands::RevokeRole { app, role, user } => {
+                options.app = app;
                 positionals = vec![user, role];
             }
             Commands::InternalBuild {
@@ -903,5 +903,23 @@ mod tests {
     fn test_command_name_matches_dispatch() {
         let cli = Cli::try_parse_from(["odc", "get-user", "demo@example.com"]).unwrap();
         assert_eq!(cli.command.name(), "get-user");
+    }
+
+    #[test]
+    fn test_grant_role_requires_app_role_user_in_order() {
+        let cli = Cli::try_parse_from(["odc", "grant-role", "MyApp", "Admin", "demo@example.com"])
+            .unwrap();
+        let (options, positionals) = cli.command.into_dispatch();
+        assert_eq!(options.app, "MyApp");
+        assert_eq!(
+            positionals,
+            vec!["demo@example.com".to_string(), "Admin".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_grant_role_missing_user_is_rejected() {
+        let result = Cli::try_parse_from(["odc", "grant-role", "MyApp", "Admin"]);
+        assert!(result.is_err());
     }
 }

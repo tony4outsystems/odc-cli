@@ -10,6 +10,11 @@ fn guid_pattern() -> &'static Regex {
     })
 }
 
+/// Whether `input` looks like a GUID (the API's key format).
+pub fn is_guid(input: &str) -> bool {
+    guid_pattern().is_match(input)
+}
+
 fn contains(value: &Value, query: &str) -> bool {
     let value_str = crate::value::str(value).to_lowercase();
     value_str.contains(&query.to_lowercase())

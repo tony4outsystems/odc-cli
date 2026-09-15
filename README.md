@@ -375,11 +375,11 @@ odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-u
 
 #### grant-role / revoke-role
 
-Grant or revoke an application role for a user. The role can be given by name or key; if the same role name exists on multiple apps, pass `--app` to disambiguate.
+Grant or revoke an application role for a user. The app disambiguates which app's role to use when the same role name exists on multiple apps.
 
 ```bash
-odc grant-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
-odc revoke-role <user-key-or-email> <role-name-or-key> [--app <app-name-or-key>]
+odc grant-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
+odc revoke-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
 ```
 
 The API client needs the **User management > Manage end-user access** permission.
