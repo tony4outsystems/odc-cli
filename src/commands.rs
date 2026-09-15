@@ -287,10 +287,7 @@ async fn cmd_mentor_prompt(options: &Options) -> Result<()> {
     args.insert("sessionId".to_string(), json!(options.session_id));
     args.insert("message".to_string(), json!(options.message));
     if !options.attachment_refs.is_empty() {
-        args.insert(
-            "attachmentRefs".to_string(),
-            json!(options.attachment_refs),
-        );
+        args.insert("attachmentRefs".to_string(), json!(options.attachment_refs));
     }
 
     let result = client.call_tool("mentor_prompt", Value::Object(args))?;

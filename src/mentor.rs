@@ -185,7 +185,11 @@ impl MentorClient {
         };
 
         if let Some(error) = message.get("error") {
-            return Err(anyhow::anyhow!("Mentor request ({}) failed: {}", method, error));
+            return Err(anyhow::anyhow!(
+                "Mentor request ({}) failed: {}",
+                method,
+                error
+            ));
         }
 
         Ok(message.get("result").cloned())
@@ -228,7 +232,11 @@ impl MentorClient {
 
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let result = self
-            .rpc("tools/call", json!({"name": name, "arguments": arguments}), Some(id))?
+            .rpc(
+                "tools/call",
+                json!({"name": name, "arguments": arguments}),
+                Some(id),
+            )?
             .ok_or_else(|| anyhow::anyhow!("Mentor tool {} returned no result", name))?;
 
         if result
@@ -310,7 +318,10 @@ mod tests {
             let url = req.url.as_str();
 
             if url.contains("/auth/token") {
-                return crate::testutil::json_response(200, json!({"access_token": "mentor-token"}));
+                return crate::testutil::json_response(
+                    200,
+                    json!({"access_token": "mentor-token"}),
+                );
             }
 
             let parsed: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
@@ -397,7 +408,10 @@ mod tests {
 
         let client = MentorClient::with_transport(test_settings(), transport);
         let err = client
-            .call_tool("mentor_prompt", json!({"sessionId": "bogus", "message": "hi"}))
+            .call_tool(
+                "mentor_prompt",
+                json!({"sessionId": "bogus", "message": "hi"}),
+            )
             .unwrap_err();
 
         assert!(err.to_string().contains("session not found"));
@@ -409,9 +423,10 @@ mod tests {
             tenant_url: "https://example.com".to_string(),
             ..Default::default()
         };
-        let client = MentorClient::with_transport(settings, crate::testutil::test_transport(
-            |_req| crate::testutil::json_response(200, json!({})),
-        ));
+        let client = MentorClient::with_transport(
+            settings,
+            crate::testutil::test_transport(|_req| crate::testutil::json_response(200, json!({}))),
+        );
 
         let err = client
             .call_tool("mentor_start_session", Value::Object(Map::new()))
@@ -433,10 +448,7 @@ mod tests {
                 );
                 return Some(HttpResponse {
                     status: 200,
-                    headers: vec![(
-                        "Content-Type".to_string(),
-                        "text/event-stream".to_string(),
-                    )],
+                    headers: vec![("Content-Type".to_string(), "text/event-stream".to_string())],
                     body: body.into_bytes(),
                 });
             }

@@ -933,7 +933,10 @@ impl Commands {
                 options.file_name = file_name;
                 options.size_bytes = size_bytes;
             }
-            Commands::MentorPublish { session_id, comment } => {
+            Commands::MentorPublish {
+                session_id,
+                comment,
+            } => {
                 options.session_id = session_id;
                 options.comment = comment.unwrap_or_default();
             }

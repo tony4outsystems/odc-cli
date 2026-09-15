@@ -104,9 +104,7 @@ fn load_existing_settings() -> Result<Settings> {
 pub fn login_mentor(token_url: &str, client_id: &str) -> Result<()> {
     let url = Url::parse(token_url)?;
     if url.host().is_none() || (url.scheme() != "https" && url.scheme() != "http") {
-        return Err(anyhow!(
-            "token URL must be an absolute HTTP or HTTPS URL"
-        ));
+        return Err(anyhow!("token URL must be an absolute HTTP or HTTPS URL"));
     }
 
     if client_id.trim().is_empty() {
