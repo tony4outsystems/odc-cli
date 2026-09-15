@@ -509,6 +509,15 @@ impl Client {
         self.fetch_all_pages(&path)
     }
 
+    /// List the users assigned to an application role.
+    pub fn list_application_role_users(
+        &self,
+        role_key: &str,
+    ) -> anyhow::Result<Vec<Map<String, Value>>> {
+        let path = format!("/api/identity/v1/application-roles/{}/users", role_key);
+        self.fetch_all_pages(&path)
+    }
+
     /// Grant an application role to a user.
     pub fn grant_role(&self, user_key: &str, role_key: &str) -> anyhow::Result<()> {
         let path = format!(

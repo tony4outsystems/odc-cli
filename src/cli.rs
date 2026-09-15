@@ -50,11 +50,11 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "get-user",
             "update-user",
             "list-roles",
+            "list-app-role-users",
             "grant-role",
             "revoke-role",
         ],
     ),
-    ("Design-Time Model", &["list-design-roles"]),
     (
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
@@ -457,12 +457,18 @@ pub enum Commands {
     ListRoles {
         /// App the roles belong to (name or key)
         app: String,
+        /// Environment name, key, or unambiguous partial name
+        #[arg(long)]
+        env: Option<String>,
     },
 
-    /// List roles as defined in an app's design-time model (not tied to any environment).
-    ListDesignRoles {
+    /// List, for each application role of an app, the users assigned to it.
+    ListAppRoleUsers {
         /// App the roles belong to (name or key)
         app: String,
+        /// Environment name, key, or unambiguous partial name
+        #[arg(long)]
+        env: Option<String>,
     },
 
     /// Grant an application role to a user.
@@ -627,7 +633,7 @@ impl Commands {
             Commands::GetUser { .. } => "get-user",
             Commands::UpdateUser { .. } => "update-user",
             Commands::ListRoles { .. } => "list-roles",
-            Commands::ListDesignRoles { .. } => "list-design-roles",
+            Commands::ListAppRoleUsers { .. } => "list-app-role-users",
             Commands::GrantRole { .. } => "grant-role",
             Commands::RevokeRole { .. } => "revoke-role",
             Commands::InternalBuild { .. } => "internal-build",
@@ -689,10 +695,11 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetApp { app }
-            | Commands::LatestRevision { app }
-            | Commands::ListRoles { app }
-            | Commands::ListDesignRoles { app } => {
+            Commands::GetApp { app } | Commands::LatestRevision { app } => {
+                positionals = vec![app];
+            }
+            Commands::ListRoles { app, env } | Commands::ListAppRoleUsers { app, env } => {
+                options.env = env.unwrap_or_default();
                 positionals = vec![app];
             }
             Commands::ListRevisions { app, offset, limit } => {
