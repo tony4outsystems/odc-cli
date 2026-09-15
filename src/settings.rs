@@ -5,16 +5,30 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
     pub tenant_url: String,
     pub client_id: String,
     pub client_secret: String,
+    /// OAuth2 token endpoint for the Mentor MCP server. Mentor uses its own client
+    /// credentials, separate from the main ODC API client above, so it's configured
+    /// independently via `odc login-mentor`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mentor_token_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mentor_client_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mentor_client_secret: Option<String>,
 }
 
 impl Settings {
     pub fn tenant_origin(&self) -> String {
         self.tenant_url.trim_end_matches('/').to_string()
+    }
+
+    /// The Mentor MCP server endpoint, derived from the tenant origin.
+    pub fn mentor_url(&self) -> String {
+        format!("{}/mcp", self.tenant_origin())
     }
 }
 
@@ -46,6 +60,9 @@ pub fn load_settings_with_paths(cwd: Option<PathBuf>, home: Option<PathBuf>) -> 
         tenant_url: env_vars.remove("ODC_TENANT_URL").unwrap_or_default(),
         client_id: env_vars.remove("ODC_CLIENT_ID").unwrap_or_default(),
         client_secret: env_vars.remove("ODC_CLIENT_SECRET").unwrap_or_default(),
+        mentor_token_url: env_vars.remove("ODC_MENTOR_TOKEN_URL"),
+        mentor_client_id: env_vars.remove("ODC_MENTOR_CLIENT_ID"),
+        mentor_client_secret: env_vars.remove("ODC_MENTOR_CLIENT_SECRET"),
     })
 }
 
@@ -90,6 +107,21 @@ fn load_environment_with_paths(
         }
         if std::env::var("ODC_CLIENT_SECRET").is_err() {
             env_vars.insert("ODC_CLIENT_SECRET".to_string(), settings.client_secret);
+        }
+        if std::env::var("ODC_MENTOR_TOKEN_URL").is_err() {
+            if let Some(v) = settings.mentor_token_url {
+                env_vars.insert("ODC_MENTOR_TOKEN_URL".to_string(), v);
+            }
+        }
+        if std::env::var("ODC_MENTOR_CLIENT_ID").is_err() {
+            if let Some(v) = settings.mentor_client_id {
+                env_vars.insert("ODC_MENTOR_CLIENT_ID".to_string(), v);
+            }
+        }
+        if std::env::var("ODC_MENTOR_CLIENT_SECRET").is_err() {
+            if let Some(v) = settings.mentor_client_secret {
+                env_vars.insert("ODC_MENTOR_CLIENT_SECRET".to_string(), v);
+            }
         }
     }
 
@@ -226,6 +258,7 @@ mod tests {
             tenant_url: "https://example.com/".to_string(),
             client_id: "id".to_string(),
             client_secret: "secret".to_string(),
+            ..Default::default()
         };
         assert_eq!(settings.tenant_origin(), "https://example.com");
     }
@@ -236,6 +269,7 @@ mod tests {
             tenant_url: "https://example.com".to_string(),
             client_id: "id".to_string(),
             client_secret: "secret".to_string(),
+            ..Default::default()
         };
         assert_eq!(settings.tenant_origin(), "https://example.com");
     }
