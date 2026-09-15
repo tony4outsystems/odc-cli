@@ -1,29 +1,75 @@
+use crate::client::Client;
+use crate::commands::resolve_app;
 use crate::value::compact_map;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
-/// List all revisions of an app
-pub fn list_revisions(_key: &str) -> Result<Vec<Map<String, Value>>> {
-    // TODO: Implement via client.paginated("asset-repository", ...)
-    Err(anyhow::anyhow!("Not yet implemented"))
+/// Resolve `app_identifier` (name, key, or unambiguous substring) to its `assetKey`.
+fn asset_key_of(apps: &[Map<String, Value>], app_identifier: &str) -> Result<String> {
+    resolve_app(apps, app_identifier)?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_identifier))
 }
 
-/// Get a specific revision
-pub fn get_revision(_key: &str, _revision: i32) -> Result<Map<String, Value>> {
-    // TODO: Implement via client.call
-    Err(anyhow::anyhow!("Not yet implemented"))
+/// List all revisions of an app, following pagination until exhausted.
+pub fn list_revisions(
+    client: &Client,
+    apps: &[Map<String, Value>],
+    app_identifier: &str,
+) -> Result<Vec<Map<String, Value>>> {
+    let asset_key = asset_key_of(apps, app_identifier)?;
+    client.list_revisions(&asset_key)
 }
 
-/// Get revision source code metadata
-pub fn get_revision_source_code(_key: &str, _revision: i32) -> Result<Map<String, Value>> {
-    // TODO: Implement via client.call
-    Err(anyhow::anyhow!("Not yet implemented"))
+/// Get a specific revision of an app.
+pub fn get_revision(
+    client: &Client,
+    apps: &[Map<String, Value>],
+    app_identifier: &str,
+    revision: i32,
+) -> Result<Map<String, Value>> {
+    let asset_key = asset_key_of(apps, app_identifier)?;
+    client
+        .list_revisions(&asset_key)?
+        .into_iter()
+        .find(|r| r.get("revision").and_then(|v| v.as_i64()) == Some(revision as i64))
+        .ok_or_else(|| {
+            anyhow::anyhow!("Revision {} not found for app {}", revision, app_identifier)
+        })
 }
 
-/// Download source code from a presigned URL
-pub async fn download_source_code(_key: &str, _revision: i32, _output: &str) -> Result<u64> {
-    // TODO: Implement via HTTP GET to presigned URL
-    Err(anyhow::anyhow!("Not yet implemented"))
+/// Default output path for a downloaded revision's source code.
+fn default_source_code_path(asset_key: &str, revision: i32) -> String {
+    format!(
+        "{}-rev-{}.oml",
+        crate::mermaid::safe_file_token(asset_key),
+        revision
+    )
+}
+
+/// Download an app revision's OML/XIF source code to `output` (or a generated default path
+/// when empty), returning the number of bytes written.
+pub fn download_source_code(
+    client: &Client,
+    apps: &[Map<String, Value>],
+    app_identifier: &str,
+    revision: i32,
+    output: &str,
+) -> Result<(String, u64)> {
+    let asset_key = asset_key_of(apps, app_identifier)?;
+    let url = client.get_source_code_url(&asset_key, revision)?;
+    let bytes = client.download_file_bytes(&url)?;
+
+    let output_path = if output.is_empty() {
+        default_source_code_path(&asset_key, revision)
+    } else {
+        output.to_string()
+    };
+    std::fs::write(&output_path, &bytes)?;
+
+    Ok((output_path, bytes.len() as u64))
 }
 
 /// Build deployed app rows from the API response, filtering by environment and search
@@ -95,7 +141,115 @@ pub fn deployed_app_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output::{ColorMode, Output};
+    use crate::settings::Settings;
     use serde_json::json;
+
+    fn test_settings() -> Settings {
+        Settings {
+            tenant_url: "https://example.com".to_string(),
+            client_id: "test-id".to_string(),
+            client_secret: "test-secret".to_string(),
+        }
+    }
+
+    fn test_output() -> std::sync::Arc<Output> {
+        std::sync::Arc::new(Output::new(false, ColorMode::Never))
+    }
+
+    fn mock_client() -> Client {
+        let transport = crate::testutil::test_transport(|req: crate::transport::HttpRequest| {
+            let url = req.url.as_str();
+
+            if url.contains("openid-configuration") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({"token_endpoint": "https://example.com/oauth/token"}),
+                );
+            }
+            if url.contains("/oauth/token") {
+                return crate::testutil::json_response(200, json!({"access_token": "test-token"}));
+            }
+            if url.contains("/source-code") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({"sourceCodeBinaryUrl": "https://storage.example.com/app1-rev-3.oml"}),
+                );
+            }
+            if url.contains("storage.example.com") {
+                return Ok(crate::transport::HttpResponse {
+                    status: 200,
+                    headers: vec![],
+                    body: b"<oml/>".to_vec(),
+                });
+            }
+            if url.contains("/revisions") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({
+                        "results": [{"revision": 1}, {"revision": 3}],
+                        "page": {"nextPageOffset": 0, "totalResults": 2},
+                    }),
+                );
+            }
+
+            crate::testutil::json_response(404, json!({"error": "not found"}))
+        });
+        Client::with_transport(test_settings(), test_output(), transport)
+    }
+
+    fn test_apps() -> Vec<Map<String, Value>> {
+        let mut app = Map::new();
+        app.insert("assetKey".to_string(), json!("app1"));
+        app.insert("name".to_string(), json!("App One"));
+        vec![app]
+    }
+
+    #[test]
+    fn test_list_revisions_resolves_app_and_fetches() {
+        let client = mock_client();
+        let revisions = list_revisions(&client, &test_apps(), "App One").unwrap();
+        assert_eq!(revisions.len(), 2);
+    }
+
+    #[test]
+    fn test_get_revision_finds_matching_revision() {
+        let client = mock_client();
+        let revision = get_revision(&client, &test_apps(), "App One", 3).unwrap();
+        assert_eq!(revision.get("revision").unwrap(), 3);
+    }
+
+    #[test]
+    fn test_get_revision_not_found() {
+        let client = mock_client();
+        let result = get_revision(&client, &test_apps(), "App One", 99);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_download_source_code_writes_file() {
+        let client = mock_client();
+        let dir = tempfile::tempdir().unwrap();
+        let output_path = dir.path().join("out.oml");
+
+        let (path, bytes) = download_source_code(
+            &client,
+            &test_apps(),
+            "App One",
+            3,
+            output_path.to_str().unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(path, output_path.to_str().unwrap());
+        assert_eq!(bytes, 6);
+        assert_eq!(std::fs::read(&output_path).unwrap(), b"<oml/>");
+    }
+
+    #[test]
+    fn test_default_source_code_path() {
+        assert_eq!(default_source_code_path("app1", 3), "app1-rev-3.oml");
+    }
 
     #[test]
     fn test_deployed_app_rows_filtering() {

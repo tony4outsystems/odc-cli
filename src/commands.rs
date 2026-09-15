@@ -47,16 +47,52 @@ fn find_app<'a>(
     })
 }
 
+/// Return an error naming `what` if `positionals` is empty.
+fn require_positional(positionals: &[String], command: &str, what: &str) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("{} requires {}", command, what));
+    }
+    Ok(())
+}
+
 /// Resolve a user-supplied app name/key to the app it refers to. Supports a GUID, an exact
 /// name or key, or an unambiguous substring of the name/key — falling back to a "did you
 /// mean" error listing the candidates when the input is ambiguous or matches nothing exactly
 /// (via `resolve::resolve`).
-fn resolve_app<'a>(
+pub(crate) fn resolve_app<'a>(
     apps: &'a [Map<String, Value>],
     identifier: &str,
 ) -> Result<&'a Map<String, Value>> {
     let asset_key = crate::resolve::resolve(identifier, "app", apps, "assetKey")?;
     find_app(apps, &asset_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", identifier))
+}
+
+/// Resolve the revision to act on: an explicit `--revision`, else the app's current revision,
+/// falling back to the latest revision if the app has none set.
+pub(crate) fn resolve_revision(
+    client: &Client,
+    app: &Map<String, Value>,
+    asset_key: &str,
+    explicit: Option<i32>,
+) -> Result<i32> {
+    if let Some(revision) = explicit {
+        return Ok(revision);
+    }
+    if let Some(revision) = app.get("revision").and_then(|v| v.as_i64()) {
+        return Ok(revision as i32);
+    }
+    client
+        .list_revisions(asset_key)?
+        .iter()
+        .filter_map(|r| r.get("revision").and_then(|v| v.as_i64()))
+        .max()
+        .map(|r| r as i32)
+        .ok_or_else(|| anyhow::anyhow!("No revisions found for asset {}", asset_key))
+}
+
+/// Read a string status field off a result map.
+pub(crate) fn status_str<'a>(map: &'a Map<String, Value>, field: &str) -> &'a str {
+    map.get(field).and_then(|v| v.as_str()).unwrap_or("")
 }
 
 /// Keep only items where `fields` contains `filter` as a case-insensitive substring.
@@ -150,28 +186,37 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "latest-revision" => cmd_latest_revision(options, positionals).await,
         "list-revisions" => cmd_list_revisions(options, positionals).await,
         "get-revision" => cmd_get_revision(options, positionals).await,
-        "producer-graph" => Err(anyhow::anyhow!("producer-graph: not yet implemented")),
-        "download-source-code" => Err(anyhow::anyhow!("download-source-code: not yet implemented")),
-        "upload-source-code" => Err(anyhow::anyhow!("upload-source-code: not yet implemented")),
-        "validate" => Err(anyhow::anyhow!("validate: not yet implemented")),
-        "analyze-deployment" => Err(anyhow::anyhow!("analyze-deployment: not yet implemented")),
-        "analyze-deletion" => Err(anyhow::anyhow!("analyze-deletion: not yet implemented")),
-        "deploy" => Err(anyhow::anyhow!("deploy: not yet implemented")),
-        "undeploy" => Err(anyhow::anyhow!("undeploy: not yet implemented")),
-        "delete-app" => Err(anyhow::anyhow!("delete-app: not yet implemented")),
-        "batch-deploy" => Err(anyhow::anyhow!("batch-deploy: not yet implemented")),
-        "batch-undeploy" => Err(anyhow::anyhow!("batch-undeploy: not yet implemented")),
-        "batch-delete" => Err(anyhow::anyhow!("batch-delete: not yet implemented")),
-        "dangerous-batch-undeploy-all" => Err(anyhow::anyhow!(
-            "dangerous-batch-undeploy-all: not yet implemented"
-        )),
+        "producer-graph" => cmd_producer_graph(options, positionals).await,
+        "download-source-code" => cmd_download_source_code(options, positionals).await,
+        "upload-source-code" => cmd_upload_source_code(options, positionals).await,
+        "validate" => cmd_validate(options).await,
+        "analyze-deployment" => cmd_analyze_deployment(options).await,
+        "analyze-deletion" => cmd_analyze_deletion(options).await,
+        "deploy" => cmd_deploy(options).await,
+        "undeploy" => cmd_undeploy(options).await,
+        "delete-app" => cmd_delete_app(options).await,
+        "batch-deploy" => {
+            require_positional(positionals, "batch-deploy", "an apps file")?;
+            crate::workflows::batch_deploy(options, &positionals[0]).await
+        }
+        "batch-undeploy" => {
+            require_positional(positionals, "batch-undeploy", "an apps file")?;
+            crate::workflows::batch_undeploy(options, &positionals[0]).await
+        }
+        "batch-delete" => {
+            require_positional(positionals, "batch-delete", "an apps file")?;
+            crate::workflows::batch_delete(options, &positionals[0]).await
+        }
+        "dangerous-batch-undeploy-all" => {
+            crate::workflows::dangerous_batch_undeploy_all(options).await
+        }
         "get-user" => cmd_get_user(options, positionals).await,
-        "update-user" => Err(anyhow::anyhow!("update-user: not yet implemented")),
-        "grant-role" => Err(anyhow::anyhow!("grant-role: not yet implemented")),
-        "revoke-role" => Err(anyhow::anyhow!("revoke-role: not yet implemented")),
-        "internal-build" => Err(anyhow::anyhow!("internal-build: not yet implemented")),
-        "internal-publish" => Err(anyhow::anyhow!("internal-publish: not yet implemented")),
-        "internal-deploy" => Err(anyhow::anyhow!("internal-deploy: not yet implemented")),
+        "update-user" => cmd_update_user(options, positionals).await,
+        "grant-role" => cmd_grant_role(options, positionals).await,
+        "revoke-role" => cmd_revoke_role(options, positionals).await,
+        "internal-build" => cmd_internal_build(options).await,
+        "internal-publish" => cmd_internal_publish(options).await,
+        "internal-deploy" => cmd_internal_deploy(options).await,
         _ => Err(anyhow::anyhow!("Unknown command: {}", cmd)),
     }
 }
@@ -320,7 +365,7 @@ async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result
     let listing = fetch_listing(
         options,
         |offset, limit| client.list_revisions_page(&asset_key, offset, limit),
-        || client.list_revisions(&asset_key),
+        || crate::inspection::list_revisions(&client, &apps, app_key),
     )?;
     print_listing(&output, listing, REVISION_TABLE_COLUMNS)
 }
@@ -340,20 +385,640 @@ async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<(
     let apps = client.list_apps()?;
     let app_key = &positionals[0];
 
-    let asset_key = resolve_app(&apps, app_key)?
+    let found = crate::inspection::get_revision(&client, &apps, app_key, revision)?;
+
+    output.print_result(&serde_json::Value::Object(found))?;
+    Ok(())
+}
+
+async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!(
+            "producer-graph requires an app name or key"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+    let app = resolve_app(&apps, app_key)?;
+
+    let asset_key = app
         .get("assetKey")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
         .to_string();
 
-    let revisions = client.list_revisions(&asset_key)?;
-    let found = revisions
-        .into_iter()
-        .find(|r| r.get("revision").and_then(|v| v.as_i64()) == Some(revision as i64))
-        .ok_or_else(|| anyhow::anyhow!("Revision {} not found for app {}", revision, app_key))?;
+    let revision = match options.revision {
+        Some(revision) => revision,
+        None => app
+            .get("revision")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?
+            as i32,
+    };
 
-    output.print_result(&serde_json::Value::Object(found))?;
+    let env_key = if options.env.is_empty() {
+        String::new()
+    } else {
+        let environments = client.list_environments()?;
+        crate::resolve::resolve(&options.env, "environment", &environments, "key")?
+    };
+
+    let producer_type_filter = if options.all_producers {
+        "All"
+    } else {
+        options.filter.as_str()
+    };
+
+    let producers = client.get_producer_graph(
+        &asset_key,
+        revision,
+        options.max_depth,
+        producer_type_filter,
+        &env_key,
+    )?;
+
+    let mut root = app.clone();
+    root.insert("revision".to_string(), Value::from(revision));
+
+    let graph = crate::mermaid::render_producer_graph(&root, &producers);
+
+    let output_path = if options.output.is_empty() {
+        crate::mermaid::default_mermaid_path(&asset_key, revision as i64)
+    } else {
+        options.output.clone()
+    };
+    std::fs::write(&output_path, &graph)?;
+
+    if options.json {
+        output.print_result(&serde_json::json!({"output": output_path}))?;
+    } else {
+        output.println_locked(&format!("Wrote producer graph to {}", output_path));
+    }
     Ok(())
+}
+
+/// Resolve `--env` (name, key, or unambiguous partial name) to an environment key.
+pub(crate) fn resolve_env(client: &Client, env_input: &str) -> Result<String> {
+    let environments = client.list_environments()?;
+    crate::resolve::resolve(env_input, "environment", &environments, "key")
+}
+
+/// Resolve a user by key (GUID) or exact email.
+fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
+    if identifier.contains('@') {
+        client.find_user_by_email(identifier)
+    } else {
+        client.get_user(identifier)
+    }
+}
+
+/// Resolve a role name/key to its key, optionally disambiguated by app (name/key).
+fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Result<String> {
+    let mut roles = client.list_application_roles(role_input)?;
+
+    if !app_filter.is_empty() {
+        let apps = client.list_apps()?;
+        let asset_key = resolve_app(&apps, app_filter)?
+            .get("assetKey")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_filter))?
+            .to_string();
+        roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
+    }
+
+    crate::resolve::resolve(role_input, "role", &roles, "key")
+}
+
+async fn cmd_validate(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    output.print_result(&serde_json::json!({
+        "app": asset_key,
+        "environment": env_key,
+        "revision": revision,
+        "valid": true,
+    }))?;
+    Ok(())
+}
+
+fn analysis_is_terminal(map: &Map<String, Value>) -> bool {
+    matches!(status_str(map, "processStatus"), "Finished" | "Failed")
+}
+
+async fn cmd_analyze_deployment(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    let started = client.start_deployment_analysis(&asset_key, revision, &env_key)?;
+    let analysis_key = started
+        .get("analysisKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Deployment analysis response has no analysisKey"))?
+        .to_string();
+
+    if options.no_wait {
+        return output.print_result(&serde_json::json!({ "analysisKey": analysis_key }));
+    }
+
+    let result = crate::workflows::wait_for(
+        "deployment analysis",
+        || client.get_deployment_analysis(&analysis_key),
+        analysis_is_terminal,
+        options.interval,
+        options.timeout,
+    )
+    .await?;
+
+    if status_str(&result, "processStatus") == "Failed" {
+        return Err(anyhow::anyhow!(
+            "Deployment analysis failed: {}",
+            serde_json::Value::Object(result)
+        ));
+    }
+
+    output.print_result(&serde_json::Value::Object(result))
+}
+
+async fn cmd_analyze_deletion(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let asset_key = resolve_app(&apps, &options.app)?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+
+    let started = client.start_deletion_analysis(&asset_key)?;
+    let analysis_key = started
+        .get("analysisKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Deletion analysis response has no analysisKey"))?
+        .to_string();
+
+    if options.no_wait {
+        return output.print_result(&serde_json::json!({ "analysisKey": analysis_key }));
+    }
+
+    let result = crate::workflows::wait_for(
+        "deletion analysis",
+        || client.get_deletion_analysis(&analysis_key),
+        analysis_is_terminal,
+        options.interval,
+        options.timeout,
+    )
+    .await?;
+
+    if status_str(&result, "processStatus") == "Failed" {
+        return Err(anyhow::anyhow!(
+            "Deletion analysis failed: {}",
+            serde_json::Value::Object(result)
+        ));
+    }
+
+    output.print_result(&serde_json::Value::Object(result))
+}
+
+fn build_is_terminal(map: &Map<String, Value>) -> bool {
+    matches!(
+        status_str(map, "status"),
+        "Finished" | "FinishedWithErrors" | "Deleted" | "ToBeDeleted"
+    )
+}
+
+fn operation_is_terminal(map: &Map<String, Value>) -> bool {
+    matches!(status_str(map, "status"), "Finished" | "FinishedWithError")
+}
+
+/// Start a build for `asset_key`/`revision` and, unless `--no-wait`, poll until it finishes.
+/// Returns the build key and, when waited for, errors out on `FinishedWithErrors`.
+pub(crate) async fn run_build(
+    client: &Client,
+    options: &Options,
+    asset_key: &str,
+    revision: i32,
+) -> Result<(String, Option<Map<String, Value>>)> {
+    let started = client.start_build(asset_key, revision, &options.build_type)?;
+    let build_key = started
+        .get("buildKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Build response has no buildKey"))?
+        .to_string();
+
+    if options.no_wait {
+        return Ok((build_key, None));
+    }
+
+    let result = crate::workflows::wait_for(
+        "build",
+        || client.get_build(&build_key),
+        build_is_terminal,
+        options.interval,
+        options.timeout,
+    )
+    .await?;
+
+    if status_str(&result, "status") == "FinishedWithErrors" {
+        return Err(anyhow::anyhow!(
+            "Build failed: {}",
+            serde_json::Value::Object(result)
+        ));
+    }
+
+    Ok((build_key, Some(result)))
+}
+
+async fn cmd_internal_build(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    let (build_key, result) = run_build(&client, options, &asset_key, revision).await?;
+
+    match result {
+        Some(result) => output.print_result(&serde_json::Value::Object(result)),
+        None => output.print_result(&serde_json::json!({ "buildKey": build_key })),
+    }
+}
+
+async fn cmd_internal_publish(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    let started = client.start_publish(&asset_key, revision, &env_key)?;
+    let operation_key = started
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Publish response has no key"))?
+        .to_string();
+
+    if options.no_wait {
+        return output.print_result(&serde_json::Value::Object(started));
+    }
+
+    let result = crate::workflows::wait_for(
+        "publish",
+        || client.get_publish(&operation_key),
+        operation_is_terminal,
+        options.interval,
+        options.timeout,
+    )
+    .await?;
+
+    if status_str(&result, "status") == "FinishedWithError" {
+        return Err(anyhow::anyhow!(
+            "Publish failed: {}",
+            serde_json::Value::Object(result)
+        ));
+    }
+
+    output.print_result(&serde_json::Value::Object(result))
+}
+
+async fn cmd_internal_deploy(options: &Options) -> Result<()> {
+    if options.build_key.is_empty() {
+        return Err(anyhow::anyhow!("internal-deploy requires --build-key"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    let (operation_key, result) = run_deployment_operation(
+        &client,
+        options,
+        "Deploy",
+        &asset_key,
+        &env_key,
+        Some(revision),
+        Some(&options.build_key),
+    )
+    .await?;
+
+    match result {
+        Some(result) => output.print_result(&serde_json::Value::Object(result)),
+        None => output.print_result(&serde_json::json!({ "operationKey": operation_key })),
+    }
+}
+
+/// Start a deployment operation (`Deploy`/`Undeploy`) and, unless `--no-wait`, poll until it
+/// finishes, erroring out on `FinishedWithError`.
+pub(crate) async fn run_deployment_operation(
+    client: &Client,
+    options: &Options,
+    operation: &str,
+    asset_key: &str,
+    env_key: &str,
+    revision: Option<i32>,
+    build_key: Option<&str>,
+) -> Result<(String, Option<Map<String, Value>>)> {
+    let started =
+        client.start_deployment_operation(operation, asset_key, env_key, revision, build_key)?;
+    let operation_key = started
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("{} response has no key", operation))?
+        .to_string();
+
+    if options.no_wait {
+        return Ok((operation_key, None));
+    }
+
+    let result = crate::workflows::wait_for(
+        operation,
+        || client.get_deployment_operation(&operation_key),
+        operation_is_terminal,
+        options.interval,
+        options.timeout,
+    )
+    .await?;
+
+    if status_str(&result, "status") == "FinishedWithError" {
+        return Err(anyhow::anyhow!(
+            "{} failed: {}",
+            operation,
+            serde_json::Value::Object(result)
+        ));
+    }
+
+    Ok((operation_key, Some(result)))
+}
+
+async fn cmd_deploy(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app = resolve_app(&apps, &options.app)?;
+    let asset_key = app
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+    let revision = resolve_revision(&client, app, &asset_key, options.revision)?;
+
+    if options.no_wait {
+        // --no-wait doesn't make sense for a multi-step composite command: we always need
+        // the build to finish before we know it's safe to deploy it.
+        return Err(anyhow::anyhow!(
+            "deploy does not support --no-wait; use internal-build/internal-deploy instead"
+        ));
+    }
+
+    let (build_key, _) = run_build(&client, options, &asset_key, revision).await?;
+
+    let (_, deploy_result) = run_deployment_operation(
+        &client,
+        options,
+        "Deploy",
+        &asset_key,
+        &env_key,
+        Some(revision),
+        Some(&build_key),
+    )
+    .await?;
+
+    output.print_result(&serde_json::Value::Object(
+        deploy_result.unwrap_or_default(),
+    ))
+}
+
+async fn cmd_undeploy(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let asset_key = resolve_app(&apps, &options.app)?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+    let env_key = resolve_env(&client, &options.env)?;
+
+    let (operation_key, result) = run_deployment_operation(
+        &client, options, "Undeploy", &asset_key, &env_key, None, None,
+    )
+    .await?;
+
+    match result {
+        Some(result) => output.print_result(&serde_json::Value::Object(result)),
+        None => output.print_result(&serde_json::json!({ "operationKey": operation_key })),
+    }
+}
+
+async fn cmd_delete_app(options: &Options) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let asset_key = resolve_app(&apps, &options.app)?
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", options.app))?
+        .to_string();
+
+    client.delete_asset(&asset_key)?;
+    output.println_locked(&format!("Deleted app {}", options.app));
+    Ok(())
+}
+
+async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!("update-user requires a user key or email"));
+    }
+    if options.updates.is_empty() {
+        return Err(anyhow::anyhow!(
+            "update-user requires at least one of --name, --is-active, or --photo-url"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let user = resolve_user(&client, &positionals[0])?;
+    let user_key = user
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?;
+
+    let updated = client.update_user(user_key, &options.updates)?;
+    output.print_result(&serde_json::Value::Object(updated))
+}
+
+async fn cmd_grant_role(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!("grant-role requires a user and a role"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let user = resolve_user(&client, &positionals[0])?;
+    let user_key = user
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
+        .to_string();
+    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+
+    client.grant_role(&user_key, &role_key)?;
+    output.println_locked(&format!(
+        "Granted role {} to {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+async fn cmd_revoke_role(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.len() < 2 {
+        return Err(anyhow::anyhow!("revoke-role requires a user and a role"));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let user = resolve_user(&client, &positionals[0])?;
+    let user_key = user
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
+        .to_string();
+    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+
+    client.revoke_role(&user_key, &role_key)?;
+    output.println_locked(&format!(
+        "Revoked role {} from {}",
+        positionals[1], positionals[0]
+    ));
+    Ok(())
+}
+
+async fn cmd_download_source_code(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!(
+            "download-source-code requires an app name or key"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let apps = client.list_apps()?;
+    let app_key = &positionals[0];
+    let app = resolve_app(&apps, app_key)?;
+
+    let revision = match options.revision {
+        Some(revision) => revision,
+        None => app
+            .get("revision")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?
+            as i32,
+    };
+
+    let (output_path, _bytes) = crate::inspection::download_source_code(
+        &client,
+        &apps,
+        app_key,
+        revision,
+        &options.output,
+    )?;
+
+    if options.json {
+        output.print_result(&serde_json::json!({ "output": output_path }))?;
+    } else {
+        output.println_locked(&format!("Wrote source code to {}", output_path));
+    }
+    Ok(())
+}
+
+async fn cmd_upload_source_code(options: &Options, positionals: &[String]) -> Result<()> {
+    if positionals.is_empty() {
+        return Err(anyhow::anyhow!(
+            "upload-source-code requires an OML/XIF file"
+        ));
+    }
+
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let bytes = std::fs::read(&positionals[0])
+        .map_err(|e| anyhow::anyhow!("Failed to read {}: {}", positionals[0], e))?;
+
+    let upload_url = client.request_upload_url()?;
+    client.upload_file_bytes(&upload_url, bytes)?;
+    let created = client.create_asset_revision(&upload_url)?;
+
+    output.print_result(&serde_json::Value::Object(created))
 }
 
 async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<()> {
