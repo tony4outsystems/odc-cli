@@ -1084,8 +1084,15 @@ async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()
 }
 
 const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
-const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] =
-    &["role", "assigneeType", "name", "email", "key", "status"];
+const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &[
+    "role",
+    "environment",
+    "assigneeType",
+    "name",
+    "email",
+    "key",
+    "status",
+];
 
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
