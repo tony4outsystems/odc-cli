@@ -4,7 +4,7 @@ use std::time::Duration;
 
 /// Command names grouped by category, in display order, for the categorized top-level help.
 const HELP_CATEGORIES: &[(&str, &[&str])] = &[
-    ("Auth", &["discover", "login", "login-mentor"]),
+    ("Auth", &["discover", "login"]),
     (
         "Apps & Environments",
         &[
@@ -503,12 +503,6 @@ pub enum Commands {
         poll: PollArgs,
     },
 
-    /// Save Mentor's OAuth2 client credentials (prompts for client secret).
-    LoginMentor {
-        token_url: String,
-        client_id: String,
-    },
-
     /// Start a new Mentor session; prints the sessionId used for follow-up commands.
     MentorStartSession,
 
@@ -619,7 +613,6 @@ impl Commands {
             Commands::InternalPublish { .. } => "internal-publish",
             Commands::InternalDeploy { .. } => "internal-deploy",
             Commands::Completion { .. } => "completion",
-            Commands::LoginMentor { .. } => "login-mentor",
             Commands::MentorStartSession => "mentor-start-session",
             Commands::MentorCreateAsset { .. } => "mentor-create-asset",
             Commands::MentorLoadAsset { .. } => "mentor-load-asset",
@@ -858,12 +851,6 @@ impl Commands {
                 options.revision = revision;
                 options.build_key = build_key;
                 apply_poll(&mut options, poll);
-            }
-            Commands::LoginMentor {
-                token_url,
-                client_id,
-            } => {
-                positionals = vec![token_url, client_id];
             }
             Commands::MentorStartSession => {}
             Commands::MentorCreateAsset {

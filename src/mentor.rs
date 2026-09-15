@@ -1,11 +1,12 @@
 //! Client for the Mentor MCP server.
 //!
 //! Mentor is exposed as an MCP server (JSON-RPC 2.0 over the "Streamable HTTP" transport) at
-//! `<tenant origin>/mcp`, authenticated with its own OAuth2 client-credentials grant — a
-//! separate client id/secret and token endpoint from the main ODC REST API client in
-//! `client.rs`, configured via `odc login-mentor`. Each Mentor capability (start a session,
+//! `<tenant origin>/mcp`, authenticated the same way as the main ODC REST API in `client.rs`:
+//! the tenant/client_id/client_secret saved by `odc login`, via the token endpoint discovered
+//! from `/identity/.well-known/openid-configuration`. Each Mentor capability (start a session,
 //! send a prompt, poll a run, ...) is one `tools/call` request naming a `mentor_*` tool.
 
+use crate::client::Client;
 use crate::settings::Settings;
 use crate::transport::{HttpRequest, HttpResponse, Transport};
 use serde_json::{json, Value};
@@ -15,8 +16,10 @@ use url::Url;
 
 pub struct MentorClient {
     settings: Settings,
+    /// Reused for its OAuth2 discovery/token logic (identical client credentials as the
+    /// main ODC API), not for REST calls.
+    auth: Client,
     transport: Box<dyn Transport>,
-    token: Mutex<Option<String>>,
     /// The `Mcp-Session-Id` the server assigned during `initialize`, echoed back on every
     /// subsequent request in the same CLI invocation.
     mcp_session_id: Mutex<Option<String>>,
@@ -30,78 +33,26 @@ impl MentorClient {
         Self::with_transport(settings, ReqwestTransport::new())
     }
 
+    /// `transport` is shared with the internal auth `Client` (used only for its
+    /// discovery/token logic), so both issue requests through the same implementation.
     pub fn with_transport<T>(settings: Settings, transport: T) -> Self
     where
         T: Transport + 'static,
     {
+        let shared: std::sync::Arc<dyn Transport> = std::sync::Arc::new(transport);
+        let output = std::sync::Arc::new(crate::output::Output::new(
+            false,
+            crate::output::ColorMode::Never,
+        ));
+        let auth = Client::with_transport(settings.clone(), output, shared.clone());
         Self {
             settings,
-            transport: Box::new(transport),
-            token: Mutex::new(None),
+            auth,
+            transport: Box::new(shared),
             mcp_session_id: Mutex::new(None),
             initialized: Mutex::new(false),
             next_id: AtomicI64::new(1),
         }
-    }
-
-    fn require_credentials(&self) -> anyhow::Result<(&str, &str, &str)> {
-        let token_url = self.settings.mentor_token_url.as_deref().unwrap_or("");
-        let client_id = self.settings.mentor_client_id.as_deref().unwrap_or("");
-        let client_secret = self.settings.mentor_client_secret.as_deref().unwrap_or("");
-
-        if token_url.is_empty() || client_id.is_empty() || client_secret.is_empty() {
-            return Err(anyhow::anyhow!(
-                "Mentor is not configured; run `odc login-mentor <token-url> <client-id>` first"
-            ));
-        }
-
-        Ok((token_url, client_id, client_secret))
-    }
-
-    /// Get (and cache) an access token for the Mentor OAuth2 client.
-    fn token(&self) -> anyhow::Result<String> {
-        {
-            let token = self.token.lock().unwrap();
-            if let Some(token) = &*token {
-                return Ok(token.clone());
-            }
-        }
-
-        let (token_url, client_id, client_secret) = self.require_credentials()?;
-
-        let body = format!(
-            "grant_type=client_credentials&client_id={}&client_secret={}",
-            client_id, client_secret
-        );
-
-        let resp = self.send_raw(
-            "POST",
-            token_url,
-            vec![(
-                "Content-Type".to_string(),
-                "application/x-www-form-urlencoded".to_string(),
-            )],
-            Some(body.into_bytes()),
-        )?;
-
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "Mentor token request failed with {}: {}",
-                resp.status,
-                body_str
-            ));
-        }
-
-        let body_str = String::from_utf8(resp.body)?;
-        let token_resp: Value = serde_json::from_str(&body_str)?;
-        let access_token = crate::value::require_string(
-            token_resp.get("access_token").unwrap_or(&Value::Null),
-            "access_token",
-        )?;
-
-        *self.token.lock().unwrap() = Some(access_token.clone());
-        Ok(access_token)
     }
 
     fn send_raw(
@@ -124,7 +75,7 @@ impl MentorClient {
     /// MCP endpoint and return the parsed response body, handling both a plain JSON response
     /// and a `text/event-stream` one.
     fn rpc(&self, method: &str, params: Value, id: Option<i64>) -> anyhow::Result<Option<Value>> {
-        let token = self.token()?;
+        let token = self.auth.token()?;
 
         let mut payload = serde_json::Map::new();
         payload.insert("jsonrpc".to_string(), json!("2.0"));
@@ -185,11 +136,7 @@ impl MentorClient {
         };
 
         if let Some(error) = message.get("error") {
-            return Err(anyhow::anyhow!(
-                "Mentor request ({}) failed: {}",
-                method,
-                error
-            ));
+            return Err(anyhow::anyhow!("Mentor request ({}) failed: {}", method, error));
         }
 
         Ok(message.get("result").cloned())
@@ -232,11 +179,7 @@ impl MentorClient {
 
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let result = self
-            .rpc(
-                "tools/call",
-                json!({"name": name, "arguments": arguments}),
-                Some(id),
-            )?
+            .rpc("tools/call", json!({"name": name, "arguments": arguments}), Some(id))?
             .ok_or_else(|| anyhow::anyhow!("Mentor tool {} returned no result", name))?;
 
         if result
@@ -304,10 +247,8 @@ mod tests {
     fn test_settings() -> Settings {
         Settings {
             tenant_url: "https://example.com".to_string(),
-            mentor_token_url: Some("https://example.com/auth/token".to_string()),
-            mentor_client_id: Some("mentor-client".to_string()),
-            mentor_client_secret: Some("mentor-secret".to_string()),
-            ..Default::default()
+            client_id: "test-id".to_string(),
+            client_secret: "test-secret".to_string(),
         }
     }
 
@@ -317,11 +258,15 @@ mod tests {
         crate::testutil::test_transport(move |req: HttpRequest| {
             let url = req.url.as_str();
 
-            if url.contains("/auth/token") {
+            if url.contains("openid-configuration") {
                 return crate::testutil::json_response(
                     200,
-                    json!({"access_token": "mentor-token"}),
+                    json!({"token_endpoint": "https://example.com/oauth/token"}),
                 );
+            }
+
+            if url.contains("/oauth/token") {
+                return crate::testutil::json_response(200, json!({"access_token": "mentor-token"}));
             }
 
             let parsed: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
@@ -408,30 +353,10 @@ mod tests {
 
         let client = MentorClient::with_transport(test_settings(), transport);
         let err = client
-            .call_tool(
-                "mentor_prompt",
-                json!({"sessionId": "bogus", "message": "hi"}),
-            )
+            .call_tool("mentor_prompt", json!({"sessionId": "bogus", "message": "hi"}))
             .unwrap_err();
 
         assert!(err.to_string().contains("session not found"));
-    }
-
-    #[test]
-    fn test_missing_credentials_error() {
-        let settings = Settings {
-            tenant_url: "https://example.com".to_string(),
-            ..Default::default()
-        };
-        let client = MentorClient::with_transport(
-            settings,
-            crate::testutil::test_transport(|_req| crate::testutil::json_response(200, json!({}))),
-        );
-
-        let err = client
-            .call_tool("mentor_start_session", Value::Object(Map::new()))
-            .unwrap_err();
-        assert!(err.to_string().contains("login-mentor"));
     }
 
     #[test]
@@ -448,7 +373,10 @@ mod tests {
                 );
                 return Some(HttpResponse {
                     status: 200,
-                    headers: vec![("Content-Type".to_string(), "text/event-stream".to_string())],
+                    headers: vec![(
+                        "Content-Type".to_string(),
+                        "text/event-stream".to_string(),
+                    )],
                     body: body.into_bytes(),
                 });
             }

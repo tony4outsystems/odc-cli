@@ -103,6 +103,15 @@ where
     }
 }
 
+/// Lets a single transport instance be shared (e.g. between the API auth client and the
+/// Mentor MCP client, which both need to issue requests through the same transport) without
+/// requiring the underlying implementation to be `Clone`.
+impl Transport for std::sync::Arc<dyn Transport> {
+    fn send(&self, req: HttpRequest) -> Result<HttpResponse> {
+        (**self).send(req)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -703,7 +703,6 @@ mod tests {
             tenant_url: "https://example.com".to_string(),
             client_id: "test-id".to_string(),
             client_secret: "test-secret".to_string(),
-            ..Default::default()
         };
         let output = std::sync::Arc::new(crate::output::Output::new(
             false,
@@ -717,7 +716,6 @@ mod tests {
             tenant_url: "https://example.com".to_string(),
             client_id: "test-id".to_string(),
             client_secret: "test-secret".to_string(),
-            ..Default::default()
         }
     }
 
