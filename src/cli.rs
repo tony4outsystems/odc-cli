@@ -44,17 +44,7 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "dangerous-batch-undeploy-all",
         ],
     ),
-    (
-        "Users & Roles",
-        &[
-            "get-user",
-            "update-user",
-            "list-roles",
-            "list-app-role-users",
-            "grant-role",
-            "revoke-role",
-        ],
-    ),
+    ("Users", &["get-user", "update-user"]),
     (
         "Groups",
         &[
@@ -62,9 +52,17 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "get-group",
             "update-group",
             "list-group-members",
-            "list-group-roles",
             "add-user-to-group",
             "remove-user-from-group",
+        ],
+    ),
+    (
+        "Roles",
+        &[
+            "list-roles",
+            "list-role-assignments",
+            "grant-role",
+            "revoke-role",
             "grant-group-role",
             "revoke-group-role",
         ],
@@ -223,6 +221,24 @@ impl MentorAssetType {
             MentorAssetType::Agent => "Agent",
             MentorAssetType::Library => "Library",
             MentorAssetType::Workflow => "Workflow",
+        }
+    }
+}
+
+/// Role assignee kinds, per `list-role-assignments`'s `--type` filter.
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum AssigneeType {
+    #[value(name = "User")]
+    User,
+    #[value(name = "Group")]
+    Group,
+}
+
+impl AssigneeType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AssigneeType::User => "User",
+            AssigneeType::Group => "Group",
         }
     }
 }
@@ -476,13 +492,16 @@ pub enum Commands {
         env: Option<String>,
     },
 
-    /// List, for each application role of an app, the users assigned to it.
-    ListAppRoleUsers {
+    /// List, for each application role of an app, the users and/or groups assigned to it.
+    ListRoleAssignments {
         /// App the roles belong to (name or key)
         app: String,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
         env: Option<String>,
+        /// Only show assignments of this type (default: both)
+        #[arg(long, value_enum)]
+        r#type: Option<AssigneeType>,
     },
 
     /// Grant an application role to a user.
@@ -525,9 +544,6 @@ pub enum Commands {
 
     /// List the members of an end-user group.
     ListGroupMembers { group: String },
-
-    /// List the application roles assigned to an end-user group.
-    ListGroupRoles { group: String },
 
     /// Add a user to an end-user group.
     AddUserToGroup { group: String, user: String },
@@ -697,14 +713,13 @@ impl Commands {
             Commands::GetUser { .. } => "get-user",
             Commands::UpdateUser { .. } => "update-user",
             Commands::ListRoles { .. } => "list-roles",
-            Commands::ListAppRoleUsers { .. } => "list-app-role-users",
+            Commands::ListRoleAssignments { .. } => "list-role-assignments",
             Commands::GrantRole { .. } => "grant-role",
             Commands::RevokeRole { .. } => "revoke-role",
             Commands::ListGroups { .. } => "list-groups",
             Commands::GetGroup { .. } => "get-group",
             Commands::UpdateGroup { .. } => "update-group",
             Commands::ListGroupMembers { .. } => "list-group-members",
-            Commands::ListGroupRoles { .. } => "list-group-roles",
             Commands::AddUserToGroup { .. } => "add-user-to-group",
             Commands::RemoveUserFromGroup { .. } => "remove-user-from-group",
             Commands::GrantGroupRole { .. } => "grant-group-role",
@@ -771,8 +786,13 @@ impl Commands {
             Commands::GetApp { app } | Commands::LatestRevision { app } => {
                 positionals = vec![app];
             }
-            Commands::ListRoles { app, env } | Commands::ListAppRoleUsers { app, env } => {
+            Commands::ListRoles { app, env } => {
                 options.env = env.unwrap_or_default();
+                positionals = vec![app];
+            }
+            Commands::ListRoleAssignments { app, env, r#type } => {
+                options.env = env.unwrap_or_default();
+                options.filter = r#type.map(|t| t.as_str().to_string()).unwrap_or_default();
                 positionals = vec![app];
             }
             Commands::ListRevisions { app, offset, limit } => {
@@ -925,9 +945,7 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetGroup { group }
-            | Commands::ListGroupMembers { group }
-            | Commands::ListGroupRoles { group } => {
+            Commands::GetGroup { group } | Commands::ListGroupMembers { group } => {
                 positionals = vec![group];
             }
             Commands::UpdateGroup {

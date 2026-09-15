@@ -213,14 +213,13 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "get-user" => cmd_get_user(options, positionals).await,
         "update-user" => cmd_update_user(options, positionals).await,
         "list-roles" => cmd_list_roles(options, positionals).await,
-        "list-app-role-users" => cmd_list_app_role_users(options, positionals).await,
+        "list-role-assignments" => cmd_list_role_assignments(options, positionals).await,
         "grant-role" => cmd_grant_role(options, positionals).await,
         "revoke-role" => cmd_revoke_role(options, positionals).await,
         "list-groups" => cmd_list_groups(options, positionals).await,
         "get-group" => cmd_get_group(options, positionals).await,
         "update-group" => cmd_update_group(options, positionals).await,
         "list-group-members" => cmd_list_group_members(options, positionals).await,
-        "list-group-roles" => cmd_list_group_roles(options, positionals).await,
         "add-user-to-group" => cmd_add_user_to_group(options, positionals).await,
         "remove-user-from-group" => cmd_remove_user_from_group(options, positionals).await,
         "grant-group-role" => cmd_grant_group_role(options, positionals).await,
@@ -1085,11 +1084,12 @@ async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()
 }
 
 const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
-const ROLE_USER_TABLE_COLUMNS: &[&str] = &["role", "name", "email", "key", "status"];
+const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] =
+    &["role", "assigneeType", "name", "email", "key", "status"];
 
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
-/// `list-app-role-users`.
+/// `list-role-assignments`.
 fn resolve_app_roles(
     client: &Client,
     apps: &[Map<String, Value>],
@@ -1155,8 +1155,8 @@ async fn cmd_list_roles(options: &Options, positionals: &[String]) -> Result<()>
     output.print_result(&Value::Array(results))
 }
 
-async fn cmd_list_app_role_users(options: &Options, positionals: &[String]) -> Result<()> {
-    require_positional(positionals, "list-app-role-users", "an app name or key")?;
+async fn cmd_list_role_assignments(options: &Options, positionals: &[String]) -> Result<()> {
+    require_positional(positionals, "list-role-assignments", "an app name or key")?;
 
     let settings = settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
@@ -1165,25 +1165,91 @@ async fn cmd_list_app_role_users(options: &Options, positionals: &[String]) -> R
     let apps = client.list_apps()?;
     let roles = resolve_app_roles(&client, &apps, &positionals[0], &options.env)?;
 
-    let mut rows: Vec<Map<String, Value>> = Vec::new();
-    for role in &roles {
-        let role_key = role
-            .get("key")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Role has no key field"))?;
-        let role_name = role
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or(role_key)
-            .to_string();
+    let want_users = options.filter.is_empty() || options.filter == "User";
+    let want_groups = options.filter.is_empty() || options.filter == "Group";
 
-        let users = client.list_application_role_users(role_key)?;
-        for mut user in users {
-            user.insert("role".to_string(), Value::String(role_name.clone()));
-            if let Some(env) = role.get("environment").cloned() {
-                user.insert("environment".to_string(), env);
+    let mut rows: Vec<Map<String, Value>> = Vec::new();
+
+    if want_users {
+        for role in &roles {
+            let role_key = role
+                .get("key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Role has no key field"))?;
+            let role_name = role
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(role_key)
+                .to_string();
+
+            let users = client.list_application_role_users(role_key)?;
+            for mut user in users {
+                user.insert("role".to_string(), Value::String(role_name.clone()));
+                user.insert(
+                    "assigneeType".to_string(),
+                    Value::String("User".to_string()),
+                );
+                if let Some(env) = role.get("environment").cloned() {
+                    user.insert("environment".to_string(), env);
+                }
+                rows.push(user);
             }
-            rows.push(user);
+        }
+    }
+
+    if want_groups {
+        // No `/application-roles/{key}/groups` endpoint exists, so for each distinct
+        // environment among the resolved roles, list that environment's groups once and
+        // check each group's own assigned roles for a match.
+        let mut groups_by_env: std::collections::HashMap<String, Vec<Map<String, Value>>> =
+            std::collections::HashMap::new();
+        for role in &roles {
+            let Some(env_key) = role.get("environmentKey").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            if !groups_by_env.contains_key(env_key) {
+                groups_by_env.insert(env_key.to_string(), client.list_groups("", env_key)?);
+            }
+        }
+
+        for role in &roles {
+            let role_key = role
+                .get("key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Role has no key field"))?;
+            let role_name = role
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(role_key)
+                .to_string();
+            let Some(env_key) = role.get("environmentKey").and_then(|v| v.as_str()) else {
+                continue;
+            };
+
+            for group in groups_by_env.get(env_key).into_iter().flatten() {
+                let group_key = group
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Group has no key field"))?;
+                let group_roles = client.list_group_application_roles(group_key)?;
+                let has_role = group_roles
+                    .iter()
+                    .any(|r| r.get("key").and_then(|v| v.as_str()) == Some(role_key));
+                if !has_role {
+                    continue;
+                }
+
+                let mut row = group.clone();
+                row.insert("role".to_string(), Value::String(role_name.clone()));
+                row.insert(
+                    "assigneeType".to_string(),
+                    Value::String("Group".to_string()),
+                );
+                if let Some(env) = role.get("environment").cloned() {
+                    row.insert("environment".to_string(), env);
+                }
+                rows.push(row);
+            }
         }
     }
 
@@ -1191,7 +1257,7 @@ async fn cmd_list_app_role_users(options: &Options, positionals: &[String]) -> R
         rows
     } else {
         rows.iter()
-            .map(|item| crate::value::compact_map(item, ROLE_USER_TABLE_COLUMNS))
+            .map(|item| crate::value::compact_map(item, ROLE_ASSIGNMENT_TABLE_COLUMNS))
             .collect()
     };
     let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
@@ -1341,32 +1407,6 @@ async fn cmd_list_group_members(options: &Options, positionals: &[String]) -> Re
                 }
                 crate::value::compact_map(&flat, GROUP_USER_TABLE_COLUMNS)
             })
-            .collect()
-    };
-    let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
-    output.print_result(&Value::Array(results))
-}
-
-async fn cmd_list_group_roles(options: &Options, positionals: &[String]) -> Result<()> {
-    require_positional(positionals, "list-group-roles", "a group name or key")?;
-
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Client::new(settings, output.clone());
-
-    let group = resolve_group(&client, &positionals[0], "")?;
-    let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?;
-    let roles = client.list_group_application_roles(group_key)?;
-
-    let items = if output.json {
-        roles
-    } else {
-        roles
-            .iter()
-            .map(|item| crate::value::compact_map(item, ROLE_TABLE_COLUMNS))
             .collect()
     };
     let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
