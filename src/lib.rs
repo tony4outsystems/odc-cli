@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod client;
 pub mod commands;
+pub mod error;
 pub mod inspection;
 pub mod login;
 pub mod mentor;

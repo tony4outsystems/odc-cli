@@ -13,6 +13,37 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Create a new Settings with validation.
+    ///
+    /// # Validation
+    ///
+    /// - `tenant_url` must be a valid URL
+    /// - `client_id` must not be empty
+    /// - `client_secret` must not be empty
+    ///
+    /// # Returns
+    ///
+    /// Settings if all fields are valid, or error if validation fails.
+    pub fn new(tenant_url: String, client_id: String, client_secret: String) -> Result<Self> {
+        // Validate URL format
+        url::Url::parse(&tenant_url)
+            .map_err(|e| anyhow!("Invalid tenant_url: {}", e))?;
+
+        // Validate non-empty fields
+        if client_id.is_empty() {
+            return Err(anyhow!("client_id cannot be empty"));
+        }
+        if client_secret.is_empty() {
+            return Err(anyhow!("client_secret cannot be empty"));
+        }
+
+        Ok(Settings {
+            tenant_url,
+            client_id,
+            client_secret,
+        })
+    }
+
     pub fn tenant_origin(&self) -> String {
         self.tenant_url.trim_end_matches('/').to_string()
     }
@@ -28,30 +59,27 @@ pub fn load_settings() -> Result<Settings> {
 }
 
 pub fn load_settings_with_paths(cwd: Option<PathBuf>, home: Option<PathBuf>) -> Result<Settings> {
-    let mut env_vars = load_environment_with_paths(cwd, home)?;
+    let env_vars = load_environment_with_paths(cwd, home)?;
 
-    let required = ["ODC_TENANT_URL", "ODC_CLIENT_ID", "ODC_CLIENT_SECRET"];
-    let mut missing = Vec::new();
+    let tenant_url = env_vars
+        .get("ODC_TENANT_URL")
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("Missing required environment variable: ODC_TENANT_URL"))?
+        .clone();
 
-    for name in &required {
-        if env_vars.get(*name).map(|v| v.is_empty()).unwrap_or(true) {
-            missing.push(*name);
-        }
-    }
+    let client_id = env_vars
+        .get("ODC_CLIENT_ID")
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("Missing required environment variable: ODC_CLIENT_ID"))?
+        .clone();
 
-    if !missing.is_empty() {
-        let missing_str = missing.join(", ");
-        return Err(anyhow!(
-            "Missing required environment variables: {}",
-            missing_str
-        ));
-    }
+    let client_secret = env_vars
+        .get("ODC_CLIENT_SECRET")
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("Missing required environment variable: ODC_CLIENT_SECRET"))?
+        .clone();
 
-    Ok(Settings {
-        tenant_url: env_vars.remove("ODC_TENANT_URL").unwrap_or_default(),
-        client_id: env_vars.remove("ODC_CLIENT_ID").unwrap_or_default(),
-        client_secret: env_vars.remove("ODC_CLIENT_SECRET").unwrap_or_default(),
-    })
+    Settings::new(tenant_url, client_id, client_secret)
 }
 
 fn load_environment_with_paths(

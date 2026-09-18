@@ -1,3 +1,25 @@
+//! Batch operation workflows and dependency management.
+//!
+//! This module handles multi-app batch operations (deploy, undeploy, delete) with automatic
+//! dependency resolution. It provides:
+//!
+//! # Dependency-Aware Batch Deployment
+//!
+//! - [`parse_apps_file()`]: Parse app list from file (format: `app-key[@revision]`)
+//! - [`dependency_levels()`]: Compute deployment order using topological sort (Kahn's algorithm)
+//! - Dependencies are deployed before dependents
+//! - Cycles are detected and reported
+//!
+//! # Polling and Waiting
+//!
+//! - [`wait_for()`]: Poll a status check until terminal state or timeout
+//! - Used for builds, deployments, and other long-running operations
+//!
+//! # Parallelization
+//!
+//! Batch operations run multiple apps concurrently (configurable via `--max-parallel`).
+//! Each app runs through: resolve → build → deploy/undeploy/delete.
+
 use crate::cli::Options;
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
@@ -14,7 +36,16 @@ pub struct App {
     pub revision: Option<i32>,
 }
 
-/// Parse an apps file with format: app-name[@revision]
+/// Parse an apps file listing apps to deploy.
+///
+/// File format: one app per line, optionally with `@revision` suffix.
+/// - `MyApp` → deploy latest revision of MyApp
+/// - `MyApp@5` → deploy specific revision 5 of MyApp
+/// - Blank lines and lines starting with `#` are ignored
+///
+/// # Errors
+///
+/// Returns error if file doesn't exist, contains invalid lines, or revisions are non-positive.
 pub fn parse_apps_file(path: &Path) -> Result<Vec<App>> {
     let content = std::fs::read_to_string(path).map_err(|e| anyhow!("Apps file: {}", e))?;
 
@@ -60,11 +91,27 @@ pub fn parse_apps_file(path: &Path) -> Result<Vec<App>> {
     Ok(apps)
 }
 
-/// Compute dependency levels using topological sort
-/// Group apps into deployment levels via Kahn's algorithm: each level contains only apps
-/// whose dependencies (from `deps`, keyed by app key -> the keys it depends on) are all in
-/// earlier levels, so levels can be deployed in order with producers before consumers.
-/// `deps` entries for keys not present in `apps` are ignored. Errors if a cycle is found.
+/// Compute deployment order using topological sort (Kahn's algorithm).
+///
+/// Groups apps into levels such that:
+/// - Each level contains only apps whose dependencies are in earlier levels
+/// - Levels can be deployed in order: level 0, then level 1, etc.
+/// - Producers (dependencies) deploy before consumers
+///
+/// # Arguments
+///
+/// - `apps`: Apps to deploy (potentially a subset of all apps)
+/// - `deps`: Map from app key to list of app keys it depends on
+///
+/// # Returns
+///
+/// A vector of deployment levels, where each level is a vector of apps.
+/// Apps with no dependencies are in level 0.
+///
+/// # Errors
+///
+/// Returns error if a cycle is detected in dependencies.
+/// External dependencies (not in `apps` list) are ignored.
 pub fn dependency_levels(
     apps: &[App],
     deps: &HashMap<String, Vec<String>>,
@@ -128,8 +175,34 @@ pub fn dependency_levels(
     Ok(levels)
 }
 
-/// Poll `fetch` on `interval` until `is_terminal` reports the fetched status is done, or
-/// `timeout` elapses. Returns the last fetched result once terminal.
+/// Poll an operation until it reaches a terminal state or timeout occurs.
+///
+/// Repeatedly calls `fetch()` on `interval` until `is_terminal()` returns true,
+/// or until `timeout` elapses. Used for waiting on builds, deployments, and async operations.
+///
+/// # Arguments
+///
+/// - `label`: Human-readable operation name (used in timeout error message)
+/// - `fetch`: Async function to fetch current status; should fetch fresh state each call
+/// - `is_terminal`: Function to check if a status is complete (build finished, deployment done, etc.)
+/// - `interval`: Time to wait between polls
+/// - `timeout`: Maximum time to wait before returning timeout error
+///
+/// # Returns
+///
+/// The last fetched state if it reached terminal, or timeout error.
+///
+/// # Example
+///
+/// ```ignore
+/// let build = wait_for(
+///     "build",
+///     || client.get_build(build_key),
+///     |b| matches!(b.get("status").and_then(|v| v.as_str()), Some("succeeded" | "failed")),
+///     Duration::from_secs(10),
+///     Duration::from_secs(1800),
+/// ).await?;
+/// ```
 pub async fn wait_for(
     label: &str,
     fetch: impl Fn() -> Result<Map<String, Value>>,
@@ -161,9 +234,14 @@ pub async fn wait_for(
 
 type BoxFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 
-/// Run `items` through `make_task`, `max_parallel` at a time. On the first failure, aborts and
-/// returns that error unless `continue_on_error` is set, in which case every item still runs
-/// and the failures (if any) are combined into one error at the end.
+/// Run multiple items concurrently with error handling.
+///
+/// Executes `make_task(item)` for each item, with at most `max_parallel` tasks running concurrently.
+/// If a task fails:
+/// - If `continue_on_error` is false: aborts immediately and returns the error
+/// - If `continue_on_error` is true: continues running remaining items and collects errors
+///
+/// Used for batch deploy, batch undeploy, and batch delete operations.
 async fn run_concurrent<T, F>(
     mut items: Vec<T>,
     max_parallel: usize,

@@ -31,6 +31,32 @@ pub fn integer(v: &Value) -> (i64, bool) {
     }
 }
 
+/// Get a string field from a map, returning empty string if not found or not a string.
+pub fn get_string(map: &serde_json::Map<String, Value>, key: &str) -> String {
+    map.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Get an optional i64 field from a map.
+pub fn get_i64(map: &serde_json::Map<String, Value>, key: &str) -> Option<i64> {
+    map.get(key).and_then(|v| v.as_i64())
+}
+
+/// Get an optional boolean field from a map.
+pub fn get_bool(map: &serde_json::Map<String, Value>, key: &str) -> Option<bool> {
+    map.get(key).and_then(|v| v.as_bool())
+}
+
+/// Get an array field from a map, returning empty vector if not found or not an array.
+pub fn get_array(map: &serde_json::Map<String, Value>, key: &str) -> Vec<Value> {
+    map.get(key)
+        .and_then(|v| v.as_array())
+        .map(|a| a.clone())
+        .unwrap_or_default()
+}
+
 /// Extract an array of objects from a value
 pub fn objects(v: &Value) -> Vec<serde_json::Map<String, Value>> {
     match v {

@@ -1,3 +1,16 @@
+//! Command execution handlers for ODC CLI.
+//!
+//! This module dispatches CLI commands to their implementation handlers. Each handler:
+//! - Takes a [`Client`], [`Options`], and positional arguments
+//! - Fetches data via the client
+//! - Formats and outputs results
+//!
+//! Shared utilities:
+//! - [`Listing`]: handles paginated results
+//! - [`fetch_listing()`]: fetches a single page or all results
+//! - [`filter_by_substring()`]: filters items by name/key substring
+//! - [`resolve_*`]: resolve user input to API identifiers
+
 use crate::cli::Options;
 use crate::client::Client;
 use crate::mentor::MentorClient;

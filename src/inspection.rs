@@ -1,3 +1,10 @@
+//! Result formatting and inspection utilities.
+//!
+//! This module provides helpers for transforming and formatting API responses for display:
+//! - Converting raw API objects into display rows
+//! - Filtering and selecting fields for table output
+//! - Enriching sparse data (e.g., resolving environment keys to names)
+
 use crate::client::Client;
 use crate::commands::resolve_app;
 use crate::value::compact_map;

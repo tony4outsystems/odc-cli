@@ -1,8 +1,15 @@
+//! Mermaid graph generation for producer dependency visualization.
+//!
+//! This module renders ODC app producer dependencies as Mermaid flowchart diagrams.
+//! Used by the `producer-graph` command to show app dependencies in human-readable format.
+
 use crate::value::objects;
 use serde_json::Value;
 use sha1_smol::Sha1;
 use std::collections::{BTreeMap, HashSet};
 
+/// Generate a stable Mermaid node ID from an app using SHA1 hash of key:revision.
+/// Node IDs are consistent across multiple graph renders.
 pub fn mermaid_node_id(app: &serde_json::Map<String, Value>) -> String {
     let revision = if let Some(Value::Number(n)) = app.get("revision") {
         n.to_string()

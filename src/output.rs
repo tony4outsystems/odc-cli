@@ -1,13 +1,37 @@
+//! Output formatting for CLI results.
+//!
+//! This module handles formatting ODC API responses for terminal display:
+//!
+//! # Color Support
+//!
+//! - [`paint()`]: Apply ANSI color codes to strings
+//! - [`scalar()`]: Format values with status-based colors (green=success, red=failed, yellow=pending)
+//! - [`ColorMode`]: Auto/Always/Never color output
+//!
+//! # Table Rendering
+//!
+//! - [`render_table()`]: Format homogeneous object arrays as aligned tab-delimited tables
+//! - [`field_order()`]: Determine field display order (name, key, status first, then alphabetical)
+//!
+//! # Pretty Printing
+//!
+//! - [`render_pretty()`]: Format JSON with proper indentation and type-aware rendering
+//! - [`write_result()`]: Output formatter dispatch (JSON or human-readable)
+
 use anyhow::Result;
 use serde_json::Value;
 use std::io::{self, IsTerminal, Write};
 use std::sync::Mutex;
 use tabwriter::TabWriter;
 
+/// Terminal color mode preference
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorMode {
+    /// Use colors if stdout is a terminal and NO_COLOR is not set
     Auto,
+    /// Always use colors
     Always,
+    /// Never use colors
     Never,
 }
 
@@ -64,6 +88,20 @@ impl Output {
     }
 }
 
+/// Apply ANSI color code to a string if colors are enabled.
+///
+/// # Arguments
+///
+/// - `s`: Text to colorize
+/// - `code`: ANSI color code (e.g., "32" for green, "1;36" for bright cyan)
+/// - `apply_color`: Whether to actually apply color or return plain text
+///
+/// # Examples
+///
+/// ```ignore
+/// paint("success", "32", true)  // "\x1b[32msuccess\x1b[0m"
+/// paint("success", "32", false) // "success"
+/// ```
 pub fn paint(s: &str, code: &str, apply_color: bool) -> String {
     if apply_color {
         format!("\x1b[{}m{}\x1b[0m", code, s)
@@ -72,6 +110,18 @@ pub fn paint(s: &str, code: &str, apply_color: bool) -> String {
     }
 }
 
+/// Transform a field name to human-readable label.
+///
+/// Converts:
+/// - snake_case/kebab-case to Title Case
+/// - assetKey/Asset → appKey/App
+///
+/// # Examples
+///
+/// ```ignore
+/// label("assetKey")         // "App Key"
+/// label("deploymentTime")   // "Deployment Time"
+/// ```
 pub fn label(s: &str) -> String {
     // Replace asset -> app, Asset -> App
     let s = s.replace("asset", "app").replace("Asset", "App");
@@ -103,6 +153,18 @@ pub fn label(s: &str) -> String {
     result
 }
 
+/// Determine the display order for object fields in tables and formatted output.
+///
+/// Prioritizes commonly-used fields (name, key, status) first, then sorts remaining fields
+/// alphabetically. This makes human-readable output more scannable.
+///
+/// # Priority Order
+///
+/// 1. name
+/// 2. key / assetKey
+/// 3. type
+/// 4. status
+/// 5. Remaining fields (alphabetical)
 pub fn field_order(map: &serde_json::Map<String, Value>) -> Vec<String> {
     let mut keys: Vec<String> = map.keys().cloned().collect();
     keys.sort();
@@ -123,6 +185,14 @@ pub fn field_order(map: &serde_json::Map<String, Value>) -> Vec<String> {
     ordered
 }
 
+/// Format a JSON value as a human-readable string with status-based coloring.
+///
+/// Applies ANSI color codes based on value content:
+/// - Green: "success", "succeeded", "completed", "true", "active"
+/// - Red: "failed", "failure", "error", "false"
+/// - Yellow: "pending", "running", "inprogress", "queued"
+///
+/// Null values display as "—" (em dash).
 pub fn scalar(v: &Value, apply_color: bool) -> String {
     let mut s = match v {
         Value::Null => "—".to_string(),
@@ -152,6 +222,11 @@ pub fn scalar(v: &Value, apply_color: bool) -> String {
     }
 }
 
+/// Render a JSON value in pretty-printed human-readable format.
+///
+/// - Objects: Display fields with labels and indentation
+/// - Arrays: Render as tables if homogeneous objects, otherwise as lists
+/// - Scalars: Display with status-based coloring
 pub fn render_pretty(w: &mut dyn Write, v: &Value, indent: &str, apply_color: bool) -> Result<()> {
     match v {
         Value::Object(map) => {
@@ -292,6 +367,10 @@ fn render_table(
     Ok(())
 }
 
+/// Output a result using either JSON or human-readable format.
+///
+/// - If `as_json` is true: Pretty-print JSON
+/// - Otherwise: Use [`render_pretty()`] for human-readable format
 pub fn write_result(
     w: &mut dyn Write,
     value: &Value,

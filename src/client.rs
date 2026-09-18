@@ -1,11 +1,45 @@
+//! HTTP client for OutSystems ODC API.
+//!
+//! This module provides the [`Client`] struct for making authenticated requests to the ODC API.
+//! It handles OAuth2 authentication, token caching, discovery document caching, and request
+//! execution through an abstracted Transport layer.
+//!
+//! # Authentication Flow
+//!
+//! 1. [`Client::discover()`] fetches OIDC metadata from the tenant
+//! 2. [`Client::token()`] exchanges client credentials for an access token (cached)
+//! 3. Subsequent requests include the Bearer token in the Authorization header
+//!
+//! # Caching
+//!
+//! - **Discovery**: Cached for the lifetime of the Client
+//! - **Token**: Cached until expiration (future: add TTL support)
+//! - **Apps List**: Cached for single command execution (see [`Client::list_apps_all()`])
+//!
+//! # Testing
+//!
+//! Create a test client with a mock transport using [`Client::with_transport()`]:
+//! ```ignore
+//! let mock = |req| { /* return HttpResponse */ };
+//! let client = Client::with_transport(settings, output, mock);
+//! ```
+
 use crate::settings::Settings;
 use crate::transport::{HttpRequest, HttpResponse, Transport};
 use serde_json::{json, Map, Value};
 use std::sync::Mutex;
+use std::time::Instant;
 use url::Url;
 
 /// A single page of apps: items plus the offset of the next page, if any.
 pub type AppsPage = (Vec<Map<String, Value>>, Option<i64>);
+
+/// Cached OAuth2 token with expiration time
+#[derive(Clone)]
+struct CachedToken {
+    token: String,
+    expires_at: Instant,
+}
 
 /// HTTP client for ODC API
 #[allow(dead_code)]
@@ -19,7 +53,7 @@ pub struct Client {
 
 #[derive(Default)]
 struct AuthState {
-    token: Option<String>,
+    token: Option<CachedToken>,
     discovery: Option<Map<String, Value>>,
 }
 
@@ -85,12 +119,15 @@ impl Client {
         Ok(discovery)
     }
 
-    /// Get an access token
+    /// Get an access token, refreshing if expired
     pub fn token(&self) -> anyhow::Result<String> {
         let auth = self.auth_mutex.lock().unwrap();
 
-        if let Some(token) = &auth.token {
-            return Ok(token.clone());
+        if let Some(cached) = &auth.token {
+            // Check if token is still valid (with 60 second safety margin)
+            if Instant::now() < cached.expires_at - std::time::Duration::from_secs(60) {
+                return Ok(cached.token.clone());
+            }
         }
 
         drop(auth); // Release lock before calling discover
@@ -135,8 +172,18 @@ impl Client {
             "access_token",
         )?;
 
+        // Extract expires_in from token response, default to 1 hour if not provided
+        let expires_secs = token_resp
+            .get("expires_in")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(3600);
+        let expires_at = Instant::now() + std::time::Duration::from_secs(expires_secs);
+
         let mut auth = self.auth_mutex.lock().unwrap();
-        auth.token = Some(token.clone());
+        auth.token = Some(CachedToken {
+            token: token.clone(),
+            expires_at,
+        });
 
         Ok(token)
     }
