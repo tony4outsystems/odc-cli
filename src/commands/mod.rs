@@ -60,15 +60,39 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
         GetRevision { .. } => revisions::cmd_get_revision(options, positionals).await,
         ProducerGraph { .. } => revisions::cmd_producer_graph(options, positionals).await,
 
-        // Deployment
-        AnalyzeDeployment { .. } => deployment::cmd_analyze_deployment(options).await,
-        AnalyzeDeletion { .. } => deployment::cmd_analyze_deletion(options).await,
-        InternalBuild { .. } => deployment::cmd_internal_build(options).await,
-        InternalPublish { .. } => deployment::cmd_internal_publish(options).await,
-        InternalDeploy { .. } => deployment::cmd_internal_deploy(options).await,
-        Deploy { .. } => deployment::cmd_deploy(options).await,
-        Undeploy { .. } => deployment::cmd_undeploy(options).await,
-        DeleteAsset { .. } => deployment::cmd_delete_asset(options).await,
+        // Deployment (now using typed args)
+        AnalyzeDeployment { .. } => {
+            let args = command.as_deployment_analysis_args(options.json, options.color);
+            deployment::cmd_analyze_deployment(args).await
+        }
+        AnalyzeDeletion { .. } => {
+            let args = command.as_deletion_analysis_args(options.json, options.color);
+            deployment::cmd_analyze_deletion(args).await
+        }
+        InternalBuild { .. } => {
+            let args = command.as_build_args(options.json, options.color);
+            deployment::cmd_internal_build(args).await
+        }
+        InternalPublish { .. } => {
+            let args = command.as_publish_args(options.json, options.color);
+            deployment::cmd_internal_publish(args).await
+        }
+        InternalDeploy { .. } => {
+            let args = command.as_internal_deploy_args(options.json, options.color);
+            deployment::cmd_internal_deploy(args).await
+        }
+        Deploy { .. } => {
+            let args = command.as_deploy_args(options.json, options.color);
+            deployment::cmd_deploy(args).await
+        }
+        Undeploy { .. } => {
+            let args = command.as_undeploy_args(options.json, options.color);
+            deployment::cmd_undeploy(args).await
+        }
+        DeleteAsset { .. } => {
+            let args = command.as_delete_asset_args(options.json, options.color);
+            deployment::cmd_delete_asset(args).await
+        }
 
         // Batch operations (handled by workflows module)
         BatchDeploy { .. } => {
@@ -109,17 +133,47 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
         GrantGroupRole { .. } => roles::cmd_grant_group_role(options, positionals).await,
         RevokeGroupRole { .. } => roles::cmd_revoke_group_role(options, positionals).await,
 
-        // Mentor
-        MentorStartSession => mentor::cmd_mentor_start_session(options).await,
-        MentorCreateAsset { .. } => mentor::cmd_mentor_create_asset(options).await,
-        MentorLoadAsset { .. } => mentor::cmd_mentor_load_asset(options, positionals).await,
-        MentorPrompt { .. } => mentor::cmd_mentor_prompt(options).await,
-        MentorGetRun { .. } => mentor::cmd_mentor_get_run(options).await,
-        MentorGetEvent { .. } => mentor::cmd_mentor_get_event(options).await,
-        MentorCancelPrompt { .. } => mentor::cmd_mentor_cancel_prompt(options).await,
-        MentorCloseSession { .. } => mentor::cmd_mentor_close_session(options).await,
-        MentorRequestUpload { .. } => mentor::cmd_mentor_request_upload(options).await,
-        MentorPublish { .. } => mentor::cmd_mentor_publish(options).await,
+        // Mentor (now using typed args)
+        MentorStartSession => {
+            let args = command.as_mentor_start_session_args(options.json, options.color);
+            mentor::cmd_mentor_start_session(args).await
+        }
+        MentorCreateAsset { .. } => {
+            let args = command.as_mentor_create_asset_args(options.json, options.color);
+            mentor::cmd_mentor_create_asset(args).await
+        }
+        MentorLoadAsset { .. } => {
+            let args = command.as_mentor_load_asset_args(options.json, options.color);
+            mentor::cmd_mentor_load_asset(args, positionals).await
+        }
+        MentorPrompt { .. } => {
+            let args = command.as_mentor_prompt_args(options.json, options.color);
+            mentor::cmd_mentor_prompt(args).await
+        }
+        MentorGetRun { .. } => {
+            let args = command.as_mentor_get_run_args(options.json, options.color);
+            mentor::cmd_mentor_get_run(args).await
+        }
+        MentorGetEvent { .. } => {
+            let args = command.as_mentor_get_event_args(options.json, options.color);
+            mentor::cmd_mentor_get_event(args).await
+        }
+        MentorCancelPrompt { .. } => {
+            let args = command.as_mentor_cancel_prompt_args(options.json, options.color);
+            mentor::cmd_mentor_cancel_prompt(args).await
+        }
+        MentorCloseSession { .. } => {
+            let args = command.as_mentor_close_session_args(options.json, options.color);
+            mentor::cmd_mentor_close_session(args).await
+        }
+        MentorRequestUpload { .. } => {
+            let args = command.as_mentor_request_upload_args(options.json, options.color);
+            mentor::cmd_mentor_request_upload(args).await
+        }
+        MentorPublish { .. } => {
+            let args = command.as_mentor_publish_args(options.json, options.color);
+            mentor::cmd_mentor_publish(args).await
+        }
 
         // These are handled specially and should not reach here
         Login { .. } => Err(anyhow::anyhow!(

@@ -776,6 +776,285 @@ impl Commands {
         }
     }
 
+    // ========================================================================
+    // DEPLOYMENT COMMAND EXTRACTION METHODS
+    // ========================================================================
+
+    pub fn as_deployment_analysis_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentAnalysisArgs {
+        match self {
+            Commands::AnalyzeDeployment { asset, env, revision, poll } => {
+                crate::commands::args::DeploymentAnalysisArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: *revision,
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected AnalyzeDeployment command"),
+        }
+    }
+
+    pub fn as_deletion_analysis_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeletionAnalysisArgs {
+        match self {
+            Commands::AnalyzeDeletion { asset, poll } => {
+                crate::commands::args::DeletionAnalysisArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected AnalyzeDeletion command"),
+        }
+    }
+
+    pub fn as_build_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::BuildArgs {
+        match self {
+            Commands::InternalBuild { asset, env, revision, build_type, poll } => {
+                crate::commands::args::BuildArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: *revision,
+                    build_type: build_type.clone(),
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected InternalBuild command"),
+        }
+    }
+
+    pub fn as_publish_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::PublishArgs {
+        match self {
+            Commands::InternalPublish { asset, env, revision, poll } => {
+                crate::commands::args::PublishArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: *revision,
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected InternalPublish command"),
+        }
+    }
+
+    pub fn as_internal_deploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::InternalDeployArgs {
+        match self {
+            Commands::InternalDeploy { asset, env, revision, build_key, poll } => {
+                crate::commands::args::InternalDeployArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: *revision,
+                    build_key: build_key.clone(),
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected InternalDeploy command"),
+        }
+    }
+
+    pub fn as_deploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentOperationArgs {
+        match self {
+            Commands::Deploy { asset, env, revision, build_type, poll } => {
+                crate::commands::args::DeploymentOperationArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: *revision,
+                    build_type: build_type.clone(),
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected Deploy command"),
+        }
+    }
+
+    pub fn as_undeploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentOperationArgs {
+        match self {
+            Commands::Undeploy { asset, env, poll } => {
+                crate::commands::args::DeploymentOperationArgs {
+                    json, color,
+                    asset: asset.clone(),
+                    env: env.clone(),
+                    revision: None,
+                    build_type: String::new(), // Not used for undeploy
+                    poll_interval: poll.poll_interval,
+                    timeout: poll.timeout,
+                    no_wait: poll.no_wait,
+                }
+            }
+            _ => panic!("Expected Undeploy command"),
+        }
+    }
+
+    pub fn as_delete_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeleteAssetArgs {
+        match self {
+            Commands::DeleteAsset { asset } => {
+                crate::commands::args::DeleteAssetArgs {
+                    json, color,
+                    asset: asset.clone(),
+                }
+            }
+            _ => panic!("Expected DeleteAsset command"),
+        }
+    }
+
+    // ========================================================================
+    // MENTOR COMMAND EXTRACTION METHODS
+    // ========================================================================
+
+    pub fn as_mentor_create_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorCreateAssetArgs {
+        match self {
+            Commands::MentorCreateAsset { session_id, asset_type, name, portfolio_key, description, template_asset_key } => {
+                crate::commands::args::MentorCreateAssetArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    asset_type: asset_type.as_str().to_string(),
+                    name: name.clone(),
+                    portfolio_key: portfolio_key.clone(),
+                    description: description.clone(),
+                    template_asset_key: template_asset_key.clone(),
+                }
+            }
+            _ => panic!("Expected MentorCreateAsset command"),
+        }
+    }
+
+    pub fn as_mentor_load_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorLoadAssetArgs {
+        match self {
+            Commands::MentorLoadAsset { session_id, revision, .. } => {
+                crate::commands::args::MentorLoadAssetArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    revision: *revision,
+                }
+            }
+            _ => panic!("Expected MentorLoadAsset command"),
+        }
+    }
+
+    pub fn as_mentor_prompt_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorPromptArgs {
+        match self {
+            Commands::MentorPrompt { session_id, message, attachment_refs } => {
+                crate::commands::args::MentorPromptArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    message: message.clone(),
+                    attachment_refs: attachment_refs.clone(),
+                }
+            }
+            _ => panic!("Expected MentorPrompt command"),
+        }
+    }
+
+    pub fn as_mentor_get_run_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorGetRunArgs {
+        match self {
+            Commands::MentorGetRun { session_id, run_id, cursor } => {
+                crate::commands::args::MentorGetRunArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    run_id: run_id.clone(),
+                    cursor: *cursor,
+                }
+            }
+            _ => panic!("Expected MentorGetRun command"),
+        }
+    }
+
+    pub fn as_mentor_get_event_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorGetEventArgs {
+        match self {
+            Commands::MentorGetEvent { session_id, run_id, event_id } => {
+                crate::commands::args::MentorGetEventArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    run_id: run_id.clone(),
+                    event_id: *event_id,
+                }
+            }
+            _ => panic!("Expected MentorGetEvent command"),
+        }
+    }
+
+    pub fn as_mentor_start_session_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+        match self {
+            Commands::MentorStartSession => {
+                crate::commands::args::MentorSessionArgs {
+                    json, color,
+                    session_id: String::new(), // Not used
+                    run_id: None,
+                }
+            }
+            _ => panic!("Expected MentorStartSession command"),
+        }
+    }
+
+    pub fn as_mentor_cancel_prompt_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+        match self {
+            Commands::MentorCancelPrompt { session_id, run_id } => {
+                crate::commands::args::MentorSessionArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    run_id: Some(run_id.clone()),
+                }
+            }
+            _ => panic!("Expected MentorCancelPrompt command"),
+        }
+    }
+
+    pub fn as_mentor_close_session_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+        match self {
+            Commands::MentorCloseSession { session_id } => {
+                crate::commands::args::MentorSessionArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    run_id: None,
+                }
+            }
+            _ => panic!("Expected MentorCloseSession command"),
+        }
+    }
+
+    pub fn as_mentor_request_upload_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorRequestUploadArgs {
+        match self {
+            Commands::MentorRequestUpload { session_id, file_name, size_bytes } => {
+                crate::commands::args::MentorRequestUploadArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    file_name: file_name.clone(),
+                    size_bytes: *size_bytes,
+                }
+            }
+            _ => panic!("Expected MentorRequestUpload command"),
+        }
+    }
+
+    pub fn as_mentor_publish_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorPublishArgs {
+        match self {
+            Commands::MentorPublish { session_id, comment } => {
+                crate::commands::args::MentorPublishArgs {
+                    json, color,
+                    session_id: session_id.clone(),
+                    comment: comment.clone(),
+                }
+            }
+            _ => panic!("Expected MentorPublish command"),
+        }
+    }
+
     /// Convert the parsed command into the `(Options, positionals)` shape that
     /// `commands::execute` dispatches on, so command implementations don't need to change.
     pub fn into_dispatch(&self) -> (Options, Vec<String>) {

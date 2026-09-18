@@ -21,7 +21,6 @@
 //! Each app runs through: resolve → build → deploy/undeploy/delete.
 
 use crate::cli::Options;
-use crate::commands::deployment::{run_build, run_deployment_operation};
 use crate::commands::shared::{resolve_asset_in, resolve_env, resolve_revision};
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
@@ -436,15 +435,26 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
                     let revision = app
                         .revision
                         .ok_or_else(|| anyhow!("Missing resolved revision for {}", app.key))?;
-                    let (build_key, _) = run_build(&client, &options, &app.key, revision).await?;
-                    run_deployment_operation(
+                    let (build_key, _) = crate::commands::deployment::run_build(
                         &client,
-                        &options,
+                        &options.build_type,
+                        options.interval.as_secs(),
+                        options.timeout.as_secs(),
+                        options.no_wait,
+                        &app.key,
+                        revision,
+                    )
+                    .await?;
+                    crate::commands::deployment::run_deployment_operation(
+                        &client,
                         "Deploy",
                         &app.key,
                         &env_key,
                         Some(revision),
-                        Some(&build_key),
+                        Some(build_key.as_str()),
+                        options.interval.as_secs(),
+                        options.timeout.as_secs(),
+                        options.no_wait,
                     )
                     .await?;
                     Ok(())
@@ -488,8 +498,16 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
             let options = options.clone();
             let env_key = env_key.clone();
             Box::pin(async move {
-                run_deployment_operation(
-                    &client, &options, "Undeploy", &asset_key, &env_key, None, None,
+                crate::commands::deployment::run_deployment_operation(
+                    &client,
+                    "Undeploy",
+                    &asset_key,
+                    &env_key,
+                    None,
+                    None,
+                    options.interval.as_secs(),
+                    options.timeout.as_secs(),
+                    options.no_wait,
                 )
                 .await?;
                 Ok(())
@@ -564,8 +582,16 @@ pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
             let options = options.clone();
             let env_key = env_key.clone();
             Box::pin(async move {
-                run_deployment_operation(
-                    &client, &options, "Undeploy", &asset_key, &env_key, None, None,
+                crate::commands::deployment::run_deployment_operation(
+                    &client,
+                    "Undeploy",
+                    &asset_key,
+                    &env_key,
+                    None,
+                    None,
+                    options.interval.as_secs(),
+                    options.timeout.as_secs(),
+                    options.no_wait,
                 )
                 .await?;
                 Ok(())
