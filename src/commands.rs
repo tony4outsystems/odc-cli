@@ -209,6 +209,7 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
             "Login should be handled in main run() function"
         )),
         "discover" => cmd_discover(options).await,
+        "list-portfolios" => cmd_list_portfolios(options, positionals).await,
         "list-environments" => cmd_list_environments(options).await,
         "list-apps" => cmd_list_apps(options, positionals).await,
         "list-deployed-apps" => cmd_list_deployed_apps(options, positionals).await,
@@ -413,6 +414,27 @@ async fn cmd_discover(options: &Options) -> Result<()> {
     let discovery = client.discover()?;
     output.print_result(&serde_json::Value::Object(discovery))?;
     Ok(())
+}
+
+/// Columns shown for `list-portfolios` table output
+const PORTFOLIO_TABLE_COLUMNS: &[&str] = &["name", "key", "id"];
+
+async fn cmd_list_portfolios(options: &Options, positionals: &[String]) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+
+    let mut listing = fetch_listing(
+        options,
+        |offset, limit| client.list_portfolios_page(offset, limit),
+        || client.list_portfolios(),
+    )?;
+    listing.items = filter_by_substring(
+        listing.items,
+        positionals.first().map(String::as_str),
+        &["name", "key"],
+    );
+    print_listing(&output, listing, PORTFOLIO_TABLE_COLUMNS)
 }
 
 async fn cmd_list_environments(options: &Options) -> Result<()> {

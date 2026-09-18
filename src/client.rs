@@ -371,6 +371,17 @@ impl Client {
         self.fetch_all_pages(&path)
     }
 
+    /// Fetch a single page of portfolios starting at `offset`, up to `limit` results.
+    /// Returns the page's items along with the offset of the next page, if any.
+    pub fn list_portfolios_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+        self.fetch_page("/api/portfolios/v2/portfolios", offset, limit)
+    }
+
+    /// List all portfolios in the tenant, following pagination until exhausted.
+    pub fn list_portfolios(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        self.fetch_all_pages("/api/portfolios/v2/portfolios")
+    }
+
     /// List environments in the tenant
     pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         let resp = self.call("GET", "/api/portfolios/v2/environments")?;

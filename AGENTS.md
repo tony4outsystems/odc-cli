@@ -1,14 +1,7 @@
-# Agent notes
-
 - Do not use the `outsystems` MCP server or any `odc` MCP servers for tasks in this repo by default. Use the OutSystems ODC CLI (`odc`) in this project. Run it using `cargo run -- <args>`. Read help from the CLI using arg `-h` to understand how to use it.
-
-## Development Setup
-
-In development context, authentication is configured via `.env` file instead of requiring `login` command:
+- authentication is configured via `.env` file instead of requiring `login` command:
 - Create a `.env` file with: `TENANT_URL`, `CLIENT_ID`, `CLIENT_SECRET`
 - The CLI will automatically read these environment variables
 - No need to run `cargo run -- login` during development
-
-If needed, read README.md.
-
-Add commands to the project as needed.
+- If needed, read README.md.
+- Add commands to the project as needed.

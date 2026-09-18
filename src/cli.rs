@@ -6,6 +6,12 @@ use std::time::Duration;
 const HELP_CATEGORIES: &[(&str, &[&str])] = &[
     ("Auth", &["discover", "login"]),
     (
+        "Portfolios",
+        &[
+            "list-portfolios",
+        ],
+    ),
+    (
         "Apps & Environments",
         &[
             "list-environments",
@@ -278,6 +284,18 @@ pub enum Commands {
     Login {
         tenant_url: String,
         client_id: String,
+    },
+
+    /// List portfolios in the tenant.
+    ListPortfolios {
+        /// Filter to portfolios whose name or key contains this (case-insensitive)
+        filter: Option<String>,
+        /// Fetch a single page starting at this result index (default: fetch every page)
+        #[arg(long)]
+        offset: Option<i64>,
+        /// Page size to request from the API
+        #[arg(long, default_value_t = 100)]
+        limit: i64,
     },
 
     /// List environments in the tenant.
@@ -691,6 +709,7 @@ impl Commands {
         match self {
             Commands::Discover => "discover",
             Commands::Login { .. } => "login",
+            Commands::ListPortfolios { .. } => "list-portfolios",
             Commands::ListEnvironments => "list-environments",
             Commands::ListApps { .. } => "list-apps",
             Commands::ListDeployedApps { .. } => "list-deployed-apps",
@@ -754,6 +773,17 @@ impl Commands {
                 client_id,
             } => {
                 positionals = vec![tenant_url, client_id];
+            }
+            Commands::ListPortfolios {
+                filter,
+                offset,
+                limit,
+            } => {
+                options.offset = offset;
+                options.limit = limit;
+                if let Some(f) = filter {
+                    positionals.push(f);
+                }
             }
             Commands::ListApps {
                 filter,

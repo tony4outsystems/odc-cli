@@ -5,14 +5,11 @@ These are natural language prompts users can ask Claude to execute ODC CLI comma
 ## Authentication & Setup
 
 - "Check if my ODC tenant credentials are valid"
-- "Help me authenticate with my ODC tenant"
-- "Verify the tenant URL and OAuth endpoints"
 
 ## Listing & Inspecting
 
 ### Environments
 - "What environments do I have in my ODC tenant?"
-- "List all available environments"
 
 ### Apps
 - "Show me all apps in the tenant"
@@ -30,8 +27,6 @@ These are natural language prompts users can ask Claude to execute ODC CLI comma
 
 ### App Details
 - "Get me the full details of the CustomerPortal app"
-- "Show me metadata for the EmployeeApp"
-- "What does the InventorySystem app contain?"
 
 ### Revisions
 - "What's the latest revision of CustomerPortal?"
