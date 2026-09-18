@@ -330,14 +330,14 @@ pub enum Commands {
     },
 
     /// Retrieve asset metadata.
-    GetAsset { app: String },
+    GetAsset { asset: String },
 
     /// Print the latest revision number of an app.
-    LatestRevision { app: String },
+    LatestRevision { asset: String },
 
     /// List all revisions of an app.
     ListRevisions {
-        app: String,
+        asset: String,
         #[arg(long)]
         offset: Option<i64>,
         #[arg(long, default_value_t = 100)]
@@ -346,7 +346,7 @@ pub enum Commands {
 
     /// Retrieve a specific app revision.
     GetRevision {
-        app: String,
+        asset: String,
         /// Revision number to retrieve
         #[arg(long)]
         revision: i32,
@@ -354,7 +354,7 @@ pub enum Commands {
 
     /// Render an app's producer dependency graph as Mermaid.
     ProducerGraph {
-        app: String,
+        asset: String,
         /// Defaults to the latest revision
         #[arg(long)]
         revision: Option<i32>,
@@ -377,7 +377,7 @@ pub enum Commands {
 
     /// Download the OML source code of an app revision.
     DownloadSourceCode {
-        app: String,
+        asset: String,
         /// Defaults to the latest revision
         #[arg(long)]
         revision: Option<i32>,
@@ -392,7 +392,7 @@ pub enum Commands {
     /// Analyze the impact of deploying an app revision.
     AnalyzeDeployment {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         /// Defaults to the latest revision
@@ -405,7 +405,7 @@ pub enum Commands {
     /// Analyze the impact of deleting an app.
     AnalyzeDeletion {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[command(flatten)]
         poll: PollArgs,
     },
@@ -413,7 +413,7 @@ pub enum Commands {
     /// Deploy an app to an environment.
     Deploy {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         /// Defaults to the app's current revision (falls back to the latest)
@@ -429,7 +429,7 @@ pub enum Commands {
     /// Undeploy an app from an environment.
     Undeploy {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         #[command(flatten)]
@@ -439,7 +439,7 @@ pub enum Commands {
     /// Delete an app.
     DeleteApp {
         #[arg(long)]
-        app: String,
+        asset: String,
     },
 
     /// Deploy multiple apps listed in a file.
@@ -504,7 +504,7 @@ pub enum Commands {
     /// List application roles defined for an app.
     ListRoles {
         /// App the roles belong to (name or key)
-        app: String,
+        asset: String,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
         env: Option<String>,
@@ -513,7 +513,7 @@ pub enum Commands {
     /// List, for each application role of an app, the users and/or groups assigned to it.
     ListRoleAssignments {
         /// App the roles belong to (name or key)
-        app: String,
+        asset: String,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
         env: Option<String>,
@@ -525,7 +525,7 @@ pub enum Commands {
     /// Grant an application role to a user.
     GrantRole {
         /// App the role belongs to (name or key)
-        app: String,
+        asset: String,
         /// Role name or key
         role: String,
         /// User key or email
@@ -534,7 +534,7 @@ pub enum Commands {
 
     /// Revoke an application role from a user.
     RevokeRole {
-        app: String,
+        asset: String,
         role: String,
         user: String,
     },
@@ -572,7 +572,7 @@ pub enum Commands {
     /// Grant an application role to an end-user group.
     GrantGroupRole {
         /// App the role belongs to (name or key)
-        app: String,
+        asset: String,
         /// Role name or key
         role: String,
         /// Group name or key
@@ -581,7 +581,7 @@ pub enum Commands {
 
     /// Revoke an application role from an end-user group.
     RevokeGroupRole {
-        app: String,
+        asset: String,
         role: String,
         group: String,
     },
@@ -589,7 +589,7 @@ pub enum Commands {
     /// Start a build for an app revision.
     InternalBuild {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         #[arg(long)]
@@ -603,7 +603,7 @@ pub enum Commands {
     /// Publish a build to an environment.
     InternalPublish {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         #[arg(long)]
@@ -615,7 +615,7 @@ pub enum Commands {
     /// Deploy an existing build to an environment.
     InternalDeploy {
         #[arg(long)]
-        app: String,
+        asset: String,
         #[arg(long)]
         env: String,
         #[arg(long)]
@@ -813,29 +813,29 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetAsset { app } | Commands::LatestRevision { app } => {
-                positionals = vec![app];
+            Commands::GetAsset { asset } | Commands::LatestRevision { asset } => {
+                positionals = vec![asset];
             }
-            Commands::ListRoles { app, env } => {
+            Commands::ListRoles { asset, env } => {
                 options.env = env.unwrap_or_default();
-                positionals = vec![app];
+                positionals = vec![asset];
             }
-            Commands::ListRoleAssignments { app, env, r#type } => {
+            Commands::ListRoleAssignments { asset, env, r#type } => {
                 options.env = env.unwrap_or_default();
                 options.filter = r#type.map(|t| t.as_str().to_string()).unwrap_or_default();
-                positionals = vec![app];
+                positionals = vec![asset];
             }
-            Commands::ListRevisions { app, offset, limit } => {
+            Commands::ListRevisions { asset, offset, limit } => {
                 options.offset = offset;
                 options.limit = limit;
-                positionals = vec![app];
+                positionals = vec![asset];
             }
-            Commands::GetRevision { app, revision } => {
+            Commands::GetRevision { asset, revision } => {
                 options.revision = Some(revision);
-                positionals = vec![app];
+                positionals = vec![asset];
             }
             Commands::ProducerGraph {
-                app,
+                asset,
                 revision,
                 env,
                 max_depth,
@@ -849,55 +849,55 @@ impl Commands {
                 options.filter = producer_type_filter;
                 options.all_producers = all_producers;
                 options.output = output.unwrap_or_default();
-                positionals = vec![app];
+                positionals = vec![asset];
             }
             Commands::DownloadSourceCode {
-                app,
+                asset,
                 revision,
                 output,
             } => {
                 options.revision = revision;
                 options.output = output.unwrap_or_default();
-                positionals = vec![app];
+                positionals = vec![asset];
             }
             Commands::UploadSourceCode { oml_file } => {
                 positionals = vec![oml_file];
             }
             Commands::AnalyzeDeployment {
-                app,
+                asset,
                 env,
                 revision,
                 poll,
             } => {
-                options.app = app;
+                options.asset = asset;
                 options.env = env;
                 options.revision = revision;
                 apply_poll(&mut options, poll);
             }
-            Commands::AnalyzeDeletion { app, poll } => {
-                options.app = app;
+            Commands::AnalyzeDeletion { asset, poll } => {
+                options.asset = asset;
                 apply_poll(&mut options, poll);
             }
             Commands::Deploy {
-                app,
+                asset,
                 env,
                 revision,
                 build_type,
                 poll,
             } => {
-                options.app = app;
+                options.asset = asset;
                 options.env = env;
                 options.revision = revision;
                 options.build_type = build_type;
                 apply_poll(&mut options, poll);
             }
-            Commands::Undeploy { app, env, poll } => {
-                options.app = app;
+            Commands::Undeploy { asset, env, poll } => {
+                options.asset = asset;
                 options.env = env;
                 apply_poll(&mut options, poll);
             }
-            Commands::DeleteApp { app } => {
-                options.app = app;
+            Commands::DeleteApp { asset } => {
+                options.asset = asset;
             }
             Commands::BatchDeploy {
                 apps_file,
@@ -965,8 +965,8 @@ impl Commands {
                         .insert("photoUrl".to_string(), photo_url.into());
                 }
             }
-            Commands::GrantRole { app, role, user } | Commands::RevokeRole { app, role, user } => {
-                options.app = app;
+            Commands::GrantRole { asset, role, user } | Commands::RevokeRole { asset, role, user } => {
+                options.asset = asset;
                 positionals = vec![user, role];
             }
             Commands::ListGroups { filter, env } => {
@@ -997,43 +997,43 @@ impl Commands {
             | Commands::RemoveUserFromGroup { group, user } => {
                 positionals = vec![group, user];
             }
-            Commands::GrantGroupRole { app, role, group }
-            | Commands::RevokeGroupRole { app, role, group } => {
-                options.app = app;
+            Commands::GrantGroupRole { asset, role, group }
+            | Commands::RevokeGroupRole { asset, role, group } => {
+                options.asset = asset;
                 positionals = vec![group, role];
             }
             Commands::InternalBuild {
-                app,
+                asset,
                 env,
                 revision,
                 build_type,
                 poll,
             } => {
-                options.app = app;
+                options.asset = asset;
                 options.env = env;
                 options.revision = revision;
                 options.build_type = build_type;
                 apply_poll(&mut options, poll);
             }
             Commands::InternalPublish {
-                app,
+                asset,
                 env,
                 revision,
                 poll,
             } => {
-                options.app = app;
+                options.asset = asset;
                 options.env = env;
                 options.revision = revision;
                 apply_poll(&mut options, poll);
             }
             Commands::InternalDeploy {
-                app,
+                asset,
                 env,
                 revision,
                 build_key,
                 poll,
             } => {
-                options.app = app;
+                options.asset = asset;
                 options.env = env;
                 options.revision = revision;
                 options.build_key = build_key;
@@ -1137,7 +1137,7 @@ fn apply_parallel(options: &mut Options, parallel: ParallelArgs) {
 pub struct Options {
     pub json: bool,
     pub color: crate::output::ColorMode,
-    pub app: String,
+    pub asset: String,
     pub env: String,
     pub build_type: String,
     pub build_key: String,
@@ -1178,7 +1178,7 @@ impl Default for Options {
         Self {
             json: false,
             color: crate::output::ColorMode::Auto,
-            app: String::new(),
+            asset: String::new(),
             env: String::new(),
             build_type: "Release".to_string(),
             build_key: String::new(),
@@ -1323,7 +1323,7 @@ mod tests {
         let cli = Cli::try_parse_from(["odc", "grant-role", "MyApp", "Admin", "demo@example.com"])
             .unwrap();
         let (options, positionals) = cli.command.into_dispatch();
-        assert_eq!(options.app, "MyApp");
+        assert_eq!(options.asset, "MyApp");
         assert_eq!(
             positionals,
             vec!["demo@example.com".to_string(), "Admin".to_string()]

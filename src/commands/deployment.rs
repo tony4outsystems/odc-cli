@@ -28,11 +28,11 @@ pub async fn cmd_analyze_deployment(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset = resolve_asset(&client, &options.app)?;
+    let asset = resolve_asset(&client, &options.asset)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
     let revision = resolve_revision(&client, &asset, &asset_key, options.revision)?;
@@ -72,10 +72,10 @@ pub async fn cmd_analyze_deletion(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset_key = resolve_asset(&client, &options.app)?
+    let asset_key = resolve_asset(&client, &options.asset)?
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
 
     let started = client.start_deletion_analysis(&asset_key)?;
@@ -151,11 +151,11 @@ pub async fn cmd_internal_build(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset = resolve_asset(&client, &options.app)?;
+    let asset = resolve_asset(&client, &options.asset)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let revision = resolve_revision(&client, &asset, &asset_key, options.revision)?;
 
@@ -172,11 +172,11 @@ pub async fn cmd_internal_publish(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset = resolve_asset(&client, &options.app)?;
+    let asset = resolve_asset(&client, &options.asset)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
     let revision = resolve_revision(&client, &asset, &asset_key, options.revision)?;
@@ -263,11 +263,11 @@ pub async fn cmd_internal_deploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset = resolve_asset(&client, &options.app)?;
+    let asset = resolve_asset(&client, &options.asset)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
     let revision = resolve_revision(&client, &asset, &asset_key, options.revision)?;
@@ -294,11 +294,11 @@ pub async fn cmd_deploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset = resolve_asset(&client, &options.app)?;
+    let asset = resolve_asset(&client, &options.asset)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
     let revision = resolve_revision(&client, &asset, &asset_key, options.revision)?;
@@ -334,10 +334,10 @@ pub async fn cmd_undeploy(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset_key = resolve_asset(&client, &options.app)?
+    let asset_key = resolve_asset(&client, &options.asset)?
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
     let env_key = resolve_env(&client, &options.env)?;
 
@@ -357,13 +357,13 @@ pub async fn cmd_delete_asset(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Client::new(settings, output.clone());
 
-    let asset_key = resolve_asset(&client, &options.app)?
+    let asset_key = resolve_asset(&client, &options.asset)?
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", options.asset))?
         .to_string();
 
     client.delete_asset(&asset_key)?;
-    output.println_locked(&format!("Deleted asset {}", options.app));
+    output.println_locked(&format!("Deleted asset {}", options.asset));
     Ok(())
 }

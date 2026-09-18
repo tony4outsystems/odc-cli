@@ -23,9 +23,9 @@ pub async fn cmd_list_apps(options: &Options, positionals: &[String]) -> Result<
         positionals.first().map(String::as_str),
         &["name", "assetKey"],
     );
-    if !options.app_type.is_empty() {
+    if !options.asset_type.is_empty() {
         listing.items.retain(|app| {
-            app.get("assetType").and_then(|v| v.as_str()) == Some(options.app_type.as_str())
+            app.get("assetType").and_then(|v| v.as_str()) == Some(options.asset_type.as_str())
         });
     }
     print_listing(&output, listing, APP_TABLE_COLUMNS)

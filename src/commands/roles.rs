@@ -248,7 +248,7 @@ pub async fn cmd_grant_role(options: &Options, positionals: &[String]) -> Result
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
 
     client.grant_role(&user_key, &role_key)?;
     output.println_locked(&format!(
@@ -273,7 +273,7 @@ pub async fn cmd_revoke_role(options: &Options, positionals: &[String]) -> Resul
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
 
     client.revoke_role(&user_key, &role_key)?;
     output.println_locked(&format!(
@@ -300,7 +300,7 @@ pub async fn cmd_grant_group_role(options: &Options, positionals: &[String]) -> 
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
 
     client.patch_group_application_roles(&group_key, &[role_key], &[])?;
     output.println_locked(&format!(
@@ -327,7 +327,7 @@ pub async fn cmd_revoke_group_role(options: &Options, positionals: &[String]) ->
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.app)?;
+    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
 
     client.patch_group_application_roles(&group_key, &[], &[role_key])?;
     output.println_locked(&format!(
