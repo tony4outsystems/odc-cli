@@ -148,35 +148,49 @@ fn parse_color_arg(s: &str) -> Result<crate::output::ColorMode, String> {
 }
 
 /// Recognized asset types, per the asset-repository API's `assetTypes` filter parameter.
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy, strum_macros::Display)]
 pub enum AppType {
     #[value(name = "WebApplication")]
+    #[strum(to_string = "WebApplication")]
     WebApplication,
     #[value(name = "MobileApplication")]
+    #[strum(to_string = "MobileApplication")]
     MobileApplication,
     #[value(name = "LowCodeLibrary")]
+    #[strum(to_string = "LowCodeLibrary")]
     LowCodeLibrary,
     #[value(name = "ExtensionLibrary")]
+    #[strum(to_string = "ExtensionLibrary")]
     ExtensionLibrary,
     #[value(name = "ExternalConnection")]
+    #[strum(to_string = "ExternalConnection")]
     ExternalConnection,
     #[value(name = "ExternalLibrary")]
+    #[strum(to_string = "ExternalLibrary")]
     ExternalLibrary,
     #[value(name = "Workflow")]
+    #[strum(to_string = "Workflow")]
     Workflow,
     #[value(name = "WidgetLibrary")]
+    #[strum(to_string = "WidgetLibrary")]
     WidgetLibrary,
     #[value(name = "AIModelConnection")]
+    #[strum(to_string = "AIModelConnection")]
     AiModelConnection,
     #[value(name = "SearchServiceConnection")]
+    #[strum(to_string = "SearchServiceConnection")]
     SearchServiceConnection,
     #[value(name = "Agent")]
+    #[strum(to_string = "Agent")]
     Agent,
     #[value(name = "MCPConnection")]
+    #[strum(to_string = "MCPConnection")]
     McpConnection,
     #[value(name = "A2AConnection")]
+    #[strum(to_string = "A2AConnection")]
     A2aConnection,
     #[value(name = "KnowledgeBase")]
+    #[strum(to_string = "KnowledgeBase")]
     KnowledgeBase,
 }
 
@@ -203,15 +217,19 @@ impl AppType {
 }
 
 /// Asset types Mentor can create, per `mentor_create_asset`'s `assetType` parameter.
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy, strum_macros::Display)]
 pub enum MentorAssetType {
     #[value(name = "WebApplication")]
+    #[strum(to_string = "WebApplication")]
     WebApplication,
     #[value(name = "Agent")]
+    #[strum(to_string = "Agent")]
     Agent,
     #[value(name = "Library")]
+    #[strum(to_string = "Library")]
     Library,
     #[value(name = "Workflow")]
+    #[strum(to_string = "Workflow")]
     Workflow,
 }
 
@@ -227,11 +245,13 @@ impl MentorAssetType {
 }
 
 /// Role assignee kinds, per `list-role-assignments`'s `--type` filter.
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy, strum_macros::Display)]
 pub enum AssigneeType {
     #[value(name = "User")]
+    #[strum(to_string = "User")]
     User,
     #[value(name = "Group")]
+    #[strum(to_string = "Group")]
     Group,
 }
 

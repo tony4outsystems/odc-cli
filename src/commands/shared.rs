@@ -1,6 +1,7 @@
 //! Shared utilities for command execution.
 //!
 //! This module provides common patterns used across multiple commands:
+//! - [`make_client()`]: initialize client, settings, and output in one call
 //! - [`Listing`]: paginated listing results
 //! - [`fetch_listing()`]: fetch a single page or all results
 //! - [`filter_by_substring()`]: filter items by text search
@@ -9,8 +10,28 @@
 
 use crate::cli::Options;
 use crate::client::Client;
+use crate::output::Output;
 use anyhow::Result;
 use serde_json::{Map, Value};
+use std::sync::Arc;
+
+/// Initialize a client with settings and output configured from `options` in one call.
+///
+/// This replaces the common pattern:
+/// ```ignore
+/// let settings = settings::load_settings()?;
+/// let output = Arc::new(Output::new(options.json, options.color));
+/// let client = Client::new(settings, output.clone());
+/// ```
+///
+/// # Returns
+/// A tuple of `(output, client)` ready for use in command handlers.
+pub fn make_client(options: &Options) -> Result<(Arc<Output>, Client)> {
+    let settings = crate::settings::load_settings()?;
+    let output = Arc::new(Output::new(options.json, options.color));
+    let client = Client::new(settings, output.clone());
+    Ok((output, client))
+}
 
 /// The result of a listing command: either a single page (with pagination metadata) or
 /// every page already combined.
