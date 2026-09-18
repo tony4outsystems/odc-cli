@@ -53,7 +53,7 @@ pub fn get_bool(map: &serde_json::Map<String, Value>, key: &str) -> Option<bool>
 pub fn get_array(map: &serde_json::Map<String, Value>, key: &str) -> Vec<Value> {
     map.get(key)
         .and_then(|v| v.as_array())
-        .map(|a| a.clone())
+        .cloned()
         .unwrap_or_default()
 }
 

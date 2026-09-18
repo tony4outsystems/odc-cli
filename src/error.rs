@@ -61,12 +61,8 @@ impl fmt::Display for OdcError {
                 write!(f, "No {} found matching {:?}", kind, input)?;
                 if !suggestions.is_empty() {
                     write!(f, ". Did you mean:")?;
-                    for (i, suggestion) in suggestions.iter().take(10).enumerate() {
-                        if i == 0 {
-                            write!(f, "\n  - {}", suggestion)?;
-                        } else {
-                            write!(f, "\n  - {}", suggestion)?;
-                        }
+                    for suggestion in suggestions.iter().take(10) {
+                        write!(f, "\n  - {}", suggestion)?;
                     }
                     if suggestions.len() > 10 {
                         write!(f, "\n  ... and {} more", suggestions.len() - 10)?;

@@ -26,8 +26,7 @@ impl Settings {
     /// Settings if all fields are valid, or error if validation fails.
     pub fn new(tenant_url: String, client_id: String, client_secret: String) -> Result<Self> {
         // Validate URL format
-        url::Url::parse(&tenant_url)
-            .map_err(|e| anyhow!("Invalid tenant_url: {}", e))?;
+        url::Url::parse(&tenant_url).map_err(|e| anyhow!("Invalid tenant_url: {}", e))?;
 
         // Validate non-empty fields
         if client_id.is_empty() {
