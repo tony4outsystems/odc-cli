@@ -1,7 +1,7 @@
 //! User and group management commands.
 
+use super::args::*;
 use super::shared::*;
-use crate::cli::Options;
 use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
@@ -59,7 +59,7 @@ fn resolve_group(
         .ok_or_else(|| anyhow::anyhow!("Group not found: {}", identifier))
 }
 
-pub async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_get_user(args: GetUserArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "get-user requires a user key, email, or name"
@@ -67,7 +67,7 @@ pub async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<(
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let identifier = &positionals[0];
@@ -84,7 +84,7 @@ pub async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<(
     }
 
     let users = client.search_users(identifier)?;
-    let items: Vec<Value> = if output.json {
+    let items: Vec<Value> = if args.json {
         users.into_iter().map(Value::Object).collect()
     } else {
         users
@@ -95,18 +95,18 @@ pub async fn cmd_get_user(options: &Options, positionals: &[String]) -> Result<(
     output.print_result(&Value::Array(items))
 }
 
-pub async fn cmd_update_user(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_update_user(args: UpdateUserArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!("update-user requires a user key or email"));
     }
-    if options.updates.is_empty() {
+    if args.given_name.is_none() && args.surname.is_none() {
         return Err(anyhow::anyhow!(
-            "update-user requires at least one of --name, --is-active, or --photo-url"
+            "update-user requires at least one of --name"
         ));
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let user = resolve_user(&client, &positionals[0])?;
@@ -115,24 +115,32 @@ pub async fn cmd_update_user(options: &Options, positionals: &[String]) -> Resul
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?;
 
-    let updated = client.update_user(user_key, &options.updates)?;
+    let mut updates = Map::new();
+    if let Some(name) = args.given_name {
+        updates.insert("givenName".to_string(), Value::String(name));
+    }
+    if let Some(name) = args.surname {
+        updates.insert("surname".to_string(), Value::String(name));
+    }
+
+    let updated = client.update_user(user_key, &updates)?;
     output.print_result(&serde_json::Value::Object(updated))
 }
 
-pub async fn cmd_list_groups(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Result<()> {
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let env_key = if options.env.is_empty() {
+    let env_key = if args.filter.is_empty() {
         String::new()
     } else {
-        resolve_env(&client, &options.env)?
+        resolve_env(&client, &args.filter)?
     };
     let filter = positionals.first().map(String::as_str).unwrap_or("");
     let groups = client.list_groups(filter, &env_key)?;
 
-    let items = if output.json {
+    let items = if args.json {
         groups
     } else {
         groups
@@ -144,27 +152,22 @@ pub async fn cmd_list_groups(options: &Options, positionals: &[String]) -> Resul
     output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_get_group(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_get_group(args: GetGroupArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "get-group", "a group name or key")?;
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0], "")?;
     output.print_result(&Value::Object(group))
 }
 
-pub async fn cmd_update_group(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_update_group(args: UpdateGroupArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "update-group", "a group name or key")?;
-    if options.updates.is_empty() {
-        return Err(anyhow::anyhow!(
-            "update-group requires at least one of --name or --description"
-        ));
-    }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0], "")?;
@@ -174,16 +177,25 @@ pub async fn cmd_update_group(options: &Options, positionals: &[String]) -> Resu
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
 
-    client.update_group(&group_key, &options.updates)?;
+    let mut updates = Map::new();
+    if let Some(desc) = args.description {
+        if !desc.is_empty() {
+            updates.insert("description".to_string(), Value::String(desc));
+        }
+    }
+
+    if !updates.is_empty() {
+        client.update_group(&group_key, &updates)?;
+    }
     let updated = client.get_group(&group_key)?;
     output.print_result(&Value::Object(updated))
 }
 
-pub async fn cmd_list_group_members(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_group_members(args: ListGroupMembersArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "list-group-members", "a group name or key")?;
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0], "")?;
@@ -193,7 +205,7 @@ pub async fn cmd_list_group_members(options: &Options, positionals: &[String]) -
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?;
     let members = client.list_group_users(group_key)?;
 
-    let items = if output.json {
+    let items = if args.json {
         members
     } else {
         members
@@ -215,7 +227,7 @@ pub async fn cmd_list_group_members(options: &Options, positionals: &[String]) -
     output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_add_user_to_group(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_add_user_to_group(args: UserGroupArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!(
             "add-user-to-group requires a group and a user"
@@ -223,7 +235,7 @@ pub async fn cmd_add_user_to_group(options: &Options, positionals: &[String]) ->
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0], "")?;
@@ -247,7 +259,7 @@ pub async fn cmd_add_user_to_group(options: &Options, positionals: &[String]) ->
     Ok(())
 }
 
-pub async fn cmd_remove_user_from_group(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_remove_user_from_group(args: UserGroupArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!(
             "remove-user-from-group requires a group and a user"
@@ -255,7 +267,7 @@ pub async fn cmd_remove_user_from_group(options: &Options, positionals: &[String
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0], "")?;

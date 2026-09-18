@@ -1,14 +1,14 @@
 //! Revision management and producer graph commands.
 
+use super::args::*;
 use super::shared::*;
-use crate::cli::Options;
 use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
 use serde_json::Value;
 use std::sync::Arc;
 
-pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_latest_revision(args: LatestRevisionArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "latest-revision requires an asset name or key"
@@ -16,7 +16,7 @@ pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> R
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
@@ -29,7 +29,7 @@ pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> R
     Ok(())
 }
 
-pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_revisions(args: ListRevisionsArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "list-revisions requires an asset name or key"
@@ -37,7 +37,7 @@ pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Re
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
@@ -48,37 +48,37 @@ pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Re
         .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_key))?
         .to_string();
 
-    let listing = fetch_listing(
-        options,
-        |offset, limit| client.list_revisions_page(&asset_key, offset, limit),
-        || crate::inspection::list_revisions(&client, app_key),
-    )?;
-    print_listing(&output, listing, REVISION_TABLE_COLUMNS)
+    let offset = args.offset.unwrap_or(0);
+    let (items, has_more) = client.list_revisions_page(&asset_key, offset, args.limit)?;
+
+    let result = Listing {
+        items,
+        page: Some((offset, args.limit, has_more)),
+    };
+
+    print_listing(&output, result, REVISION_TABLE_COLUMNS)
 }
 
-pub async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_get_revision(args: GetRevisionArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "get-revision requires an asset name or key"
         ));
     }
-    let revision = options
-        .revision
-        .ok_or_else(|| anyhow::anyhow!("get-revision requires --revision <number>"))?;
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
 
-    let found = crate::inspection::get_revision(&client, app_key, revision)?;
+    let found = crate::inspection::get_revision(&client, app_key, args.revision)?;
 
     output.print_result(&serde_json::Value::Object(found))?;
     Ok(())
 }
 
-pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_producer_graph(args: ProducerGraphArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "producer-graph requires an asset name or key"
@@ -86,7 +86,7 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
@@ -98,7 +98,7 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
         .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_key))?
         .to_string();
 
-    let revision = match options.revision {
+    let revision = match args.revision {
         Some(revision) => revision,
         None => asset
             .get("revision")
@@ -107,23 +107,23 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
             as i32,
     };
 
-    let env_key = if options.env.is_empty() {
+    let env_key = if args.env.is_empty() {
         String::new()
     } else {
         let environments = client.list_environments()?;
-        crate::resolve::resolve(&options.env, "environment", &environments, "key")?
+        crate::resolve::resolve(&args.env, "environment", &environments, "key")?
     };
 
-    let producer_type_filter = if options.all_producers {
+    let producer_type_filter = if args.all_producers {
         "All"
     } else {
-        options.filter.as_str()
+        args.filter.as_str()
     };
 
     let producers = client.get_producer_graph(
         &asset_key,
         revision,
-        options.max_depth,
+        args.max_depth,
         producer_type_filter,
         &env_key,
     )?;
@@ -133,14 +133,14 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
 
     let graph = crate::mermaid::render_producer_graph(&root, &producers);
 
-    let output_path = if options.output.is_empty() {
+    let output_path = if args.output.is_empty() {
         crate::mermaid::default_mermaid_path(&asset_key, revision as i64)
     } else {
-        options.output.clone()
+        args.output.clone()
     };
     std::fs::write(&output_path, &graph)?;
 
-    if options.json {
+    if args.json {
         output.print_result(&serde_json::json!({"output": output_path}))?;
     } else {
         output.println_locked(&format!("Wrote producer graph to {}", output_path));

@@ -233,3 +233,245 @@ pub struct MentorPublishArgs {
     pub session_id: String,
     pub comment: Option<String>,
 }
+
+// ============================================================================
+// REVISION COMMANDS
+// ============================================================================
+
+/// Arguments for revision listing and query commands.
+#[derive(Debug, Clone)]
+pub struct LatestRevisionArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+/// Arguments for list-revisions command.
+#[derive(Debug, Clone)]
+pub struct ListRevisionsArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub offset: Option<i64>,
+    pub limit: i64,
+}
+
+/// Arguments for get-revision command.
+#[derive(Debug, Clone)]
+pub struct GetRevisionArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub revision: i32,
+}
+
+/// Arguments for producer-graph command.
+#[derive(Debug, Clone)]
+pub struct ProducerGraphArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub revision: Option<i32>,
+    pub env: String,
+    pub filter: String,
+    pub all_producers: bool,
+    pub max_depth: i32,
+    pub output: String,
+}
+
+// ============================================================================
+// AUTH & PORTFOLIO COMMANDS
+// ============================================================================
+
+/// Arguments for discover command.
+#[derive(Debug, Clone)]
+pub struct DiscoverArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+/// Arguments for list-portfolios command.
+#[derive(Debug, Clone)]
+pub struct ListPortfoliosArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+// ============================================================================
+// USER & GROUP COMMANDS
+// ============================================================================
+
+/// Arguments for user/group query commands.
+#[derive(Debug, Clone)]
+pub struct GetUserArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+/// Arguments for update-user command.
+#[derive(Debug, Clone)]
+pub struct UpdateUserArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub given_name: Option<String>,
+    pub surname: Option<String>,
+}
+
+/// Arguments for list-groups command.
+#[derive(Debug, Clone)]
+pub struct ListGroupsArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub filter: String,
+}
+
+/// Arguments for group query/update commands.
+#[derive(Debug, Clone)]
+pub struct GetGroupArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+/// Arguments for update-group command.
+#[derive(Debug, Clone)]
+pub struct UpdateGroupArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub env: String,
+    pub description: Option<String>,
+}
+
+/// Arguments for list-group-members command.
+#[derive(Debug, Clone)]
+pub struct ListGroupMembersArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub env: String,
+}
+
+/// Arguments for user-group membership commands.
+#[derive(Debug, Clone)]
+pub struct UserGroupArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub env: String,
+}
+
+// ============================================================================
+// ROLE COMMANDS
+// ============================================================================
+
+/// Arguments for role query commands.
+#[derive(Debug, Clone)]
+pub struct ListRolesArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub asset: String,
+    pub env: String,
+}
+
+/// Arguments for list-role-assignments command.
+#[derive(Debug, Clone)]
+pub struct ListRoleAssignmentsArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub asset: String,
+    pub env: String,
+}
+
+/// Arguments for role grant/revoke commands.
+#[derive(Debug, Clone)]
+pub struct RoleGrantArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub role: String,
+    pub user: String,
+    pub asset: String,
+}
+
+/// Arguments for role revoke commands.
+#[derive(Debug, Clone)]
+pub struct RoleRevokeArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub role: String,
+    pub user: String,
+    pub asset: String,
+}
+
+/// Arguments for group role grant commands.
+#[derive(Debug, Clone)]
+pub struct GroupRoleGrantArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub role: String,
+    pub group: String,
+    pub asset: String,
+    pub env: String,
+}
+
+/// Arguments for group role revoke commands.
+#[derive(Debug, Clone)]
+pub struct GroupRoleRevokeArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub role: String,
+    pub group: String,
+    pub asset: String,
+    pub env: String,
+}
+
+// ============================================================================
+// SOURCE CODE COMMANDS
+// ============================================================================
+
+/// Arguments for download-source-code command.
+#[derive(Debug, Clone)]
+pub struct DownloadSourceCodeArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub revision: Option<i32>,
+    pub output: String,
+}
+
+/// Arguments for upload-source-code command.
+#[derive(Debug, Clone)]
+pub struct UploadSourceCodeArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+// ============================================================================
+// BATCH OPERATION COMMANDS
+// ============================================================================
+
+/// Arguments for batch deployment commands.
+#[derive(Debug, Clone)]
+pub struct BatchDeployArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub poll_interval: u64,
+    pub timeout: u64,
+    pub build_type: String,
+}
+
+/// Arguments for batch undeploy command.
+#[derive(Debug, Clone)]
+pub struct BatchUndeployArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub poll_interval: u64,
+    pub timeout: u64,
+}
+
+/// Arguments for batch delete command.
+#[derive(Debug, Clone)]
+pub struct BatchDeleteArgs {
+    pub json: bool,
+    pub color: ColorMode,
+}
+
+/// Arguments for dangerous-batch-undeploy-all command.
+#[derive(Debug, Clone)]
+pub struct DangerousBatchUndeployAllArgs {
+    pub json: bool,
+    pub color: ColorMode,
+    pub poll_interval: u64,
+    pub timeout: u64,
+}

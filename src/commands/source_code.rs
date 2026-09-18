@@ -1,13 +1,13 @@
 //! Source code download and upload commands.
 
-use crate::cli::Options;
+use super::args::*;
+use super::shared::resolve_asset;
 use crate::client::Client;
-use crate::commands::shared::resolve_asset;
 use crate::settings;
 use anyhow::Result;
 use std::sync::Arc;
 
-pub async fn cmd_download_source_code(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_download_source_code(args: DownloadSourceCodeArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "download-source-code requires an app name or key"
@@ -15,13 +15,13 @@ pub async fn cmd_download_source_code(options: &Options, positionals: &[String])
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
     let asset = resolve_asset(&client, app_key)?;
 
-    let revision = match options.revision {
+    let revision = match args.revision {
         Some(revision) => revision,
         None => asset
             .get("revision")
@@ -31,9 +31,9 @@ pub async fn cmd_download_source_code(options: &Options, positionals: &[String])
     };
 
     let (output_path, _bytes) =
-        crate::inspection::download_source_code(&client, app_key, revision, &options.output)?;
+        crate::inspection::download_source_code(&client, app_key, revision, &args.output)?;
 
-    if options.json {
+    if args.json {
         output.print_result(&serde_json::json!({ "output": output_path }))?;
     } else {
         output.println_locked(&format!("Wrote source code to {}", output_path));
@@ -41,7 +41,7 @@ pub async fn cmd_download_source_code(options: &Options, positionals: &[String])
     Ok(())
 }
 
-pub async fn cmd_upload_source_code(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_upload_source_code(args: UploadSourceCodeArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "upload-source-code requires an OML/XIF file"
@@ -49,7 +49,7 @@ pub async fn cmd_upload_source_code(options: &Options, positionals: &[String]) -
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let bytes = std::fs::read(&positionals[0])

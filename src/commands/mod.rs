@@ -32,9 +32,15 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
     use Commands::*;
 
     match command {
-        // Auth & Portfolios
-        Discover => auth::cmd_discover(options).await,
-        ListPortfolios { .. } => auth::cmd_list_portfolios(options, positionals).await,
+        // Auth & Portfolios (now using typed args)
+        Discover => {
+            let args = command.as_discover_args(options.json, options.color);
+            auth::cmd_discover(args).await
+        }
+        ListPortfolios { .. } => {
+            let args = command.as_list_portfolios_args(options.json, options.color);
+            auth::cmd_list_portfolios(args, positionals).await
+        }
 
         // Assets & Environments (now using typed args)
         ListAssets { .. } => {
@@ -54,11 +60,23 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
             environments::cmd_list_environments(args).await
         }
 
-        // Revisions
-        LatestRevision { .. } => revisions::cmd_latest_revision(options, positionals).await,
-        ListRevisions { .. } => revisions::cmd_list_revisions(options, positionals).await,
-        GetRevision { .. } => revisions::cmd_get_revision(options, positionals).await,
-        ProducerGraph { .. } => revisions::cmd_producer_graph(options, positionals).await,
+        // Revisions (now using typed args)
+        LatestRevision { .. } => {
+            let args = command.as_latest_revision_args(options.json, options.color);
+            revisions::cmd_latest_revision(args, positionals).await
+        }
+        ListRevisions { .. } => {
+            let args = command.as_list_revisions_args(options.json, options.color);
+            revisions::cmd_list_revisions(args, positionals).await
+        }
+        GetRevision { .. } => {
+            let args = command.as_get_revision_args(options.json, options.color);
+            revisions::cmd_get_revision(args, positionals).await
+        }
+        ProducerGraph { .. } => {
+            let args = command.as_producer_graph_args(options.json, options.color);
+            revisions::cmd_producer_graph(args, positionals).await
+        }
 
         // Deployment (now using typed args)
         AnalyzeDeployment { .. } => {
@@ -111,27 +129,75 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
             crate::workflows::dangerous_batch_undeploy_all(options).await
         }
 
-        // Source Code
-        DownloadSourceCode { .. } => source_code::cmd_download_source_code(options, positionals).await,
-        UploadSourceCode { .. } => source_code::cmd_upload_source_code(options, positionals).await,
+        // Source Code (now using typed args)
+        DownloadSourceCode { .. } => {
+            let args = command.as_download_source_code_args(options.json, options.color);
+            source_code::cmd_download_source_code(args, positionals).await
+        }
+        UploadSourceCode { .. } => {
+            let args = command.as_upload_source_code_args(options.json, options.color);
+            source_code::cmd_upload_source_code(args, positionals).await
+        }
 
-        // Users & Groups
-        GetUser { .. } => users::cmd_get_user(options, positionals).await,
-        UpdateUser { .. } => users::cmd_update_user(options, positionals).await,
-        ListGroups { .. } => users::cmd_list_groups(options, positionals).await,
-        GetGroup { .. } => users::cmd_get_group(options, positionals).await,
-        UpdateGroup { .. } => users::cmd_update_group(options, positionals).await,
-        ListGroupMembers { .. } => users::cmd_list_group_members(options, positionals).await,
-        AddUserToGroup { .. } => users::cmd_add_user_to_group(options, positionals).await,
-        RemoveUserFromGroup { .. } => users::cmd_remove_user_from_group(options, positionals).await,
+        // Users & Groups (now using typed args)
+        GetUser { .. } => {
+            let args = command.as_get_user_args(options.json, options.color);
+            users::cmd_get_user(args, positionals).await
+        }
+        UpdateUser { .. } => {
+            let args = command.as_update_user_args(options.json, options.color);
+            users::cmd_update_user(args, positionals).await
+        }
+        ListGroups { .. } => {
+            let args = command.as_list_groups_args(options.json, options.color);
+            users::cmd_list_groups(args, positionals).await
+        }
+        GetGroup { .. } => {
+            let args = command.as_get_group_args(options.json, options.color);
+            users::cmd_get_group(args, positionals).await
+        }
+        UpdateGroup { .. } => {
+            let args = command.as_update_group_args(options.json, options.color);
+            users::cmd_update_group(args, positionals).await
+        }
+        ListGroupMembers { .. } => {
+            let args = command.as_list_group_members_args(options.json, options.color);
+            users::cmd_list_group_members(args, positionals).await
+        }
+        AddUserToGroup { .. } => {
+            let args = command.as_add_user_to_group_args(options.json, options.color);
+            users::cmd_add_user_to_group(args, positionals).await
+        }
+        RemoveUserFromGroup { .. } => {
+            let args = command.as_remove_user_from_group_args(options.json, options.color);
+            users::cmd_remove_user_from_group(args, positionals).await
+        }
 
-        // Roles
-        ListRoles { .. } => roles::cmd_list_roles(options, positionals).await,
-        ListRoleAssignments { .. } => roles::cmd_list_role_assignments(options, positionals).await,
-        GrantRole { .. } => roles::cmd_grant_role(options, positionals).await,
-        RevokeRole { .. } => roles::cmd_revoke_role(options, positionals).await,
-        GrantGroupRole { .. } => roles::cmd_grant_group_role(options, positionals).await,
-        RevokeGroupRole { .. } => roles::cmd_revoke_group_role(options, positionals).await,
+        // Roles (now using typed args)
+        ListRoles { .. } => {
+            let args = command.as_list_roles_args(options.json, options.color);
+            roles::cmd_list_roles(args, positionals).await
+        }
+        ListRoleAssignments { .. } => {
+            let args = command.as_list_role_assignments_args(options.json, options.color);
+            roles::cmd_list_role_assignments(args, positionals).await
+        }
+        GrantRole { .. } => {
+            let args = command.as_grant_role_args(options.json, options.color);
+            roles::cmd_grant_role(args, positionals).await
+        }
+        RevokeRole { .. } => {
+            let args = command.as_revoke_role_args(options.json, options.color);
+            roles::cmd_revoke_role(args, positionals).await
+        }
+        GrantGroupRole { .. } => {
+            let args = command.as_grant_group_role_args(options.json, options.color);
+            roles::cmd_grant_group_role(args, positionals).await
+        }
+        RevokeGroupRole { .. } => {
+            let args = command.as_revoke_group_role_args(options.json, options.color);
+            roles::cmd_revoke_group_role(args, positionals).await
+        }
 
         // Mentor (now using typed args)
         MentorStartSession => {

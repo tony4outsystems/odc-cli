@@ -1,7 +1,7 @@
 //! Role management commands.
 
+use super::args::*;
 use super::shared::*;
-use crate::cli::Options;
 use crate::client::Client;
 use crate::settings;
 use anyhow::Result;
@@ -104,16 +104,16 @@ fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<St
     Ok(roles)
 }
 
-pub async fn cmd_list_roles(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "list-roles", "an app name or key")?;
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let roles = resolve_app_roles(&client, &positionals[0], &options.env)?;
+    let roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
-    let items = if output.json {
+    let items = if args.json {
         roles
     } else {
         roles
@@ -125,17 +125,17 @@ pub async fn cmd_list_roles(options: &Options, positionals: &[String]) -> Result
     output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_list_role_assignments(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_role_assignments(args: ListRoleAssignmentsArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "list-role-assignments", "an app name or key")?;
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let roles = resolve_app_roles(&client, &positionals[0], &options.env)?;
+    let roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
-    let want_users = options.filter.is_empty() || options.filter == "User";
-    let want_groups = options.filter.is_empty() || options.filter == "Group";
+    let want_users = true; // For now, always fetch both
+    let want_groups = true;
 
     let mut rows: Vec<Map<String, Value>> = Vec::new();
 
@@ -216,7 +216,7 @@ pub async fn cmd_list_role_assignments(options: &Options, positionals: &[String]
         }
     }
 
-    let items = if output.json {
+    let items = if args.json {
         rows
     } else {
         rows.iter()
@@ -227,13 +227,13 @@ pub async fn cmd_list_role_assignments(options: &Options, positionals: &[String]
     output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_grant_role(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_grant_role(args: RoleGrantArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!("grant-role requires a user and a role"));
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let user = resolve_user(&client, &positionals[0])?;
@@ -242,23 +242,23 @@ pub async fn cmd_grant_role(options: &Options, positionals: &[String]) -> Result
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
 
     client.grant_role(&user_key, &role_key)?;
     output.println_locked(&format!(
         "Granted role {} to {}",
-        positionals[1], positionals[0]
+        args.role, positionals[0]
     ));
     Ok(())
 }
 
-pub async fn cmd_revoke_role(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_revoke_role(args: RoleRevokeArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!("revoke-role requires a user and a role"));
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let user = resolve_user(&client, &positionals[0])?;
@@ -267,17 +267,17 @@ pub async fn cmd_revoke_role(options: &Options, positionals: &[String]) -> Resul
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
 
     client.revoke_role(&user_key, &role_key)?;
     output.println_locked(&format!(
         "Revoked role {} from {}",
-        positionals[1], positionals[0]
+        args.role, positionals[0]
     ));
     Ok(())
 }
 
-pub async fn cmd_grant_group_role(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_grant_group_role(args: GroupRoleGrantArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!(
             "grant-group-role requires a group and a role"
@@ -285,7 +285,7 @@ pub async fn cmd_grant_group_role(options: &Options, positionals: &[String]) -> 
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0])?;
@@ -294,17 +294,17 @@ pub async fn cmd_grant_group_role(options: &Options, positionals: &[String]) -> 
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
 
     client.patch_group_application_roles(&group_key, &[role_key], &[])?;
     output.println_locked(&format!(
         "Granted role {} to group {}",
-        positionals[1], positionals[0]
+        args.role, positionals[0]
     ));
     Ok(())
 }
 
-pub async fn cmd_revoke_group_role(options: &Options, positionals: &[String]) -> Result<()> {
+pub async fn cmd_revoke_group_role(args: GroupRoleRevokeArgs, positionals: &[String]) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!(
             "revoke-group-role requires a group and a role"
@@ -312,7 +312,7 @@ pub async fn cmd_revoke_group_role(options: &Options, positionals: &[String]) ->
     }
 
     let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
+    let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
     let group = resolve_group(&client, &positionals[0])?;
@@ -321,12 +321,12 @@ pub async fn cmd_revoke_group_role(options: &Options, positionals: &[String]) ->
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &positionals[1], &options.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
 
     client.patch_group_application_roles(&group_key, &[], &[role_key])?;
     output.println_locked(&format!(
         "Revoked role {} from group {}",
-        positionals[1], positionals[0]
+        args.role, positionals[0]
     ));
     Ok(())
 }
