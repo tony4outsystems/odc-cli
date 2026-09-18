@@ -301,11 +301,11 @@ pub enum Commands {
     /// List environments in the tenant.
     ListEnvironments,
 
-    /// List apps in the tenant, optionally filtered by name/key and/or type.
-    ListApps {
-        /// Filter to apps whose name or key contains this (case-insensitive)
+    /// List assets in the tenant, optionally filtered by name/key and/or type.
+    ListAssets {
+        /// Filter to assets whose name or key contains this (case-insensitive)
         filter: Option<String>,
-        /// Filter to apps of this type
+        /// Filter to assets of this type
         #[arg(long = "type")]
         app_type: Option<AppType>,
         /// Fetch a single page starting at this result index (default: fetch every page)
@@ -316,9 +316,9 @@ pub enum Commands {
         limit: i64,
     },
 
-    /// List deployed apps, optionally filtered by environment and name/key.
-    ListDeployedApps {
-        /// Filter to apps whose name or key contains this (case-insensitive)
+    /// List deployed assets, optionally filtered by environment and name/key.
+    ListDeployedAssets {
+        /// Filter to assets whose name or key contains this (case-insensitive)
         filter: Option<String>,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
@@ -329,8 +329,8 @@ pub enum Commands {
         limit: i64,
     },
 
-    /// Retrieve app metadata.
-    GetApp { app: String },
+    /// Retrieve asset metadata.
+    GetAsset { app: String },
 
     /// Print the latest revision number of an app.
     LatestRevision { app: String },
@@ -711,9 +711,9 @@ impl Commands {
             Commands::Login { .. } => "login",
             Commands::ListPortfolios { .. } => "list-portfolios",
             Commands::ListEnvironments => "list-environments",
-            Commands::ListApps { .. } => "list-apps",
-            Commands::ListDeployedApps { .. } => "list-deployed-apps",
-            Commands::GetApp { .. } => "get-app",
+            Commands::ListAssets { .. } => "list-assets",
+            Commands::ListDeployedAssets { .. } => "list-deployed-assets",
+            Commands::GetAsset { .. } => "get-asset",
             Commands::LatestRevision { .. } => "latest-revision",
             Commands::ListRevisions { .. } => "list-revisions",
             Commands::GetRevision { .. } => "get-revision",
@@ -785,7 +785,7 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::ListApps {
+            Commands::ListAssets {
                 filter,
                 app_type,
                 offset,
@@ -800,7 +800,7 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::ListDeployedApps {
+            Commands::ListDeployedAssets {
                 filter,
                 env,
                 offset,
@@ -813,7 +813,7 @@ impl Commands {
                     positionals.push(f);
                 }
             }
-            Commands::GetApp { app } | Commands::LatestRevision { app } => {
+            Commands::GetAsset { app } | Commands::LatestRevision { app } => {
                 positionals = vec![app];
             }
             Commands::ListRoles { app, env } => {
@@ -1253,10 +1253,10 @@ mod tests {
     }
 
     #[test]
-    fn test_parses_list_apps_with_filter_and_pagination() {
-        let cli = Cli::try_parse_from(["odc", "list-apps", "eGov", "--offset", "10"]).unwrap();
+    fn test_parses_list_assets_with_filter_and_pagination() {
+        let cli = Cli::try_parse_from(["odc", "list-assets", "eGov", "--offset", "10"]).unwrap();
         match cli.command {
-            Commands::ListApps {
+            Commands::ListAssets {
                 filter,
                 app_type,
                 offset,
@@ -1267,14 +1267,14 @@ mod tests {
                 assert_eq!(offset, Some(10));
                 assert_eq!(limit, 100);
             }
-            _ => panic!("expected ListApps"),
+            _ => panic!("expected ListAssets"),
         }
     }
 
     #[test]
-    fn test_parses_list_deployed_apps_env() {
+    fn test_parses_list_deployed_assets_env() {
         let cli =
-            Cli::try_parse_from(["odc", "list-deployed-apps", "eGov", "--env", "prod"]).unwrap();
+            Cli::try_parse_from(["odc", "list-deployed-assets", "eGov", "--env", "prod"]).unwrap();
         let (options, positionals) = cli.command.into_dispatch();
         assert_eq!(options.env, "prod");
         assert_eq!(positionals, vec!["eGov".to_string()]);
@@ -1282,20 +1282,20 @@ mod tests {
 
     #[test]
     fn test_list_apps_type_filter_maps_to_exact_api_string() {
-        let cli = Cli::try_parse_from(["odc", "list-apps", "--type", "Agent"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "list-assets", "--type", "Agent"]).unwrap();
         let (options, _) = cli.command.into_dispatch();
         assert_eq!(options.asset_type, "Agent");
     }
 
     #[test]
-    fn test_list_apps_type_filter_rejects_unknown_value() {
-        let result = Cli::try_parse_from(["odc", "list-apps", "--type", "Bogus"]);
+    fn test_list_assets_type_filter_rejects_unknown_value() {
+        let result = Cli::try_parse_from(["odc", "list-assets", "--type", "Bogus"]);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_list_apps_without_type_leaves_app_type_empty() {
-        let cli = Cli::try_parse_from(["odc", "list-apps"]).unwrap();
+    fn test_list_assets_without_type_leaves_asset_type_empty() {
+        let cli = Cli::try_parse_from(["odc", "list-assets"]).unwrap();
         let (options, _) = cli.command.into_dispatch();
         assert_eq!(options.asset_type, "");
     }
@@ -1308,7 +1308,7 @@ mod tests {
 
     #[test]
     fn test_global_json_flag_before_subcommand() {
-        let cli = Cli::try_parse_from(["odc", "--json", "list-apps"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "--json", "list-assets"]).unwrap();
         assert!(cli.json);
     }
 
