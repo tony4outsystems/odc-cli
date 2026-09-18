@@ -25,10 +25,7 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
 }
 
 /// Resolve a group by key (GUID) or name (exact/unambiguous substring).
-fn resolve_group(
-    client: &Client,
-    identifier: &str,
-) -> Result<Map<String, Value>> {
+fn resolve_group(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
     if crate::resolve::is_guid(identifier) {
         return client.get_group(identifier);
     }
@@ -42,10 +39,7 @@ fn resolve_group(
 }
 
 /// Resolve a user by key (GUID) or email.
-fn resolve_user(
-    client: &Client,
-    identifier: &str,
-) -> Result<Map<String, Value>> {
+fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
     if crate::resolve::is_guid(identifier) {
         return client.get_user(identifier);
     }

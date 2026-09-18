@@ -5,12 +5,7 @@ use std::time::Duration;
 /// Command names grouped by category, in display order, for the categorized top-level help.
 const HELP_CATEGORIES: &[(&str, &[&str])] = &[
     ("Auth", &["discover", "login"]),
-    (
-        "Portfolios",
-        &[
-            "list-portfolios",
-        ],
-    ),
+    ("Portfolios", &["list-portfolios"]),
     (
         "Assets & Environments",
         &[
@@ -38,7 +33,7 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "analyze-deletion",
             "deploy",
             "undeploy",
-            "delete-app",
+            "delete-asset",
         ],
     ),
     (
@@ -825,7 +820,11 @@ impl Commands {
                 options.filter = r#type.map(|t| t.as_str().to_string()).unwrap_or_default();
                 positionals = vec![asset];
             }
-            Commands::ListRevisions { asset, offset, limit } => {
+            Commands::ListRevisions {
+                asset,
+                offset,
+                limit,
+            } => {
                 options.offset = offset;
                 options.limit = limit;
                 positionals = vec![asset];
@@ -965,7 +964,8 @@ impl Commands {
                         .insert("photoUrl".to_string(), photo_url.into());
                 }
             }
-            Commands::GrantRole { asset, role, user } | Commands::RevokeRole { asset, role, user } => {
+            Commands::GrantRole { asset, role, user }
+            | Commands::RevokeRole { asset, role, user } => {
                 options.asset = asset;
                 positionals = vec![user, role];
             }

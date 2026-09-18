@@ -21,8 +21,8 @@
 //! Each app runs through: resolve → build → deploy/undeploy/delete.
 
 use crate::cli::Options;
-use crate::commands::shared::{resolve_asset_in, resolve_env, resolve_revision};
 use crate::commands::deployment::{run_build, run_deployment_operation};
+use crate::commands::shared::{resolve_asset_in, resolve_env, resolve_revision};
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -436,8 +436,7 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
                     let revision = app
                         .revision
                         .ok_or_else(|| anyhow!("Missing resolved revision for {}", app.key))?;
-                    let (build_key, _) =
-                        run_build(&client, &options, &app.key, revision).await?;
+                    let (build_key, _) = run_build(&client, &options, &app.key, revision).await?;
                     run_deployment_operation(
                         &client,
                         &options,

@@ -12,16 +12,16 @@
 //! - [`mentor`]: AI mentor integration
 //! - [`shared`]: common utilities (listing, filtering, resolution)
 
-pub mod auth;
 pub mod assets;
-pub mod environments;
-pub mod revisions;
+pub mod auth;
 pub mod deployment;
+pub mod environments;
+pub mod mentor;
+pub mod revisions;
+pub mod roles;
+pub mod shared;
 pub mod source_code;
 pub mod users;
-pub mod roles;
-pub mod mentor;
-pub mod shared;
 
 use crate::cli::Options;
 use anyhow::Result;

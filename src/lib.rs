@@ -1,6 +1,6 @@
 pub mod cli;
 pub mod client;
-pub mod commands;  // Now a module directory with submodules organized by domain
+pub mod commands; // Now a module directory with submodules organized by domain
 pub mod error;
 pub mod inspection;
 pub mod login;

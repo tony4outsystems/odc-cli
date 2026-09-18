@@ -195,8 +195,7 @@ pub const DEPLOYED_ASSET_TABLE_COLUMNS: &[&str] =
     &["name", "key", "type", "environment", "revision", "tag"];
 pub const REVISION_TABLE_COLUMNS: &[&str] = &["revision", "tag", "createdAt", "createdBy"];
 pub const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
-pub const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] =
-    &["role", "environment", "type", "name", "key"];
+pub const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &["role", "environment", "type", "name", "key"];
 pub const GROUP_TABLE_COLUMNS: &[&str] = &["name", "key", "environmentKey", "description"];
 pub const GROUP_USER_TABLE_COLUMNS: &[&str] = &["name", "email", "key", "status"];
 pub const USER_TABLE_COLUMNS: &[&str] = &["key", "name", "email", "status"];

@@ -58,7 +58,9 @@ pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Re
 
 pub async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
-        return Err(anyhow::anyhow!("get-revision requires an asset name or key"));
+        return Err(anyhow::anyhow!(
+            "get-revision requires an asset name or key"
+        ));
     }
     let revision = options
         .revision

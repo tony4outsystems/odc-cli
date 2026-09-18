@@ -1,8 +1,8 @@
 //! Source code download and upload commands.
 
-use crate::commands::shared::resolve_asset;
 use crate::cli::Options;
 use crate::client::Client;
+use crate::commands::shared::resolve_asset;
 use crate::settings;
 use anyhow::Result;
 use std::sync::Arc;
