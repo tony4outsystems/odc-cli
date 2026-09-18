@@ -114,6 +114,50 @@ pub async fn cmd_list_assets(options: &Options, positionals: &[String]) -> Resul
 
 **Location:** `src/commands/shared.rs`
 
+### 4. ✅ Remove `Commands::name()` match block (Priority 4)
+
+**Before:** ~50-line match that mirrors clap's command variant names
+```rust
+impl Commands {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Commands::Discover => "discover",
+            Commands::Login { .. } => "login",
+            // ... 48 more arms
+            Commands::MentorPublish { .. } => "mentor-publish",
+        }
+    }
+}
+
+// Usage in lib.rs:
+let cmd = cli.command.name();
+commands::execute(cmd, &options, &positionals).await
+```
+
+**After:** Direct enum matching without conversion to string
+```rust
+// lib.rs - no name() call needed
+commands::execute(&cli.command, &options, &positionals).await
+
+// commands/mod.rs - match on enum directly
+pub async fn execute(command: &Commands, options: &Options, positionals: &[String]) -> Result<()> {
+    use Commands::*;
+    
+    match command {
+        Discover => auth::cmd_discover(options).await,
+        ListPortfolios { .. } => auth::cmd_list_portfolios(options, positionals).await,
+        // ... etc
+    }
+}
+```
+
+**Benefits:**
+- Eliminates 50 lines of boilerplate duplication
+- Stronger type safety: command routing errors caught at compile time, not runtime
+- Single source of truth: clap definition is the only place command names exist
+- Enables compiler to verify all commands are handled in dispatch
+- Removes test that only checked string conversion
+
 ---
 
 ## Metrics
@@ -121,9 +165,11 @@ pub async fn cmd_list_assets(options: &Options, positionals: &[String]) -> Resul
 | Metric | Before | After | Reduction |
 |--------|--------|-------|-----------|
 | Lines in `error.rs` | 152 | 108 | 29% |
-| Lines in `cli.rs` | 1,339 | 1,260 | 6% |
+| Lines in `cli.rs` | 1,339 | 1,250 | 7% |
+| `Commands::name()` method | 50 lines | 0 lines | 100% |
 | Boilerplate patterns (enums) | 3 full matches | 3 with Display | ~50 lines saved |
 | Client setup boilerplate | ~30 lines/file | ~0 lines (helper) | ~150 lines total |
+| **Total boilerplate eliminated** | — | — | **~310 lines** |
 
 ---
 

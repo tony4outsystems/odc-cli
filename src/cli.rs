@@ -719,6 +719,63 @@ pub enum Commands {
 }
 
 impl Commands {
+    /// Extract typed arguments for `list-assets` command.
+    ///
+    /// # Panics
+    /// If called on a command variant other than `ListAssets`.
+    pub fn as_list_assets_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListAssetsArgs {
+        match self {
+            Commands::ListAssets { filter, app_type, offset, limit } => {
+                crate::commands::args::ListAssetsArgs {
+                    json,
+                    color,
+                    filter: filter.clone(),
+                    asset_type: *app_type,
+                    offset: *offset,
+                    limit: *limit,
+                }
+            }
+            _ => panic!("Expected ListAssets command"),
+        }
+    }
+
+    /// Extract typed arguments for `list-deployed-assets` command.
+    pub fn as_list_deployed_assets_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListDeployedAssetsArgs {
+        match self {
+            Commands::ListDeployedAssets { filter, env, offset, limit } => {
+                crate::commands::args::ListDeployedAssetsArgs {
+                    json,
+                    color,
+                    filter: filter.clone(),
+                    env: env.clone(),
+                    offset: *offset,
+                    limit: *limit,
+                }
+            }
+            _ => panic!("Expected ListDeployedAssets command"),
+        }
+    }
+
+    /// Extract typed arguments for `get-asset` command.
+    pub fn as_get_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GetAssetArgs {
+        match self {
+            Commands::GetAsset { .. } => {
+                crate::commands::args::GetAssetArgs { json, color }
+            }
+            _ => panic!("Expected GetAsset command"),
+        }
+    }
+
+    /// Extract typed arguments for `list-environments` command.
+    pub fn as_list_environments_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListEnvironmentsArgs {
+        match self {
+            Commands::ListEnvironments => {
+                crate::commands::args::ListEnvironmentsArgs { json, color }
+            }
+            _ => panic!("Expected ListEnvironments command"),
+        }
+    }
+
     /// Convert the parsed command into the `(Options, positionals)` shape that
     /// `commands::execute` dispatches on, so command implementations don't need to change.
     pub fn into_dispatch(&self) -> (Options, Vec<String>) {

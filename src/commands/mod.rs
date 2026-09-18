@@ -12,6 +12,7 @@
 //! - [`mentor`]: AI mentor integration
 //! - [`shared`]: common utilities (listing, filtering, resolution)
 
+pub mod args;
 pub mod assets;
 pub mod auth;
 pub mod deployment;
@@ -35,11 +36,23 @@ pub async fn execute(command: &Commands, options: &Options, positionals: &[Strin
         Discover => auth::cmd_discover(options).await,
         ListPortfolios { .. } => auth::cmd_list_portfolios(options, positionals).await,
 
-        // Assets & Environments
-        ListAssets { .. } => assets::cmd_list_assets(options, positionals).await,
-        ListDeployedAssets { .. } => assets::cmd_list_deployed_assets(options, positionals).await,
-        GetAsset { .. } => assets::cmd_get_asset(options, positionals).await,
-        ListEnvironments => environments::cmd_list_environments(options).await,
+        // Assets & Environments (now using typed args)
+        ListAssets { .. } => {
+            let args = command.as_list_assets_args(options.json, options.color);
+            assets::cmd_list_assets(args, positionals).await
+        }
+        ListDeployedAssets { .. } => {
+            let args = command.as_list_deployed_assets_args(options.json, options.color);
+            assets::cmd_list_deployed_assets(args, positionals).await
+        }
+        GetAsset { .. } => {
+            let args = command.as_get_asset_args(options.json, options.color);
+            assets::cmd_get_asset(args, positionals).await
+        }
+        ListEnvironments => {
+            let args = command.as_list_environments_args(options.json, options.color);
+            environments::cmd_list_environments(args).await
+        }
 
         // Revisions
         LatestRevision { .. } => revisions::cmd_latest_revision(options, positionals).await,
