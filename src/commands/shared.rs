@@ -118,44 +118,44 @@ pub fn status_str<'a>(map: &'a Map<String, Value>, field: &str) -> &'a str {
     map.get(field).and_then(|v| v.as_str()).unwrap_or("")
 }
 
-/// Find an app by exact `assetKey` or exact `name`. The asset-repository API identifies an
-/// app by `assetKey` (not `key`).
-pub fn find_app<'a>(
-    apps: &'a [Map<String, Value>],
+/// Find an asset by exact `assetKey` or exact `name`. The asset-repository API identifies an
+/// asset by `assetKey` (not `key`).
+pub fn find_asset<'a>(
+    assets: &'a [Map<String, Value>],
     identifier: &str,
 ) -> Option<&'a Map<String, Value>> {
-    apps.iter().find(|app| match app.get("assetKey") {
+    assets.iter().find(|asset| match asset.get("assetKey") {
         Some(Value::String(key)) if key == identifier => true,
-        _ => matches!(app.get("name"), Some(Value::String(name)) if name == identifier),
+        _ => matches!(asset.get("name"), Some(Value::String(name)) if name == identifier),
     })
 }
 
-/// Resolve a user-supplied app name/key against an already-fetched list of apps. Supports a
+/// Resolve a user-supplied asset name/key against an already-fetched list of assets. Supports a
 /// GUID, an exact name or key, or an unambiguous substring of the name/key — falling back to a
 /// "did you mean" error listing the candidates when the input is ambiguous or matches nothing
-/// exactly (via `resolve::resolve`). Used when the caller already has the full app list handy
-/// (e.g. resolving many apps from a workflow file against one shared listing).
-pub fn resolve_app_in<'a>(
-    apps: &'a [Map<String, Value>],
+/// exactly (via `resolve::resolve`). Used when the caller already has the full asset list handy
+/// (e.g. resolving many assets from a workflow file against one shared listing).
+pub fn resolve_asset_in<'a>(
+    assets: &'a [Map<String, Value>],
     identifier: &str,
 ) -> Result<&'a Map<String, Value>> {
-    let asset_key = crate::resolve::resolve(identifier, "app", apps, "assetKey")?;
-    find_app(apps, &asset_key).ok_or_else(|| anyhow::anyhow!("App not found: {}", identifier))
+    let asset_key = crate::resolve::resolve(identifier, "asset", assets, "assetKey")?;
+    find_asset(assets, &asset_key).ok_or_else(|| anyhow::anyhow!("Asset not found: {}", identifier))
 }
 
-/// Resolve a user-supplied app name/key to the app it refers to, without fetching every app in
+/// Resolve a user-supplied asset name/key to the asset it refers to, without fetching every asset in
 /// the tenant. A GUID is looked up directly by key; otherwise the asset-repository API's
 /// server-side `nameContains` filter narrows the candidates before applying the same
-/// exact/unambiguous-partial-match/"did you mean" contract as `resolve_app_in`.
-pub fn resolve_app(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
+/// exact/unambiguous-partial-match/"did you mean" contract as `resolve_asset_in`.
+pub fn resolve_asset(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
     if identifier.is_empty() {
-        return Err(anyhow::anyhow!("app is required"));
+        return Err(anyhow::anyhow!("asset is required"));
     }
     if crate::resolve::is_guid(identifier) {
-        return client.get_app(identifier);
+        return client.get_asset(identifier);
     }
-    let candidates = client.find_apps_by_name(identifier)?;
-    resolve_app_in(&candidates, identifier).cloned()
+    let candidates = client.find_assets_by_name(identifier)?;
+    resolve_asset_in(&candidates, identifier).cloned()
 }
 
 /// Resolve the revision to act on: an explicit `--revision`, else the app's current revision,
@@ -190,8 +190,8 @@ pub fn resolve_env(client: &Client, env_input: &str) -> Result<String> {
 // Table column definitions for various entity types
 
 pub const PORTFOLIO_TABLE_COLUMNS: &[&str] = &["name", "key", "id"];
-pub const APP_TABLE_COLUMNS: &[&str] = &["name", "assetKey", "assetType", "revision", "tag"];
-pub const DEPLOYED_APP_TABLE_COLUMNS: &[&str] =
+pub const ASSET_TABLE_COLUMNS: &[&str] = &["name", "assetKey", "assetType", "revision", "tag"];
+pub const DEPLOYED_ASSET_TABLE_COLUMNS: &[&str] =
     &["name", "key", "type", "environment", "revision", "tag"];
 pub const REVISION_TABLE_COLUMNS: &[&str] = &["revision", "tag", "createdAt", "createdBy"];
 pub const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];

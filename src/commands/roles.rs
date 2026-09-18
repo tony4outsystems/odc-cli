@@ -13,10 +13,10 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
     let mut roles = client.list_application_roles(role_input)?;
 
     if !app_filter.is_empty() {
-        let asset_key = resolve_app(client, app_filter)?
+        let asset_key = resolve_asset(client, app_filter)?
             .get("assetKey")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_filter))?
+            .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_filter))?
             .to_string();
         roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
     }
@@ -73,10 +73,10 @@ fn resolve_user(
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
 /// `list-role-assignments`.
 fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<String, Value>>> {
-    let asset_key = resolve_app(client, app)?
+    let asset_key = resolve_asset(client, app)?
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app))?
         .to_string();
 
     let environments = client.list_environments()?;

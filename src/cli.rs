@@ -12,12 +12,12 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "Apps & Environments",
+        "Assets & Environments",
         &[
             "list-environments",
-            "list-apps",
-            "list-deployed-apps",
-            "get-app",
+            "list-assets",
+            "list-deployed-assets",
+            "get-asset",
         ],
     ),
     (
@@ -794,7 +794,7 @@ impl Commands {
                 options.offset = offset;
                 options.limit = limit;
                 if let Some(t) = app_type {
-                    options.app_type = t.as_str().to_string();
+                    options.asset_type = t.as_str().to_string();
                 }
                 if let Some(f) = filter {
                     positionals.push(f);
@@ -1142,7 +1142,7 @@ pub struct Options {
     pub build_type: String,
     pub build_key: String,
     pub filter: String,
-    pub app_type: String,
+    pub asset_type: String,
     pub output: String,
     pub revision: Option<i32>,
     pub offset: Option<i64>,
@@ -1183,7 +1183,7 @@ impl Default for Options {
             build_type: "Release".to_string(),
             build_key: String::new(),
             filter: String::new(),
-            app_type: String::new(),
+            asset_type: String::new(),
             output: String::new(),
             revision: None,
             offset: None,
@@ -1284,7 +1284,7 @@ mod tests {
     fn test_list_apps_type_filter_maps_to_exact_api_string() {
         let cli = Cli::try_parse_from(["odc", "list-apps", "--type", "Agent"]).unwrap();
         let (options, _) = cli.command.into_dispatch();
-        assert_eq!(options.app_type, "Agent");
+        assert_eq!(options.asset_type, "Agent");
     }
 
     #[test]
@@ -1297,7 +1297,7 @@ mod tests {
     fn test_list_apps_without_type_leaves_app_type_empty() {
         let cli = Cli::try_parse_from(["odc", "list-apps"]).unwrap();
         let (options, _) = cli.command.into_dispatch();
-        assert_eq!(options.app_type, "");
+        assert_eq!(options.asset_type, "");
     }
 
     #[test]

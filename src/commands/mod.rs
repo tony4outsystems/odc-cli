@@ -2,7 +2,7 @@
 //!
 //! This module dispatches CLI commands to their implementation handlers organized by domain:
 //! - [`auth`]: authentication and portfolio commands
-//! - [`apps`]: app listing and details
+//! - [`assets`]: asset listing and details
 //! - [`environments`]: environment listing
 //! - [`revisions`]: revision management and producer graphs
 //! - [`deployment`]: deployment operations (analyze, build, deploy, undeploy, delete)
@@ -13,7 +13,7 @@
 //! - [`shared`]: common utilities (listing, filtering, resolution)
 
 pub mod auth;
-pub mod apps;
+pub mod assets;
 pub mod environments;
 pub mod revisions;
 pub mod deployment;
@@ -37,10 +37,10 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "discover" => auth::cmd_discover(options).await,
         "list-portfolios" => auth::cmd_list_portfolios(options, positionals).await,
 
-        // Apps & Environments
-        "list-apps" => apps::cmd_list_apps(options, positionals).await,
-        "list-deployed-apps" => apps::cmd_list_deployed_apps(options, positionals).await,
-        "get-app" => apps::cmd_get_app(options, positionals).await,
+        // Assets & Environments
+        "list-assets" => assets::cmd_list_assets(options, positionals).await,
+        "list-deployed-assets" => assets::cmd_list_deployed_assets(options, positionals).await,
+        "get-asset" => assets::cmd_get_asset(options, positionals).await,
         "list-environments" => environments::cmd_list_environments(options).await,
 
         // Revisions
@@ -57,19 +57,19 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
         "internal-deploy" => deployment::cmd_internal_deploy(options).await,
         "deploy" => deployment::cmd_deploy(options).await,
         "undeploy" => deployment::cmd_undeploy(options).await,
-        "delete-app" => deployment::cmd_delete_app(options).await,
+        "delete-asset" => deployment::cmd_delete_asset(options).await,
 
         // Batch operations (handled by workflows module)
         "batch-deploy" => {
-            shared::require_positional(positionals, "batch-deploy", "an apps file")?;
+            shared::require_positional(positionals, "batch-deploy", "an assets file")?;
             crate::workflows::batch_deploy(options, &positionals[0]).await
         }
         "batch-undeploy" => {
-            shared::require_positional(positionals, "batch-undeploy", "an apps file")?;
+            shared::require_positional(positionals, "batch-undeploy", "an assets file")?;
             crate::workflows::batch_undeploy(options, &positionals[0]).await
         }
         "batch-delete" => {
-            shared::require_positional(positionals, "batch-delete", "an apps file")?;
+            shared::require_positional(positionals, "batch-delete", "an assets file")?;
             crate::workflows::batch_delete(options, &positionals[0]).await
         }
         "dangerous-batch-undeploy-all" => {
@@ -128,57 +128,57 @@ mod tests {
     }
 
     #[test]
-    fn test_app_table_columns_drop_wide_fields() {
+    fn test_asset_table_columns_drop_wide_fields() {
         use serde_json::Map;
 
-        let mut app = Map::new();
-        app.insert("name".to_string(), serde_json::json!("MyApp"));
-        app.insert("assetKey".to_string(), serde_json::json!("guid-1"));
-        app.insert("assetType".to_string(), serde_json::json!("WebApplication"));
-        app.insert("revision".to_string(), serde_json::json!(3));
-        app.insert("tag".to_string(), serde_json::json!("1.0.0"));
-        app.insert("modelDigest".to_string(), serde_json::json!("digest-guid"));
-        app.insert(
+        let mut asset = Map::new();
+        asset.insert("name".to_string(), serde_json::json!("MyAsset"));
+        asset.insert("assetKey".to_string(), serde_json::json!("guid-1"));
+        asset.insert("assetType".to_string(), serde_json::json!("WebApplication"));
+        asset.insert("revision".to_string(), serde_json::json!(3));
+        asset.insert("tag".to_string(), serde_json::json!("1.0.0"));
+        asset.insert("modelDigest".to_string(), serde_json::json!("digest-guid"));
+        asset.insert(
             "description".to_string(),
             serde_json::json!("a very long description"),
         );
 
-        let compacted = crate::value::compact_map(&app, shared::APP_TABLE_COLUMNS);
+        let compacted = crate::value::compact_map(&asset, shared::ASSET_TABLE_COLUMNS);
 
         assert_eq!(compacted.len(), 5);
         assert!(!compacted.contains_key("modelDigest"));
         assert!(!compacted.contains_key("description"));
     }
 
-    fn sample_apps() -> Vec<Map<String, serde_json::Value>> {
-        let mut app1 = Map::new();
-        app1.insert("assetKey".to_string(), serde_json::json!("guid-1"));
-        app1.insert("name".to_string(), serde_json::json!("Zip"));
+    fn sample_assets() -> Vec<Map<String, serde_json::Value>> {
+        let mut asset1 = Map::new();
+        asset1.insert("assetKey".to_string(), serde_json::json!("guid-1"));
+        asset1.insert("name".to_string(), serde_json::json!("Zip"));
 
-        let mut app2 = Map::new();
-        app2.insert("assetKey".to_string(), serde_json::json!("guid-2"));
-        app2.insert("name".to_string(), serde_json::json!("MyApp"));
+        let mut asset2 = Map::new();
+        asset2.insert("assetKey".to_string(), serde_json::json!("guid-2"));
+        asset2.insert("name".to_string(), serde_json::json!("MyAsset"));
 
-        vec![app1, app2]
+        vec![asset1, asset2]
     }
 
     #[test]
-    fn test_find_app_by_asset_key() {
-        let apps = sample_apps();
-        let found = shared::find_app(&apps, "guid-2").unwrap();
-        assert_eq!(found.get("name").unwrap(), "MyApp");
+    fn test_find_asset_by_asset_key() {
+        let assets = sample_assets();
+        let found = shared::find_asset(&assets, "guid-2").unwrap();
+        assert_eq!(found.get("name").unwrap(), "MyAsset");
     }
 
     #[test]
-    fn test_find_app_by_name() {
-        let apps = sample_apps();
-        let found = shared::find_app(&apps, "Zip").unwrap();
+    fn test_find_asset_by_name() {
+        let assets = sample_assets();
+        let found = shared::find_asset(&assets, "Zip").unwrap();
         assert_eq!(found.get("assetKey").unwrap(), "guid-1");
     }
 
     #[test]
-    fn test_find_app_not_found() {
-        let apps = sample_apps();
-        assert!(shared::find_app(&apps, "does-not-exist").is_none());
+    fn test_find_asset_not_found() {
+        let assets = sample_assets();
+        assert!(shared::find_asset(&assets, "does-not-exist").is_none());
     }
 }

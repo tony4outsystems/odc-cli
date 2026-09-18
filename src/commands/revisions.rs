@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
-            "latest-revision requires an app name or key"
+            "latest-revision requires an asset name or key"
         ));
     }
 
@@ -21,10 +21,10 @@ pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> R
 
     let app_key = &positionals[0];
 
-    let app = resolve_app(&client, app_key)?;
-    let revision = app
+    let asset = resolve_asset(&client, app_key)?;
+    let revision = asset
         .get("revision")
-        .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?;
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no revision field", app_key))?;
     output.print_result(revision)?;
     Ok(())
 }
@@ -32,7 +32,7 @@ pub async fn cmd_latest_revision(options: &Options, positionals: &[String]) -> R
 pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
-            "list-revisions requires an app name or key"
+            "list-revisions requires an asset name or key"
         ));
     }
 
@@ -42,10 +42,10 @@ pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Re
 
     let app_key = &positionals[0];
 
-    let asset_key = resolve_app(&client, app_key)?
+    let asset_key = resolve_asset(&client, app_key)?
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_key))?
         .to_string();
 
     let listing = fetch_listing(
@@ -58,7 +58,7 @@ pub async fn cmd_list_revisions(options: &Options, positionals: &[String]) -> Re
 
 pub async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
-        return Err(anyhow::anyhow!("get-revision requires an app name or key"));
+        return Err(anyhow::anyhow!("get-revision requires an asset name or key"));
     }
     let revision = options
         .revision
@@ -79,7 +79,7 @@ pub async fn cmd_get_revision(options: &Options, positionals: &[String]) -> Resu
 pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
-            "producer-graph requires an app name or key"
+            "producer-graph requires an asset name or key"
         ));
     }
 
@@ -88,20 +88,20 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
-    let app = resolve_app(&client, app_key)?;
+    let asset = resolve_asset(&client, app_key)?;
 
-    let asset_key = app
+    let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_key))?
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_key))?
         .to_string();
 
     let revision = match options.revision {
         Some(revision) => revision,
-        None => app
+        None => asset
             .get("revision")
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?
+            .ok_or_else(|| anyhow::anyhow!("Asset {} has no revision field", app_key))?
             as i32,
     };
 
@@ -126,7 +126,7 @@ pub async fn cmd_producer_graph(options: &Options, positionals: &[String]) -> Re
         &env_key,
     )?;
 
-    let mut root = app.clone();
+    let mut root = asset.clone();
     root.insert("revision".to_string(), Value::from(revision));
 
     let graph = crate::mermaid::render_producer_graph(&root, &producers);

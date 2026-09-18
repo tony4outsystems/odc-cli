@@ -21,7 +21,7 @@
 //! Each app runs through: resolve → build → deploy/undeploy/delete.
 
 use crate::cli::Options;
-use crate::commands::shared::{resolve_app_in, resolve_env, resolve_revision};
+use crate::commands::shared::{resolve_asset_in, resolve_env, resolve_revision};
 use crate::commands::deployment::{run_build, run_deployment_operation};
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
@@ -304,11 +304,11 @@ fn resolve_file_apps(
         Option<i32>,
     ) -> Result<i32>,
 ) -> Result<HashMap<String, i32>> {
-    let apps_list = client.list_apps()?;
+    let apps_list = client.list_assets()?;
     let mut resolved: HashMap<String, i32> = HashMap::new();
 
     for file_app in file_apps {
-        let app = resolve_app_in(&apps_list, &file_app.key)?;
+        let app = resolve_asset_in(&apps_list, &file_app.key)?;
         let asset_key = app
             .get("assetKey")
             .and_then(|v| v.as_str())
@@ -466,12 +466,12 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
     let client = Arc::new(crate::client::Client::new(settings, output.clone()));
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
-    let apps_list = client.list_apps()?;
+    let apps_list = client.list_assets()?;
     let env_key = resolve_env(&client, &options.env)?;
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = resolve_app_in(&apps_list, &file_app.key)?
+        let asset_key = resolve_asset_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
@@ -510,11 +510,11 @@ pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
     let client = Arc::new(crate::client::Client::new(settings, output.clone()));
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
-    let apps_list = client.list_apps()?;
+    let apps_list = client.list_assets()?;
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = resolve_app_in(&apps_list, &file_app.key)?
+        let asset_key = resolve_asset_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
@@ -547,8 +547,8 @@ pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
     let client = Arc::new(crate::client::Client::new(settings, output.clone()));
 
     let env_key = resolve_env(&client, &options.env)?;
-    let deployed = client.list_deployed_apps()?;
-    let rows = crate::inspection::deployed_app_rows(&deployed, &env_key, "");
+    let deployed = client.list_deployed_assets()?;
+    let rows = crate::inspection::deployed_asset_rows(&deployed, &env_key, "");
 
     let asset_keys: Vec<String> = rows
         .iter()

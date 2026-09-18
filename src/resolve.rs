@@ -35,10 +35,10 @@ pub struct ResolveConfig {
 }
 
 impl ResolveConfig {
-    /// Configuration for strict app resolution (exact match required, name-preferred)
-    pub fn for_app() -> Self {
+    /// Configuration for strict asset resolution (exact match required, name-preferred)
+    pub fn for_asset() -> Self {
         ResolveConfig {
-            kind: "app".to_string(),
+            kind: "asset".to_string(),
             allow_partial_match: false,
             key_field: "assetKey".to_string(),
             max_suggestions: 10,
@@ -201,15 +201,15 @@ pub fn resolve_generic(
     ))
 }
 
-/// Resolve a name or GUID to a key for a given kind (app, environment, user, role)
+/// Resolve a name or GUID to a key for a given kind (asset, environment, user, role)
 pub fn resolve(
     input: &str,
     kind: &str,
     items: &[serde_json::Map<String, Value>],
     key_field: &str,
 ) -> anyhow::Result<String> {
-    let config = if kind == "app" {
-        ResolveConfig::for_app()
+    let config = if kind == "asset" {
+        ResolveConfig::for_asset()
     } else {
         ResolveConfig::for_kind(kind, key_field)
     };
@@ -253,19 +253,19 @@ mod tests {
 
     #[test]
     fn test_resolve_exact_match() {
-        let mut app = serde_json::Map::new();
-        app.insert("name".to_string(), json!("MyApp"));
-        app.insert("assetKey".to_string(), json!("app-key-123"));
+        let mut asset = serde_json::Map::new();
+        asset.insert("name".to_string(), json!("MyAsset"));
+        asset.insert("assetKey".to_string(), json!("asset-key-123"));
 
-        let result = resolve("MyApp", "app", &[app], "assetKey");
+        let result = resolve("MyAsset", "asset", &[asset], "assetKey");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "app-key-123");
+        assert_eq!(result.unwrap(), "asset-key-123");
     }
 
     #[test]
     fn test_resolve_guid_short_circuit() {
         let guid = "550e8400-e29b-41d4-a716-446655440000";
-        let result = resolve(guid, "app", &[], "assetKey");
+        let result = resolve(guid, "asset", &[], "assetKey");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), guid);
     }

@@ -1,7 +1,7 @@
 //! Mermaid graph generation for producer dependency visualization.
 //!
-//! This module renders ODC app producer dependencies as Mermaid flowchart diagrams.
-//! Used by the `producer-graph` command to show app dependencies in human-readable format.
+//! This module renders ODC asset producer dependencies as Mermaid flowchart diagrams.
+//! Used by the `producer-graph` command to show asset dependencies in human-readable format.
 
 use crate::value::objects;
 use serde_json::Value;

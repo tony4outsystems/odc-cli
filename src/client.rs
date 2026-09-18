@@ -14,7 +14,7 @@
 //!
 //! - **Discovery**: Cached for the lifetime of the Client
 //! - **Token**: Cached until expiration (future: add TTL support)
-//! - **Apps List**: Cached for single command execution (see [`Client::list_apps_all()`])
+//! - **Assets List**: Cached for single command execution (see [`Client::list_assets_all()`])
 //!
 //! # Testing
 //!
@@ -31,8 +31,8 @@ use std::sync::Mutex;
 use std::time::Instant;
 use url::Url;
 
-/// A single page of apps: items plus the offset of the next page, if any.
-pub type AppsPage = (Vec<Map<String, Value>>, Option<i64>);
+/// A single page of assets: items plus the offset of the next page, if any.
+pub type AssetsPage = (Vec<Map<String, Value>>, Option<i64>);
 
 /// Cached OAuth2 token with expiration time
 #[derive(Clone)]
@@ -48,7 +48,7 @@ pub struct Client {
     pub output: std::sync::Arc<crate::output::Output>,
     transport: Box<dyn Transport>,
     auth_mutex: Mutex<AuthState>,
-    apps_cache: Mutex<Option<Vec<Map<String, Value>>>>,
+    assets_cache: Mutex<Option<Vec<Map<String, Value>>>>,
 }
 
 #[derive(Default)]
@@ -66,7 +66,7 @@ impl Client {
             output,
             transport: Box::new(ReqwestTransport::new()),
             auth_mutex: Mutex::new(AuthState::default()),
-            apps_cache: Mutex::new(None),
+            assets_cache: Mutex::new(None),
         }
     }
 
@@ -84,7 +84,7 @@ impl Client {
             output,
             transport: Box::new(transport),
             auth_mutex: Mutex::new(AuthState::default()),
-            apps_cache: Mutex::new(None),
+            assets_cache: Mutex::new(None),
         }
     }
 
@@ -260,7 +260,7 @@ impl Client {
     /// `/assets/{key}/revisions`, `/deployed-assets`, and similar list endpoints).
     /// `path` may already contain a `?query`; `limit`/`offset` are appended to it.
     /// Returns the page's items along with the offset of the next page, if any.
-    fn fetch_page(&self, path: &str, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+    fn fetch_page(&self, path: &str, offset: i64, limit: i64) -> anyhow::Result<AssetsPage> {
         let separator = if path.contains('?') { '&' } else { '?' };
         let full_path = format!("{}{}limit={}&offset={}", path, separator, limit, offset);
         let resp = self.call("GET", &full_path)?;
@@ -316,15 +316,15 @@ impl Client {
         Ok(items)
     }
 
-    /// Fetch a single page of apps starting at `offset`, up to `limit` results.
+    /// Fetch a single page of assets starting at `offset`, up to `limit` results.
     /// Returns the page's items along with the offset of the next page, if any.
-    pub fn list_apps_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+    pub fn list_assets_page(&self, offset: i64, limit: i64) -> anyhow::Result<AssetsPage> {
         self.fetch_page("/api/asset-repository/v1/assets", offset, limit)
     }
 
-    /// Find apps whose name contains `name_contains` (case-insensitive, server-side),
-    /// following pagination until exhausted. Does not use or populate `list_apps`'s cache.
-    pub fn find_apps_by_name(
+    /// Find assets whose name contains `name_contains` (case-insensitive, server-side),
+    /// following pagination until exhausted. Does not use or populate `list_assets`'s cache.
+    pub fn find_assets_by_name(
         &self,
         name_contains: &str,
     ) -> anyhow::Result<Vec<Map<String, Value>>> {
@@ -336,31 +336,31 @@ impl Client {
         self.fetch_all_pages(&path)
     }
 
-    /// List all apps in the tenant, following pagination until exhausted.
-    pub fn list_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+    /// List all assets in the tenant, following pagination until exhausted.
+    pub fn list_assets(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         {
-            let cache = self.apps_cache.lock().unwrap();
-            if let Some(apps) = &*cache {
-                return Ok(apps.clone());
+            let cache = self.assets_cache.lock().unwrap();
+            if let Some(assets) = &*cache {
+                return Ok(assets.clone());
             }
         }
 
-        let apps = self.fetch_all_pages("/api/asset-repository/v1/assets")?;
+        let assets = self.fetch_all_pages("/api/asset-repository/v1/assets")?;
 
-        let mut cache = self.apps_cache.lock().unwrap();
-        *cache = Some(apps.clone());
+        let mut cache = self.assets_cache.lock().unwrap();
+        *cache = Some(assets.clone());
 
-        Ok(apps)
+        Ok(assets)
     }
 
-    /// Fetch a single page of an app's revisions starting at `offset`, up to `limit` results.
+    /// Fetch a single page of an asset's revisions starting at `offset`, up to `limit` results.
     /// Returns the page's items along with the offset of the next page, if any.
     pub fn list_revisions_page(
         &self,
         asset_key: &str,
         offset: i64,
         limit: i64,
-    ) -> anyhow::Result<AppsPage> {
+    ) -> anyhow::Result<AssetsPage> {
         let path = format!("/api/asset-repository/v1/assets/{}/revisions", asset_key);
         self.fetch_page(&path, offset, limit)
     }
@@ -373,7 +373,7 @@ impl Client {
 
     /// Fetch a single page of portfolios starting at `offset`, up to `limit` results.
     /// Returns the page's items along with the offset of the next page, if any.
-    pub fn list_portfolios_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+    pub fn list_portfolios_page(&self, offset: i64, limit: i64) -> anyhow::Result<AssetsPage> {
         self.fetch_page("/api/portfolios/v2/portfolios", offset, limit)
     }
 
@@ -411,12 +411,12 @@ impl Client {
 
     /// Fetch a single page of deployed assets starting at `offset`, up to `limit` results.
     /// Returns the page's items along with the offset of the next page, if any.
-    pub fn list_deployed_apps_page(&self, offset: i64, limit: i64) -> anyhow::Result<AppsPage> {
+    pub fn list_deployed_assets_page(&self, offset: i64, limit: i64) -> anyhow::Result<AssetsPage> {
         self.fetch_page("/api/portfolios/v2/deployed-assets", offset, limit)
     }
 
     /// List all deployed assets in the tenant, following pagination until exhausted.
-    pub fn list_deployed_apps(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+    pub fn list_deployed_assets(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
         self.fetch_all_pages("/api/portfolios/v2/deployed-assets")
     }
 
@@ -693,8 +693,8 @@ impl Client {
         Ok(())
     }
 
-    /// Fetch a single app by its exact `assetKey`.
-    pub fn get_app(&self, asset_key: &str) -> anyhow::Result<Map<String, Value>> {
+    /// Fetch a single asset by its exact `assetKey`.
+    pub fn get_asset(&self, asset_key: &str) -> anyhow::Result<Map<String, Value>> {
         let path = format!("/api/asset-repository/v1/assets/{}", asset_key);
         let resp = self.call("GET", &path)?;
         Self::expect_object(resp, &path)
@@ -1147,9 +1147,9 @@ mod tests {
     }
 
     #[test]
-    fn test_list_deployed_apps() {
+    fn test_list_deployed_assets() {
         let client = Client::with_transport(test_settings(), test_output(), mock_transport());
-        let apps = client.list_deployed_apps().unwrap();
+        let apps = client.list_deployed_assets().unwrap();
 
         assert_eq!(apps.len(), 1);
         assert_eq!(apps[0].get("key").unwrap(), "app1");
@@ -1180,18 +1180,18 @@ mod tests {
     }
 
     #[test]
-    fn test_list_apps_page_returns_next_offset() {
+    fn test_list_assets_page_returns_next_offset() {
         let client = Client::with_transport(test_settings(), test_output(), mock_transport());
-        let (items, next_offset) = client.list_apps_page(0, 2).unwrap();
+        let (items, next_offset) = client.list_assets_page(0, 2).unwrap();
 
         assert_eq!(items.len(), 2);
         assert_eq!(next_offset, Some(2));
     }
 
     #[test]
-    fn test_list_apps_page_last_page_has_no_next_offset() {
+    fn test_list_assets_page_last_page_has_no_next_offset() {
         let client = Client::with_transport(test_settings(), test_output(), mock_transport());
-        let (items, next_offset) = client.list_apps_page(2, 2).unwrap();
+        let (items, next_offset) = client.list_assets_page(2, 2).unwrap();
 
         assert_eq!(items.len(), 1);
         // nextPageOffset of 0 (<= current offset) means there is no next page.
@@ -1344,9 +1344,9 @@ mod tests {
     }
 
     #[test]
-    fn test_list_apps_follows_pagination() {
+    fn test_list_assets_follows_pagination() {
         let client = Client::with_transport(test_settings(), test_output(), mock_transport());
-        let apps = client.list_apps().unwrap();
+        let apps = client.list_assets().unwrap();
 
         assert_eq!(apps.len(), 3);
         assert_eq!(apps[0].get("key").unwrap(), "app1");

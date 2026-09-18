@@ -6,18 +6,18 @@
 //! - Enriching sparse data (e.g., resolving environment keys to names)
 
 use crate::client::Client;
-use crate::commands::shared::resolve_app;
+use crate::commands::shared::resolve_asset;
 use crate::value::compact_map;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
 /// Resolve `app_identifier` (name, key, or unambiguous substring) to its `assetKey`.
 fn asset_key_of(client: &Client, app_identifier: &str) -> Result<String> {
-    resolve_app(client, app_identifier)?
+    resolve_asset(client, app_identifier)?
         .get("assetKey")
         .and_then(|v| v.as_str())
         .map(str::to_string)
-        .ok_or_else(|| anyhow::anyhow!("App {} has no assetKey field", app_identifier))
+        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_identifier))
 }
 
 /// List all revisions of an app, following pagination until exhausted.
@@ -73,8 +73,8 @@ pub fn download_source_code(
     Ok((output_path, bytes.len() as u64))
 }
 
-/// Build deployed app rows from the API response, filtering by environment and search
-pub fn deployed_app_rows(
+/// Build deployed asset rows from the API response, filtering by environment and search
+pub fn deployed_asset_rows(
     items: &[Map<String, Value>],
     env: &str,
     search: &str,
@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deployed_app_rows_filtering() {
+    fn test_deployed_asset_rows_filtering() {
         let mut app = serde_json::Map::new();
         app.insert("key".to_string(), json!("app1"));
         app.insert("type".to_string(), json!("WebApplication"));
@@ -262,13 +262,13 @@ mod tests {
         let mut app_with_deploy = app.clone();
         app_with_deploy.insert("deployments".to_string(), json!(vec![deployment.clone()]));
 
-        let rows = deployed_app_rows(&[app_with_deploy], "prod", "");
+        let rows = deployed_asset_rows(&[app_with_deploy], "prod", "");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get("key").and_then(|v| v.as_str()), Some("app1"));
     }
 
     #[test]
-    fn test_deployed_app_rows_env_filter() {
+    fn test_deployed_asset_rows_env_filter() {
         let mut app = serde_json::Map::new();
         app.insert("key".to_string(), json!("app1"));
         app.insert("type".to_string(), json!("WebApplication"));
@@ -280,12 +280,12 @@ mod tests {
         let mut app_with_deploy = app.clone();
         app_with_deploy.insert("deployments".to_string(), json!(vec![deployment]));
 
-        let rows = deployed_app_rows(&[app_with_deploy], "prod", "");
+        let rows = deployed_asset_rows(&[app_with_deploy], "prod", "");
         assert_eq!(rows.len(), 0); // Filtered out by environment
     }
 
     #[test]
-    fn test_deployed_app_rows_search_filter() {
+    fn test_deployed_asset_rows_search_filter() {
         let mut app = serde_json::Map::new();
         app.insert("key".to_string(), json!("app1"));
         app.insert("type".to_string(), json!("WebApplication"));
@@ -297,10 +297,10 @@ mod tests {
         let mut app_with_deploy = app.clone();
         app_with_deploy.insert("deployments".to_string(), json!(vec![deployment]));
 
-        let rows = deployed_app_rows(&[app_with_deploy.clone()], "", "nomatch");
+        let rows = deployed_asset_rows(&[app_with_deploy.clone()], "", "nomatch");
         assert_eq!(rows.len(), 0); // Filtered out by search
 
-        let rows = deployed_app_rows(&[app_with_deploy], "", "prod");
+        let rows = deployed_asset_rows(&[app_with_deploy], "", "prod");
         assert_eq!(rows.len(), 1); // Matches environment name
     }
 }

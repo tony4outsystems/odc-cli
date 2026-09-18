@@ -1,6 +1,6 @@
 //! Source code download and upload commands.
 
-use super::shared::*;
+use crate::commands::shared::resolve_asset;
 use crate::cli::Options;
 use crate::client::Client;
 use crate::settings;
@@ -19,14 +19,14 @@ pub async fn cmd_download_source_code(options: &Options, positionals: &[String])
     let client = Client::new(settings, output.clone());
 
     let app_key = &positionals[0];
-    let app = resolve_app(&client, app_key)?;
+    let asset = resolve_asset(&client, app_key)?;
 
     let revision = match options.revision {
         Some(revision) => revision,
-        None => app
+        None => asset
             .get("revision")
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("App {} has no revision field", app_key))?
+            .ok_or_else(|| anyhow::anyhow!("Asset {} has no revision field", app_key))?
             as i32,
     };
 
