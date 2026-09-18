@@ -21,6 +21,8 @@
 //! Each app runs through: resolve → build → deploy/undeploy/delete.
 
 use crate::cli::Options;
+use crate::commands::shared::{resolve_app_in, resolve_env, resolve_revision};
+use crate::commands::deployment::{run_build, run_deployment_operation};
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -306,7 +308,7 @@ fn resolve_file_apps(
     let mut resolved: HashMap<String, i32> = HashMap::new();
 
     for file_app in file_apps {
-        let app = crate::commands::resolve_app_in(&apps_list, &file_app.key)?;
+        let app = resolve_app_in(&apps_list, &file_app.key)?;
         let asset_key = app
             .get("assetKey")
             .and_then(|v| v.as_str())
@@ -396,9 +398,9 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
     let client = Arc::new(crate::client::Client::new(settings, output.clone()));
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
-    let env_key = crate::commands::resolve_env(&client, &options.env)?;
+    let env_key = resolve_env(&client, &options.env)?;
 
-    let mut revisions = resolve_file_apps(&client, &file_apps, crate::commands::resolve_revision)?;
+    let mut revisions = resolve_file_apps(&client, &file_apps, resolve_revision)?;
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
     if !options.skip_dependencies {
@@ -435,8 +437,8 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
                         .revision
                         .ok_or_else(|| anyhow!("Missing resolved revision for {}", app.key))?;
                     let (build_key, _) =
-                        crate::commands::run_build(&client, &options, &app.key, revision).await?;
-                    crate::commands::run_deployment_operation(
+                        run_build(&client, &options, &app.key, revision).await?;
+                    run_deployment_operation(
                         &client,
                         &options,
                         "Deploy",
@@ -465,11 +467,11 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
     let apps_list = client.list_apps()?;
-    let env_key = crate::commands::resolve_env(&client, &options.env)?;
+    let env_key = resolve_env(&client, &options.env)?;
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = crate::commands::resolve_app_in(&apps_list, &file_app.key)?
+        let asset_key = resolve_app_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
@@ -487,7 +489,7 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
             let options = options.clone();
             let env_key = env_key.clone();
             Box::pin(async move {
-                crate::commands::run_deployment_operation(
+                run_deployment_operation(
                     &client, &options, "Undeploy", &asset_key, &env_key, None, None,
                 )
                 .await?;
@@ -512,7 +514,7 @@ pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
 
     let mut asset_keys = Vec::new();
     for file_app in &file_apps {
-        let asset_key = crate::commands::resolve_app_in(&apps_list, &file_app.key)?
+        let asset_key = resolve_app_in(&apps_list, &file_app.key)?
             .get("assetKey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
@@ -544,7 +546,7 @@ pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
     let client = Arc::new(crate::client::Client::new(settings, output.clone()));
 
-    let env_key = crate::commands::resolve_env(&client, &options.env)?;
+    let env_key = resolve_env(&client, &options.env)?;
     let deployed = client.list_deployed_apps()?;
     let rows = crate::inspection::deployed_app_rows(&deployed, &env_key, "");
 
@@ -563,7 +565,7 @@ pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
             let options = options.clone();
             let env_key = env_key.clone();
             Box::pin(async move {
-                crate::commands::run_deployment_operation(
+                run_deployment_operation(
                     &client, &options, "Undeploy", &asset_key, &env_key, None, None,
                 )
                 .await?;

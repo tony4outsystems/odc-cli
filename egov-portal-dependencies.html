@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eGovPortal - Producer Dependency Graph</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .info-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .info-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .info-card p {
+            margin: 0;
+            color: #555;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .diagram-container {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .legend {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 30px;
+            margin-bottom: 10px;
+        }
+        .legend-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .badge-app { background: #cfe2ff; color: #084298; }
+        .badge-agent { background: #d1e7dd; color: #0f5132; }
+        .badge-lib { background: #fff3cd; color: #664d03; }
+        .badge-ext { background: #f8d7da; color: #842029; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-box .number {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-box .label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ eGovPortal - Producer Dependency Graph</h1>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>App Name</h3>
+                <p>eGovPortal</p>
+            </div>
+            <div class="info-card">
+                <h3>App Type</h3>
+                <p>Web Application</p>
+            </div>
+            <div class="info-card">
+                <h3>Current Revision</h3>
+                <p>4 (Tag: 0.15.0)</p>
+            </div>
+            <div class="info-card">
+                <h3>Deployed To</h3>
+                <p>✅ Development, ✅ Production</p>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="number">1</div>
+                <div class="label">Direct App Dependencies</div>
+            </div>
+            <div class="stat-box">
+                <div class="number">7</div>
+                <div class="label">Agent Dependencies</div>
+            </div>
+            <div class="stat-box">
+                <div class="number">11</div>
+                <div class="label">Library Dependencies</div>
+            </div>
+            <div class="stat-box">
+                <div class="number">4</div>
+                <div class="label">Extension Libraries</div>
+            </div>
+        </div>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+---
+title: eGovPortal Producer Dependency Graph (Revision 4)
+---
+flowchart LR
+    app_01b41d5824bc["Scheduler Agent\nrev 3 / Agent" ]
+    app_039ac016e589["eGovPortalCore\nrev 6 / WebApplication" ]
+    app_08bbebec64c0["Document Validation Agent\nrev 12 / Agent" ]
+    app_150269e5324e["Firebase\nrev 2 / LowCodeLibrary" ]
+    app_1533a535e6d8["Lottie Animations\nrev 1 / LowCodeLibrary" ]
+    app_2ad420b1a280["Agents Common Resources\nrev 15 / LowCodeLibrary" ]
+    app_32a85fa9e9b7["Triage Agent\nrev 2 / Agent" ]
+    app_39e090e491c5["Underwriter Agent\nrev 16 / Agent" ]
+    app_4028f9c1f06e["Google Analytics Lib\nrev 1 / LowCodeLibrary" ]
+    app_45449aa04038["Orchestrator Agent\nrev 3 / Agent" ]
+    app_47ddf305c5c2["Enrichment Agent\nrev 14 / Agent" ]
+    app_53d636dcbaef["(System)\nrev 3 / LowCodeLibrary" ]
+    app_668068823f51["HTTP\nrev 5 / ExtensionLibrary" ]
+    app_681ded514e66["Security\nrev 2 / ExtensionLibrary" ]
+    app_9061db49b75f["OutSystems UI\nrev 5 / LowCodeLibrary" ]
+    app_907cc220ecb9["Intake Agent\nrev 12 / Agent" ]
+    app_910eff286bde["OutSystems Maps\nrev 3 / LowCodeLibrary" ]
+    app_96046015550f["Apps Common Core\nrev 8 / WebApplication" ]
+    app_9683feb8bca5["Html2Pdf JS Plugin\nrev 1 / LowCodeLibrary" ]
+    app_9e500e6bcbf0["MarkdownRenderer\nrev 1 / LowCodeLibrary" ]
+    app_9f8430b1c94f["Communication Agent\nrev 12 / Agent" ]
+    app_b637410db96e["Text\nrev 2 / ExtensionLibrary" ]
+    app_be8e1d8ce3c8["URL\nrev 3 / ExtensionLibrary" ]
+    app_cd0e9453a874["Droppable File Upload\nrev 1 / LowCodeLibrary" ]
+    app_d179d8af026e["eGovPortalBackoffice\nrev 6 / WebApplication" ]
+    app_e742ac9be36f["eGovPortal\nrev 4" ]
+    app_e894f8295ebe["Input Masks\nrev 1 / LowCodeLibrary" ]
+    app_f017a0eb6b38["BinaryData\nrev 3 / ExtensionLibrary" ]
+
+    app_150269e5324e --> app_53d636dcbaef
+    app_150269e5324e --> app_681ded514e66
+    app_150269e5324e --> app_be8e1d8ce3c8
+    app_1533a535e6d8 --> app_53d636dcbaef
+    app_2ad420b1a280 --> app_1533a535e6d8
+    app_2ad420b1a280 --> app_53d636dcbaef
+    app_2ad420b1a280 --> app_9061db49b75f
+    app_2ad420b1a280 --> app_9e500e6bcbf0
+    app_4028f9c1f06e --> app_53d636dcbaef
+    app_9061db49b75f --> app_53d636dcbaef
+    app_910eff286bde --> app_53d636dcbaef
+    app_9683feb8bca5 --> app_53d636dcbaef
+    app_9e500e6bcbf0 --> app_53d636dcbaef
+    app_cd0e9453a874 --> app_53d636dcbaef
+    app_cd0e9453a874 --> app_9061db49b75f
+    app_e742ac9be36f --> app_01b41d5824bc
+    app_e742ac9be36f --> app_039ac016e589
+    app_e742ac9be36f --> app_08bbebec64c0
+    app_e742ac9be36f --> app_150269e5324e
+    app_e742ac9be36f --> app_1533a535e6d8
+    app_e742ac9be36f --> app_2ad420b1a280
+    app_e742ac9be36f --> app_32a85fa9e9b7
+    app_e742ac9be36f --> app_39e090e491c5
+    app_e742ac9be36f --> app_4028f9c1f06e
+    app_e742ac9be36f --> app_45449aa04038
+    app_e742ac9be36f --> app_47ddf305c5c2
+    app_e742ac9be36f --> app_53d636dcbaef
+    app_e742ac9be36f --> app_668068823f51
+    app_e742ac9be36f --> app_681ded514e66
+    app_e742ac9be36f --> app_9061db49b75f
+    app_e742ac9be36f --> app_907cc220ecb9
+    app_e742ac9be36f --> app_910eff286bde
+    app_e742ac9be36f --> app_96046015550f
+    app_e742ac9be36f --> app_9683feb8bca5
+    app_e742ac9be36f --> app_9e500e6bcbf0
+    app_e742ac9be36f --> app_9f8430b1c94f
+    app_e742ac9be36f --> app_b637410db96e
+    app_e742ac9be36f --> app_cd0e9453a874
+    app_e742ac9be36f --> app_d179d8af026e
+    app_e742ac9be36f --> app_e894f8295ebe
+    app_e742ac9be36f --> app_f017a0eb6b38
+    app_e894f8295ebe --> app_53d636dcbaef
+            </div>
+        </div>
+
+        <div class="legend">
+            <h3>📋 Dependency Breakdown</h3>
+
+            <div style="margin-bottom: 20px;">
+                <strong>Direct Dependencies (27 total):</strong>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="legend-item">
+                    <span class="legend-badge badge-app">Web Applications (2)</span>
+                    <span>eGovPortalCore, eGovPortalBackoffice, Apps Common Core</span>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="legend-item">
+                    <span class="legend-badge badge-agent">Agents (7)</span>
+                </div>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>Scheduler Agent (rev 3)</li>
+                    <li>Document Validation Agent (rev 12)</li>
+                    <li>Triage Agent (rev 2)</li>
+                    <li>Underwriter Agent (rev 16) - <strong>Most updated</strong></li>
+                    <li>Orchestrator Agent (rev 3)</li>
+                    <li>Enrichment Agent (rev 14)</li>
+                    <li>Intake Agent (rev 12)</li>
+                    <li>Communication Agent (rev 12)</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="legend-item">
+                    <span class="legend-badge badge-lib">Low-Code Libraries (11)</span>
+                </div>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>Firebase (rev 2)</li>
+                    <li>Lottie Animations (rev 1)</li>
+                    <li>Agents Common Resources (rev 15)</li>
+                    <li>Google Analytics Lib (rev 1)</li>
+                    <li>System (rev 3) - <strong>Core dependency</strong></li>
+                    <li>OutSystems UI (rev 5)</li>
+                    <li>OutSystems Maps (rev 3)</li>
+                    <li>Html2Pdf JS Plugin (rev 1)</li>
+                    <li>MarkdownRenderer (rev 1)</li>
+                    <li>Droppable File Upload (rev 1)</li>
+                    <li>Input Masks (rev 1)</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="legend-item">
+                    <span class="legend-badge badge-ext">Extension Libraries (4)</span>
+                </div>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>HTTP (rev 5)</li>
+                    <li>Security (rev 2)</li>
+                    <li>Text (rev 2)</li>
+                    <li>URL (rev 3)</li>
+                    <li>BinaryData (rev 3)</li>
+                </ul>
+            </div>
+
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">
+                <strong>⚠️ Important Notes:</strong>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>The <strong>System library</strong> is a core dependency that most other libraries depend on</li>
+                    <li><strong>Underwriter Agent (rev 16)</strong> is the most frequently updated component</li>
+                    <li>eGovPortal depends on <strong>eGovPortalCore</strong> as a producer (data/logic layer)</li>
+                    <li>When deploying, all 27 dependencies must be deployed first</li>
+                    <li>Changes to any Agent or Library may require redeployment</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

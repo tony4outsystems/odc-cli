@@ -6,7 +6,7 @@
 //! - Enriching sparse data (e.g., resolving environment keys to names)
 
 use crate::client::Client;
-use crate::commands::resolve_app;
+use crate::commands::shared::resolve_app;
 use crate::value::compact_map;
 use anyhow::Result;
 use serde_json::{Map, Value};
