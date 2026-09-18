@@ -48,9 +48,5 @@ pub async fn run(args: &[String]) -> Result<()> {
         return login::login(tenant_url, client_id);
     }
 
-    let (mut options, positionals) = cli.command.into_dispatch();
-    options.json = cli.json;
-    options.color = cli.color;
-
-    commands::execute(&cli.command, &options, &positionals).await
+    commands::execute(&cli.command, cli.json, cli.color).await
 }
