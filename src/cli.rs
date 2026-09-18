@@ -719,65 +719,9 @@ pub enum Commands {
 }
 
 impl Commands {
-    /// The kebab-case command name used for dispatch (matches `commands::execute`).
-    pub fn name(&self) -> &'static str {
-        match self {
-            Commands::Discover => "discover",
-            Commands::Login { .. } => "login",
-            Commands::ListPortfolios { .. } => "list-portfolios",
-            Commands::ListEnvironments => "list-environments",
-            Commands::ListAssets { .. } => "list-assets",
-            Commands::ListDeployedAssets { .. } => "list-deployed-assets",
-            Commands::GetAsset { .. } => "get-asset",
-            Commands::LatestRevision { .. } => "latest-revision",
-            Commands::ListRevisions { .. } => "list-revisions",
-            Commands::GetRevision { .. } => "get-revision",
-            Commands::ProducerGraph { .. } => "producer-graph",
-            Commands::DownloadSourceCode { .. } => "download-source-code",
-            Commands::UploadSourceCode { .. } => "upload-source-code",
-            Commands::AnalyzeDeployment { .. } => "analyze-deployment",
-            Commands::AnalyzeDeletion { .. } => "analyze-deletion",
-            Commands::Deploy { .. } => "deploy",
-            Commands::Undeploy { .. } => "undeploy",
-            Commands::DeleteAsset { .. } => "delete-asset",
-            Commands::BatchDeploy { .. } => "batch-deploy",
-            Commands::BatchUndeploy { .. } => "batch-undeploy",
-            Commands::BatchDelete { .. } => "batch-delete",
-            Commands::DangerousBatchUndeployAll { .. } => "dangerous-batch-undeploy-all",
-            Commands::GetUser { .. } => "get-user",
-            Commands::UpdateUser { .. } => "update-user",
-            Commands::ListRoles { .. } => "list-roles",
-            Commands::ListRoleAssignments { .. } => "list-role-assignments",
-            Commands::GrantRole { .. } => "grant-role",
-            Commands::RevokeRole { .. } => "revoke-role",
-            Commands::ListGroups { .. } => "list-groups",
-            Commands::GetGroup { .. } => "get-group",
-            Commands::UpdateGroup { .. } => "update-group",
-            Commands::ListGroupMembers { .. } => "list-group-members",
-            Commands::AddUserToGroup { .. } => "add-user-to-group",
-            Commands::RemoveUserFromGroup { .. } => "remove-user-from-group",
-            Commands::GrantGroupRole { .. } => "grant-group-role",
-            Commands::RevokeGroupRole { .. } => "revoke-group-role",
-            Commands::InternalBuild { .. } => "internal-build",
-            Commands::InternalPublish { .. } => "internal-publish",
-            Commands::InternalDeploy { .. } => "internal-deploy",
-            Commands::Completion { .. } => "completion",
-            Commands::MentorStartSession => "mentor-start-session",
-            Commands::MentorCreateAsset { .. } => "mentor-create-asset",
-            Commands::MentorLoadAsset { .. } => "mentor-load-asset",
-            Commands::MentorPrompt { .. } => "mentor-prompt",
-            Commands::MentorGetRun { .. } => "mentor-get-run",
-            Commands::MentorGetEvent { .. } => "mentor-get-event",
-            Commands::MentorCancelPrompt { .. } => "mentor-cancel-prompt",
-            Commands::MentorCloseSession { .. } => "mentor-close-session",
-            Commands::MentorRequestUpload { .. } => "mentor-request-upload",
-            Commands::MentorPublish { .. } => "mentor-publish",
-        }
-    }
-
     /// Convert the parsed command into the `(Options, positionals)` shape that
     /// `commands::execute` dispatches on, so command implementations don't need to change.
-    pub fn into_dispatch(self) -> (Options, Vec<String>) {
+    pub fn into_dispatch(&self) -> (Options, Vec<String>) {
         let mut options = Options::default();
         let mut positionals = Vec::new();
 
@@ -787,17 +731,17 @@ impl Commands {
                 tenant_url,
                 client_id,
             } => {
-                positionals = vec![tenant_url, client_id];
+                positionals = vec![tenant_url.clone(), client_id.clone()];
             }
             Commands::ListPortfolios {
                 filter,
                 offset,
                 limit,
             } => {
-                options.offset = offset;
-                options.limit = limit;
+                options.offset = *offset;
+                options.limit = *limit;
                 if let Some(f) = filter {
-                    positionals.push(f);
+                    positionals.push(f.clone());
                 }
             }
             Commands::ListAssets {
@@ -806,13 +750,13 @@ impl Commands {
                 offset,
                 limit,
             } => {
-                options.offset = offset;
-                options.limit = limit;
+                options.offset = *offset;
+                options.limit = *limit;
                 if let Some(t) = app_type {
                     options.asset_type = t.as_str().to_string();
                 }
                 if let Some(f) = filter {
-                    positionals.push(f);
+                    positionals.push(f.clone());
                 }
             }
             Commands::ListDeployedAssets {
@@ -821,37 +765,37 @@ impl Commands {
                 offset,
                 limit,
             } => {
-                options.offset = offset;
-                options.limit = limit;
-                options.env = env.unwrap_or_default();
+                options.offset = *offset;
+                options.limit = *limit;
+                options.env = env.clone().unwrap_or_default();
                 if let Some(f) = filter {
-                    positionals.push(f);
+                    positionals.push(f.clone());
                 }
             }
             Commands::GetAsset { asset } | Commands::LatestRevision { asset } => {
-                positionals = vec![asset];
+                positionals = vec![asset.clone()];
             }
             Commands::ListRoles { asset, env } => {
-                options.env = env.unwrap_or_default();
-                positionals = vec![asset];
+                options.env = env.clone().unwrap_or_default();
+                positionals = vec![asset.clone()];
             }
             Commands::ListRoleAssignments { asset, env, r#type } => {
-                options.env = env.unwrap_or_default();
+                options.env = env.clone().unwrap_or_default();
                 options.filter = r#type.map(|t| t.as_str().to_string()).unwrap_or_default();
-                positionals = vec![asset];
+                positionals = vec![asset.clone()];
             }
             Commands::ListRevisions {
                 asset,
                 offset,
                 limit,
             } => {
-                options.offset = offset;
-                options.limit = limit;
-                positionals = vec![asset];
+                options.offset = *offset;
+                options.limit = *limit;
+                positionals = vec![asset.clone()];
             }
             Commands::GetRevision { asset, revision } => {
-                options.revision = Some(revision);
-                positionals = vec![asset];
+                options.revision = Some(*revision);
+                positionals = vec![asset.clone()];
             }
             Commands::ProducerGraph {
                 asset,
@@ -862,25 +806,25 @@ impl Commands {
                 all_producers,
                 output,
             } => {
-                options.revision = revision;
-                options.env = env.unwrap_or_default();
-                options.max_depth = max_depth;
-                options.filter = producer_type_filter;
-                options.all_producers = all_producers;
-                options.output = output.unwrap_or_default();
-                positionals = vec![asset];
+                options.revision = *revision;
+                options.env = env.clone().unwrap_or_default();
+                options.max_depth = *max_depth;
+                options.filter = producer_type_filter.clone();
+                options.all_producers = *all_producers;
+                options.output = output.clone().unwrap_or_default();
+                positionals = vec![asset.clone()];
             }
             Commands::DownloadSourceCode {
                 asset,
                 revision,
                 output,
             } => {
-                options.revision = revision;
-                options.output = output.unwrap_or_default();
-                positionals = vec![asset];
+                options.revision = *revision;
+                options.output = output.clone().unwrap_or_default();
+                positionals = vec![asset.clone()];
             }
             Commands::UploadSourceCode { oml_file } => {
-                positionals = vec![oml_file];
+                positionals = vec![oml_file.clone()];
             }
             Commands::AnalyzeDeployment {
                 asset,
@@ -888,13 +832,13 @@ impl Commands {
                 revision,
                 poll,
             } => {
-                options.asset = asset;
-                options.env = env;
-                options.revision = revision;
+                options.asset = asset.clone();
+                options.env = env.clone();
+                options.revision = *revision;
                 apply_poll(&mut options, poll);
             }
             Commands::AnalyzeDeletion { asset, poll } => {
-                options.asset = asset;
+                options.asset = asset.clone();
                 apply_poll(&mut options, poll);
             }
             Commands::Deploy {
@@ -904,19 +848,19 @@ impl Commands {
                 build_type,
                 poll,
             } => {
-                options.asset = asset;
-                options.env = env;
-                options.revision = revision;
-                options.build_type = build_type;
+                options.asset = asset.clone();
+                options.env = env.clone();
+                options.revision = *revision;
+                options.build_type = build_type.clone();
                 apply_poll(&mut options, poll);
             }
             Commands::Undeploy { asset, env, poll } => {
-                options.asset = asset;
-                options.env = env;
+                options.asset = asset.clone();
+                options.env = env.clone();
                 apply_poll(&mut options, poll);
             }
             Commands::DeleteAsset { asset } => {
-                options.asset = asset;
+                options.asset = asset.clone();
             }
             Commands::BatchDeploy {
                 assets_file,
@@ -926,12 +870,12 @@ impl Commands {
                 poll,
                 parallel,
             } => {
-                options.env = env;
-                options.build_type = build_type;
-                options.skip_dependencies = skip_dependencies;
+                options.env = env.clone();
+                options.build_type = build_type.clone();
+                options.skip_dependencies = *skip_dependencies;
                 apply_poll(&mut options, poll);
                 apply_parallel(&mut options, parallel);
-                positionals = vec![assets_file];
+                positionals = vec![assets_file.clone()];
             }
             Commands::BatchUndeploy {
                 assets_file,
@@ -939,29 +883,29 @@ impl Commands {
                 poll,
                 parallel,
             } => {
-                options.env = env;
+                options.env = env.clone();
                 apply_poll(&mut options, poll);
                 apply_parallel(&mut options, parallel);
-                positionals = vec![assets_file];
+                positionals = vec![assets_file.clone()];
             }
             Commands::BatchDelete {
                 assets_file,
                 parallel,
             } => {
                 apply_parallel(&mut options, parallel);
-                positionals = vec![assets_file];
+                positionals = vec![assets_file.clone()];
             }
             Commands::DangerousBatchUndeployAll {
                 env,
                 poll,
                 parallel,
             } => {
-                options.env = env;
+                options.env = env.clone();
                 apply_poll(&mut options, poll);
                 apply_parallel(&mut options, parallel);
             }
             Commands::GetUser { user } => {
-                positionals = vec![user];
+                positionals = vec![user.clone()];
             }
             Commands::UpdateUser {
                 user,
@@ -969,58 +913,58 @@ impl Commands {
                 is_active,
                 photo_url,
             } => {
-                positionals = vec![user];
+                positionals = vec![user.clone()];
                 if let Some(name) = name {
-                    options.updates.insert("name".to_string(), name.into());
+                    options.updates.insert("name".to_string(), name.clone().into());
                 }
                 if let Some(is_active) = is_active {
                     options
                         .updates
-                        .insert("isActive".to_string(), is_active.into());
+                        .insert("isActive".to_string(), (*is_active).into());
                 }
                 if let Some(photo_url) = photo_url {
                     options
                         .updates
-                        .insert("photoUrl".to_string(), photo_url.into());
+                        .insert("photoUrl".to_string(), photo_url.clone().into());
                 }
             }
             Commands::GrantRole { asset, role, user }
             | Commands::RevokeRole { asset, role, user } => {
-                options.asset = asset;
-                positionals = vec![user, role];
+                options.asset = asset.clone();
+                positionals = vec![user.clone(), role.clone()];
             }
             Commands::ListGroups { filter, env } => {
-                options.env = env.unwrap_or_default();
+                options.env = env.clone().unwrap_or_default();
                 if let Some(f) = filter {
-                    positionals.push(f);
+                    positionals.push(f.clone());
                 }
             }
             Commands::GetGroup { group } | Commands::ListGroupMembers { group } => {
-                positionals = vec![group];
+                positionals = vec![group.clone()];
             }
             Commands::UpdateGroup {
                 group,
                 name,
                 description,
             } => {
-                positionals = vec![group];
+                positionals = vec![group.clone()];
                 if let Some(name) = name {
-                    options.updates.insert("name".to_string(), name.into());
+                    options.updates.insert("name".to_string(), name.clone().into());
                 }
                 if let Some(description) = description {
                     options
                         .updates
-                        .insert("description".to_string(), description.into());
+                        .insert("description".to_string(), description.clone().into());
                 }
             }
             Commands::AddUserToGroup { group, user }
             | Commands::RemoveUserFromGroup { group, user } => {
-                positionals = vec![group, user];
+                positionals = vec![group.clone(), user.clone()];
             }
             Commands::GrantGroupRole { asset, role, group }
             | Commands::RevokeGroupRole { asset, role, group } => {
-                options.asset = asset;
-                positionals = vec![group, role];
+                options.asset = asset.clone();
+                positionals = vec![group.clone(), role.clone()];
             }
             Commands::InternalBuild {
                 asset,
@@ -1029,10 +973,10 @@ impl Commands {
                 build_type,
                 poll,
             } => {
-                options.asset = asset;
-                options.env = env;
-                options.revision = revision;
-                options.build_type = build_type;
+                options.asset = asset.clone();
+                options.env = env.clone();
+                options.revision = *revision;
+                options.build_type = build_type.clone();
                 apply_poll(&mut options, poll);
             }
             Commands::InternalPublish {
@@ -1041,9 +985,9 @@ impl Commands {
                 revision,
                 poll,
             } => {
-                options.asset = asset;
-                options.env = env;
-                options.revision = revision;
+                options.asset = asset.clone();
+                options.env = env.clone();
+                options.revision = *revision;
                 apply_poll(&mut options, poll);
             }
             Commands::InternalDeploy {
@@ -1053,10 +997,10 @@ impl Commands {
                 build_key,
                 poll,
             } => {
-                options.asset = asset;
-                options.env = env;
-                options.revision = revision;
-                options.build_key = build_key;
+                options.asset = asset.clone();
+                options.env = env.clone();
+                options.revision = *revision;
+                options.build_key = build_key.clone();
                 apply_poll(&mut options, poll);
             }
             Commands::MentorStartSession => {}
@@ -1068,71 +1012,71 @@ impl Commands {
                 description,
                 template_asset_key,
             } => {
-                options.session_id = session_id;
+                options.session_id = session_id.clone();
                 options.mentor_asset_type = asset_type.as_str().to_string();
-                options.name = name;
-                options.portfolio_key = portfolio_key;
-                options.description = description.unwrap_or_default();
-                options.template_asset_key = template_asset_key.unwrap_or_default();
+                options.name = name.clone();
+                options.portfolio_key = portfolio_key.clone();
+                options.description = description.clone().unwrap_or_default();
+                options.template_asset_key = template_asset_key.clone().unwrap_or_default();
             }
             Commands::MentorLoadAsset {
                 session_id,
                 asset_key,
                 revision,
             } => {
-                options.session_id = session_id;
-                options.revision = revision;
-                positionals = vec![asset_key];
+                options.session_id = session_id.clone();
+                options.revision = *revision;
+                positionals = vec![asset_key.clone()];
             }
             Commands::MentorPrompt {
                 session_id,
                 message,
                 attachment_refs,
             } => {
-                options.session_id = session_id;
-                options.message = message;
-                options.attachment_refs = attachment_refs;
+                options.session_id = session_id.clone();
+                options.message = message.clone();
+                options.attachment_refs = attachment_refs.clone();
             }
             Commands::MentorGetRun {
                 session_id,
                 run_id,
                 cursor,
             } => {
-                options.session_id = session_id;
-                options.run_id = run_id;
-                options.cursor = cursor;
+                options.session_id = session_id.clone();
+                options.run_id = run_id.clone();
+                options.cursor = *cursor;
             }
             Commands::MentorGetEvent {
                 session_id,
                 run_id,
                 event_id,
             } => {
-                options.session_id = session_id;
-                options.run_id = run_id;
-                options.event_id = event_id;
+                options.session_id = session_id.clone();
+                options.run_id = run_id.clone();
+                options.event_id = *event_id;
             }
             Commands::MentorCancelPrompt { session_id, run_id } => {
-                options.session_id = session_id;
-                options.run_id = run_id;
+                options.session_id = session_id.clone();
+                options.run_id = run_id.clone();
             }
             Commands::MentorCloseSession { session_id } => {
-                options.session_id = session_id;
+                options.session_id = session_id.clone();
             }
             Commands::MentorRequestUpload {
                 session_id,
                 file_name,
                 size_bytes,
             } => {
-                options.session_id = session_id;
-                options.file_name = file_name;
-                options.size_bytes = size_bytes;
+                options.session_id = session_id.clone();
+                options.file_name = file_name.clone();
+                options.size_bytes = *size_bytes;
             }
             Commands::MentorPublish {
                 session_id,
                 comment,
             } => {
-                options.session_id = session_id;
-                options.comment = comment.unwrap_or_default();
+                options.session_id = session_id.clone();
+                options.comment = comment.clone().unwrap_or_default();
             }
         }
 
@@ -1140,13 +1084,13 @@ impl Commands {
     }
 }
 
-fn apply_poll(options: &mut Options, poll: PollArgs) {
+fn apply_poll(options: &mut Options, poll: &PollArgs) {
     options.interval = Duration::from_secs(poll.poll_interval);
     options.timeout = Duration::from_secs(poll.timeout);
     options.no_wait = poll.no_wait;
 }
 
-fn apply_parallel(options: &mut Options, parallel: ParallelArgs) {
+fn apply_parallel(options: &mut Options, parallel: &ParallelArgs) {
     options.max_parallel = parallel.max_parallel;
     options.continue_on_error = parallel.continue_on_error;
 }
@@ -1330,12 +1274,6 @@ mod tests {
     fn test_global_json_flag_before_subcommand() {
         let cli = Cli::try_parse_from(["odc", "--json", "list-assets"]).unwrap();
         assert!(cli.json);
-    }
-
-    #[test]
-    fn test_command_name_matches_dispatch() {
-        let cli = Cli::try_parse_from(["odc", "get-user", "demo@example.com"]).unwrap();
-        assert_eq!(cli.command.name(), "get-user");
     }
 
     #[test]

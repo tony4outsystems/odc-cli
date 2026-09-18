@@ -23,94 +23,98 @@ pub mod shared;
 pub mod source_code;
 pub mod users;
 
-use crate::cli::Options;
+use crate::cli::{Commands, Options};
 use anyhow::Result;
 
-/// Execute a command based on its name, dispatching to the appropriate module.
-pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Result<()> {
-    match cmd {
-        "login" => Err(anyhow::anyhow!(
-            "Login should be handled in main run() function"
-        )),
+/// Execute a command by matching on the Commands enum directly, dispatching to the appropriate module.
+pub async fn execute(command: &Commands, options: &Options, positionals: &[String]) -> Result<()> {
+    use Commands::*;
 
+    match command {
         // Auth & Portfolios
-        "discover" => auth::cmd_discover(options).await,
-        "list-portfolios" => auth::cmd_list_portfolios(options, positionals).await,
+        Discover => auth::cmd_discover(options).await,
+        ListPortfolios { .. } => auth::cmd_list_portfolios(options, positionals).await,
 
         // Assets & Environments
-        "list-assets" => assets::cmd_list_assets(options, positionals).await,
-        "list-deployed-assets" => assets::cmd_list_deployed_assets(options, positionals).await,
-        "get-asset" => assets::cmd_get_asset(options, positionals).await,
-        "list-environments" => environments::cmd_list_environments(options).await,
+        ListAssets { .. } => assets::cmd_list_assets(options, positionals).await,
+        ListDeployedAssets { .. } => assets::cmd_list_deployed_assets(options, positionals).await,
+        GetAsset { .. } => assets::cmd_get_asset(options, positionals).await,
+        ListEnvironments => environments::cmd_list_environments(options).await,
 
         // Revisions
-        "latest-revision" => revisions::cmd_latest_revision(options, positionals).await,
-        "list-revisions" => revisions::cmd_list_revisions(options, positionals).await,
-        "get-revision" => revisions::cmd_get_revision(options, positionals).await,
-        "producer-graph" => revisions::cmd_producer_graph(options, positionals).await,
+        LatestRevision { .. } => revisions::cmd_latest_revision(options, positionals).await,
+        ListRevisions { .. } => revisions::cmd_list_revisions(options, positionals).await,
+        GetRevision { .. } => revisions::cmd_get_revision(options, positionals).await,
+        ProducerGraph { .. } => revisions::cmd_producer_graph(options, positionals).await,
 
         // Deployment
-        "analyze-deployment" => deployment::cmd_analyze_deployment(options).await,
-        "analyze-deletion" => deployment::cmd_analyze_deletion(options).await,
-        "internal-build" => deployment::cmd_internal_build(options).await,
-        "internal-publish" => deployment::cmd_internal_publish(options).await,
-        "internal-deploy" => deployment::cmd_internal_deploy(options).await,
-        "deploy" => deployment::cmd_deploy(options).await,
-        "undeploy" => deployment::cmd_undeploy(options).await,
-        "delete-asset" => deployment::cmd_delete_asset(options).await,
+        AnalyzeDeployment { .. } => deployment::cmd_analyze_deployment(options).await,
+        AnalyzeDeletion { .. } => deployment::cmd_analyze_deletion(options).await,
+        InternalBuild { .. } => deployment::cmd_internal_build(options).await,
+        InternalPublish { .. } => deployment::cmd_internal_publish(options).await,
+        InternalDeploy { .. } => deployment::cmd_internal_deploy(options).await,
+        Deploy { .. } => deployment::cmd_deploy(options).await,
+        Undeploy { .. } => deployment::cmd_undeploy(options).await,
+        DeleteAsset { .. } => deployment::cmd_delete_asset(options).await,
 
         // Batch operations (handled by workflows module)
-        "batch-deploy" => {
+        BatchDeploy { .. } => {
             shared::require_positional(positionals, "batch-deploy", "an assets file")?;
             crate::workflows::batch_deploy(options, &positionals[0]).await
         }
-        "batch-undeploy" => {
+        BatchUndeploy { .. } => {
             shared::require_positional(positionals, "batch-undeploy", "an assets file")?;
             crate::workflows::batch_undeploy(options, &positionals[0]).await
         }
-        "batch-delete" => {
+        BatchDelete { .. } => {
             shared::require_positional(positionals, "batch-delete", "an assets file")?;
             crate::workflows::batch_delete(options, &positionals[0]).await
         }
-        "dangerous-batch-undeploy-all" => {
+        DangerousBatchUndeployAll { .. } => {
             crate::workflows::dangerous_batch_undeploy_all(options).await
         }
 
         // Source Code
-        "download-source-code" => source_code::cmd_download_source_code(options, positionals).await,
-        "upload-source-code" => source_code::cmd_upload_source_code(options, positionals).await,
+        DownloadSourceCode { .. } => source_code::cmd_download_source_code(options, positionals).await,
+        UploadSourceCode { .. } => source_code::cmd_upload_source_code(options, positionals).await,
 
         // Users & Groups
-        "get-user" => users::cmd_get_user(options, positionals).await,
-        "update-user" => users::cmd_update_user(options, positionals).await,
-        "list-groups" => users::cmd_list_groups(options, positionals).await,
-        "get-group" => users::cmd_get_group(options, positionals).await,
-        "update-group" => users::cmd_update_group(options, positionals).await,
-        "list-group-members" => users::cmd_list_group_members(options, positionals).await,
-        "add-user-to-group" => users::cmd_add_user_to_group(options, positionals).await,
-        "remove-user-from-group" => users::cmd_remove_user_from_group(options, positionals).await,
+        GetUser { .. } => users::cmd_get_user(options, positionals).await,
+        UpdateUser { .. } => users::cmd_update_user(options, positionals).await,
+        ListGroups { .. } => users::cmd_list_groups(options, positionals).await,
+        GetGroup { .. } => users::cmd_get_group(options, positionals).await,
+        UpdateGroup { .. } => users::cmd_update_group(options, positionals).await,
+        ListGroupMembers { .. } => users::cmd_list_group_members(options, positionals).await,
+        AddUserToGroup { .. } => users::cmd_add_user_to_group(options, positionals).await,
+        RemoveUserFromGroup { .. } => users::cmd_remove_user_from_group(options, positionals).await,
 
         // Roles
-        "list-roles" => roles::cmd_list_roles(options, positionals).await,
-        "list-role-assignments" => roles::cmd_list_role_assignments(options, positionals).await,
-        "grant-role" => roles::cmd_grant_role(options, positionals).await,
-        "revoke-role" => roles::cmd_revoke_role(options, positionals).await,
-        "grant-group-role" => roles::cmd_grant_group_role(options, positionals).await,
-        "revoke-group-role" => roles::cmd_revoke_group_role(options, positionals).await,
+        ListRoles { .. } => roles::cmd_list_roles(options, positionals).await,
+        ListRoleAssignments { .. } => roles::cmd_list_role_assignments(options, positionals).await,
+        GrantRole { .. } => roles::cmd_grant_role(options, positionals).await,
+        RevokeRole { .. } => roles::cmd_revoke_role(options, positionals).await,
+        GrantGroupRole { .. } => roles::cmd_grant_group_role(options, positionals).await,
+        RevokeGroupRole { .. } => roles::cmd_revoke_group_role(options, positionals).await,
 
         // Mentor
-        "mentor-start-session" => mentor::cmd_mentor_start_session(options).await,
-        "mentor-create-asset" => mentor::cmd_mentor_create_asset(options).await,
-        "mentor-load-asset" => mentor::cmd_mentor_load_asset(options, positionals).await,
-        "mentor-prompt" => mentor::cmd_mentor_prompt(options).await,
-        "mentor-get-run" => mentor::cmd_mentor_get_run(options).await,
-        "mentor-get-event" => mentor::cmd_mentor_get_event(options).await,
-        "mentor-cancel-prompt" => mentor::cmd_mentor_cancel_prompt(options).await,
-        "mentor-close-session" => mentor::cmd_mentor_close_session(options).await,
-        "mentor-request-upload" => mentor::cmd_mentor_request_upload(options).await,
-        "mentor-publish" => mentor::cmd_mentor_publish(options).await,
+        MentorStartSession => mentor::cmd_mentor_start_session(options).await,
+        MentorCreateAsset { .. } => mentor::cmd_mentor_create_asset(options).await,
+        MentorLoadAsset { .. } => mentor::cmd_mentor_load_asset(options, positionals).await,
+        MentorPrompt { .. } => mentor::cmd_mentor_prompt(options).await,
+        MentorGetRun { .. } => mentor::cmd_mentor_get_run(options).await,
+        MentorGetEvent { .. } => mentor::cmd_mentor_get_event(options).await,
+        MentorCancelPrompt { .. } => mentor::cmd_mentor_cancel_prompt(options).await,
+        MentorCloseSession { .. } => mentor::cmd_mentor_close_session(options).await,
+        MentorRequestUpload { .. } => mentor::cmd_mentor_request_upload(options).await,
+        MentorPublish { .. } => mentor::cmd_mentor_publish(options).await,
 
-        _ => Err(anyhow::anyhow!("Unknown command: {}", cmd)),
+        // These are handled specially and should not reach here
+        Login { .. } => Err(anyhow::anyhow!(
+            "Login should be handled in main run() function"
+        )),
+        Completion { .. } => Err(anyhow::anyhow!(
+            "Completion should be handled in main run() function"
+        )),
     }
 }
 
@@ -118,14 +122,6 @@ pub async fn execute(cmd: &str, options: &Options, positionals: &[String]) -> Re
 mod tests {
     use super::*;
     use serde_json::Map;
-
-    #[tokio::test]
-    async fn test_unknown_command() {
-        let opts = Options::default();
-        let result = execute("nonexistent", &opts, &[]).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unknown command"));
-    }
 
     #[test]
     fn test_asset_table_columns_drop_wide_fields() {

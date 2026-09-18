@@ -39,15 +39,18 @@ pub async fn run(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let cmd = cli.command.name();
+    // Handle login specially (doesn't need auth)
+    if let Commands::Login {
+        tenant_url,
+        client_id,
+    } = &cli.command
+    {
+        return login::login(tenant_url, client_id);
+    }
+
     let (mut options, positionals) = cli.command.into_dispatch();
     options.json = cli.json;
     options.color = cli.color;
 
-    // Handle login specially (doesn't need auth)
-    if cmd == "login" {
-        return login::login(&positionals[0], &positionals[1]);
-    }
-
-    commands::execute(cmd, &options, &positionals).await
+    commands::execute(&cli.command, &options, &positionals).await
 }
