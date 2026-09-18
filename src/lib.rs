@@ -19,7 +19,7 @@ use cli::{Cli, Commands};
 
 /// Main entry point for the CLI
 pub async fn run(args: &[String]) -> Result<()> {
-    if args == ["--help"] || args == ["-h"] {
+    if args.is_empty() || args == ["--help"] || args == ["-h"] {
         cli::print_categorized_help();
         return Ok(());
     }
