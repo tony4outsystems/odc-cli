@@ -13,6 +13,7 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "list-assets",
             "list-deployed-assets",
             "get-asset",
+            "delete-asset",
         ],
     ),
     (
@@ -33,7 +34,6 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
             "analyze-deletion",
             "deploy",
             "undeploy",
-            "delete-asset",
         ],
     ),
     (
