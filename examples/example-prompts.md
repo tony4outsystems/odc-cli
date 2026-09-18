@@ -31,8 +31,6 @@ These are natural language prompts users can ask Claude to execute ODC CLI comma
 ### Revisions
 - "What's the latest revision of CustomerPortal?"
 - "Show me all revisions of the EmployeeApp"
-- "Tell me about revision 5 of the CustomerPortal"
-- "How many revisions does the dashboard app have?"
 
 ### Dependencies
 - "Show me what CustomerPortal depends on"

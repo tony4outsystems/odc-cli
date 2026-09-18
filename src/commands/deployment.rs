@@ -227,6 +227,7 @@ pub async fn cmd_internal_publish(args: PublishArgs) -> Result<()> {
 
 /// Start a deployment operation (`Deploy`/`Undeploy`) and, unless `no_wait`, poll until it
 /// finishes, erroring out on `FinishedWithError`.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_deployment_operation(
     client: &Client,
     operation: &str,

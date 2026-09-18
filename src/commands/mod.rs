@@ -54,7 +54,7 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         }
         GetAsset { asset } => {
             let args = command.as_get_asset_args(json, color);
-            assets::cmd_get_asset(args, &[asset.clone()]).await
+            assets::cmd_get_asset(args, std::slice::from_ref(asset)).await
         }
         ListEnvironments => {
             let args = command.as_list_environments_args(json, color);
@@ -64,19 +64,19 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         // Revisions (now using typed args)
         LatestRevision { asset } => {
             let args = command.as_latest_revision_args(json, color);
-            revisions::cmd_latest_revision(args, &[asset.clone()]).await
+            revisions::cmd_latest_revision(args, std::slice::from_ref(asset)).await
         }
         ListRevisions { asset, .. } => {
             let args = command.as_list_revisions_args(json, color);
-            revisions::cmd_list_revisions(args, &[asset.clone()]).await
+            revisions::cmd_list_revisions(args, std::slice::from_ref(asset)).await
         }
         GetRevision { asset, .. } => {
             let args = command.as_get_revision_args(json, color);
-            revisions::cmd_get_revision(args, &[asset.clone()]).await
+            revisions::cmd_get_revision(args, std::slice::from_ref(asset)).await
         }
         ProducerGraph { asset, .. } => {
             let args = command.as_producer_graph_args(json, color);
-            revisions::cmd_producer_graph(args, &[asset.clone()]).await
+            revisions::cmd_producer_graph(args, std::slice::from_ref(asset)).await
         }
 
         // Deployment (now using typed args)
@@ -122,7 +122,7 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             poll,
             parallel,
         } => {
-            shared::require_positional(&[assets_file.clone()], "batch-deploy", "an assets file")?;
+            shared::require_positional(std::slice::from_ref(assets_file), "batch-deploy", "an assets file")?;
             let options = crate::cli::Options {
                 json,
                 color,
@@ -144,7 +144,7 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             poll,
             parallel,
         } => {
-            shared::require_positional(&[assets_file.clone()], "batch-undeploy", "an assets file")?;
+            shared::require_positional(std::slice::from_ref(assets_file), "batch-undeploy", "an assets file")?;
             let options = crate::cli::Options {
                 json,
                 color,
@@ -162,7 +162,7 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             assets_file,
             parallel,
         } => {
-            shared::require_positional(&[assets_file.clone()], "batch-delete", "an assets file")?;
+            shared::require_positional(std::slice::from_ref(assets_file), "batch-delete", "an assets file")?;
             let options = crate::cli::Options {
                 json,
                 color,
@@ -194,21 +194,21 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         // Source Code (now using typed args)
         DownloadSourceCode { asset, .. } => {
             let args = command.as_download_source_code_args(json, color);
-            source_code::cmd_download_source_code(args, &[asset.clone()]).await
+            source_code::cmd_download_source_code(args, std::slice::from_ref(asset)).await
         }
         UploadSourceCode { oml_file } => {
             let args = command.as_upload_source_code_args(json, color);
-            source_code::cmd_upload_source_code(args, &[oml_file.clone()]).await
+            source_code::cmd_upload_source_code(args, std::slice::from_ref(oml_file)).await
         }
 
         // Users & Groups (now using typed args)
         GetUser { user } => {
             let args = command.as_get_user_args(json, color);
-            users::cmd_get_user(args, &[user.clone()]).await
+            users::cmd_get_user(args, std::slice::from_ref(user)).await
         }
         UpdateUser { user, .. } => {
             let args = command.as_update_user_args(json, color);
-            users::cmd_update_user(args, &[user.clone()]).await
+            users::cmd_update_user(args, std::slice::from_ref(user)).await
         }
         ListGroups { .. } => {
             let args = command.as_list_groups_args(json, color);
@@ -216,15 +216,15 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         }
         GetGroup { group } => {
             let args = command.as_get_group_args(json, color);
-            users::cmd_get_group(args, &[group.clone()]).await
+            users::cmd_get_group(args, std::slice::from_ref(group)).await
         }
         UpdateGroup { group, .. } => {
             let args = command.as_update_group_args(json, color);
-            users::cmd_update_group(args, &[group.clone()]).await
+            users::cmd_update_group(args, std::slice::from_ref(group)).await
         }
         ListGroupMembers { group } => {
             let args = command.as_list_group_members_args(json, color);
-            users::cmd_list_group_members(args, &[group.clone()]).await
+            users::cmd_list_group_members(args, std::slice::from_ref(group)).await
         }
         AddUserToGroup { group, user } => {
             let args = command.as_add_user_to_group_args(json, color);
@@ -238,11 +238,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         // Roles (now using typed args)
         ListRoles { asset, .. } => {
             let args = command.as_list_roles_args(json, color);
-            roles::cmd_list_roles(args, &[asset.clone()]).await
+            roles::cmd_list_roles(args, std::slice::from_ref(asset)).await
         }
         ListRoleAssignments { asset, .. } => {
             let args = command.as_list_role_assignments_args(json, color);
-            roles::cmd_list_role_assignments(args, &[asset.clone()]).await
+            roles::cmd_list_role_assignments(args, std::slice::from_ref(asset)).await
         }
         GrantRole {
             asset: _,
