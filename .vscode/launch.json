@@ -2,51 +2,65 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "ODC: Discover",
-      "type": "go",
+      "name": "ODC: Help",
+      "type": "lldb",
       "request": "launch",
-      "args": [
-        "discover"
-      ],
+      "cargo": {
+        "args": [
+          "run",
+          "--bin=odc"
+        ]
+      },
+      "args": [],
+      "envFile": "${workspaceFolder}/.env"
+
+    },
+    
+    {
+      "name": "ODC: Discover",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=odc"],
+        "filter": {
+          "name": "odc",
+          "kind": "bin"
+        }
+      },
+      "args": ["discover"],
       "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/odc"
+      "envFile": "${workspaceFolder}/.env"
     },
     {
       "name": "ODC: Latest Revision",
-      "type": "go",
+      "type": "lldb",
       "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=odc"],
+        "filter": {
+          "name": "odc",
+          "kind": "bin"
+        }
+      },
       "args": [
         "latest-revision",
         "--asset",
         "${input:asset}"
       ],
       "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/odc"
-    },
-    {
-      "name": "ODC: Validate",
-      "type": "go",
-      "request": "launch",
-      "args": [
-        "validate",
-        "--asset",
-        "${input:asset}",
-        "--env",
-        "${input:environment}"
-      ],
-      "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/odc"
+      "envFile": "${workspaceFolder}/.env"
     },
     {
       "name": "ODC: Build Deploy",
-      "type": "go",
+      "type": "lldb",
       "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=odc"],
+        "filter": {
+          "name": "odc",
+          "kind": "bin"
+        }
+      },
       "args": [
         "deploy",
         "--asset",
@@ -55,14 +69,19 @@
         "${input:environment}"
       ],
       "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/odc"
+      "envFile": "${workspaceFolder}/.env"
     },
     {
       "name": "ODC: Producer Graph",
-      "type": "go",
+      "type": "lldb",
       "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=odc"],
+        "filter": {
+          "name": "odc",
+          "kind": "bin"
+        }
+      },
       "args": [
         "producer-graph",
         "--output",
@@ -71,9 +90,7 @@
         "${input:asset}"
       ],
       "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/odc"
+      "envFile": "${workspaceFolder}/.env"
     }
   ],
   "inputs": [
