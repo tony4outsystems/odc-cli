@@ -29,9 +29,6 @@ pub async fn cmd_list_portfolios(args: ListPortfoliosArgs, positionals: &[String
         &["name", "key"],
     );
 
-    let result = Listing {
-        items,
-        page: None,
-    };
+    let result = Listing { items, page: None };
     print_listing(&output, result, PORTFOLIO_TABLE_COLUMNS)
 }

@@ -723,51 +723,71 @@ impl Commands {
     ///
     /// # Panics
     /// If called on a command variant other than `ListAssets`.
-    pub fn as_list_assets_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListAssetsArgs {
+    pub fn as_list_assets_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListAssetsArgs {
         match self {
-            Commands::ListAssets { filter, app_type, offset, limit } => {
-                crate::commands::args::ListAssetsArgs {
-                    json,
-                    color,
-                    filter: filter.clone(),
-                    asset_type: *app_type,
-                    offset: *offset,
-                    limit: *limit,
-                }
-            }
+            Commands::ListAssets {
+                filter,
+                app_type,
+                offset,
+                limit,
+            } => crate::commands::args::ListAssetsArgs {
+                json,
+                color,
+                filter: filter.clone(),
+                asset_type: *app_type,
+                offset: *offset,
+                limit: *limit,
+            },
             _ => panic!("Expected ListAssets command"),
         }
     }
 
     /// Extract typed arguments for `list-deployed-assets` command.
-    pub fn as_list_deployed_assets_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListDeployedAssetsArgs {
+    pub fn as_list_deployed_assets_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListDeployedAssetsArgs {
         match self {
-            Commands::ListDeployedAssets { filter, env, offset, limit } => {
-                crate::commands::args::ListDeployedAssetsArgs {
-                    json,
-                    color,
-                    filter: filter.clone(),
-                    env: env.clone(),
-                    offset: *offset,
-                    limit: *limit,
-                }
-            }
+            Commands::ListDeployedAssets {
+                filter,
+                env,
+                offset,
+                limit,
+            } => crate::commands::args::ListDeployedAssetsArgs {
+                json,
+                color,
+                filter: filter.clone(),
+                env: env.clone(),
+                offset: *offset,
+                limit: *limit,
+            },
             _ => panic!("Expected ListDeployedAssets command"),
         }
     }
 
     /// Extract typed arguments for `get-asset` command.
-    pub fn as_get_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GetAssetArgs {
+    pub fn as_get_asset_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GetAssetArgs {
         match self {
-            Commands::GetAsset { .. } => {
-                crate::commands::args::GetAssetArgs { json, color }
-            }
+            Commands::GetAsset { .. } => crate::commands::args::GetAssetArgs { json, color },
             _ => panic!("Expected GetAsset command"),
         }
     }
 
     /// Extract typed arguments for `list-environments` command.
-    pub fn as_list_environments_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListEnvironmentsArgs {
+    pub fn as_list_environments_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListEnvironmentsArgs {
         match self {
             Commands::ListEnvironments => {
                 crate::commands::args::ListEnvironmentsArgs { json, color }
@@ -780,28 +800,41 @@ impl Commands {
     // DEPLOYMENT COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_deployment_analysis_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentAnalysisArgs {
+    pub fn as_deployment_analysis_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DeploymentAnalysisArgs {
         match self {
-            Commands::AnalyzeDeployment { asset, env, revision, poll } => {
-                crate::commands::args::DeploymentAnalysisArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone(),
-                    revision: *revision,
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    no_wait: poll.no_wait,
-                }
-            }
+            Commands::AnalyzeDeployment {
+                asset,
+                env,
+                revision,
+                poll,
+            } => crate::commands::args::DeploymentAnalysisArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone(),
+                revision: *revision,
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                no_wait: poll.no_wait,
+            },
             _ => panic!("Expected AnalyzeDeployment command"),
         }
     }
 
-    pub fn as_deletion_analysis_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeletionAnalysisArgs {
+    pub fn as_deletion_analysis_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DeletionAnalysisArgs {
         match self {
             Commands::AnalyzeDeletion { asset, poll } => {
                 crate::commands::args::DeletionAnalysisArgs {
-                    json, color,
+                    json,
+                    color,
                     asset: asset.clone(),
                     poll_interval: poll.poll_interval,
                     timeout: poll.timeout,
@@ -812,82 +845,122 @@ impl Commands {
         }
     }
 
-    pub fn as_build_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::BuildArgs {
+    pub fn as_build_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::BuildArgs {
         match self {
-            Commands::InternalBuild { asset, env, revision, build_type, poll } => {
-                crate::commands::args::BuildArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone(),
-                    revision: *revision,
-                    build_type: build_type.clone(),
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    no_wait: poll.no_wait,
-                }
-            }
+            Commands::InternalBuild {
+                asset,
+                env,
+                revision,
+                build_type,
+                poll,
+            } => crate::commands::args::BuildArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone(),
+                revision: *revision,
+                build_type: build_type.clone(),
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                no_wait: poll.no_wait,
+            },
             _ => panic!("Expected InternalBuild command"),
         }
     }
 
-    pub fn as_publish_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::PublishArgs {
+    pub fn as_publish_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::PublishArgs {
         match self {
-            Commands::InternalPublish { asset, env, revision, poll } => {
-                crate::commands::args::PublishArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone(),
-                    revision: *revision,
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    no_wait: poll.no_wait,
-                }
-            }
+            Commands::InternalPublish {
+                asset,
+                env,
+                revision,
+                poll,
+            } => crate::commands::args::PublishArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone(),
+                revision: *revision,
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                no_wait: poll.no_wait,
+            },
             _ => panic!("Expected InternalPublish command"),
         }
     }
 
-    pub fn as_internal_deploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::InternalDeployArgs {
+    pub fn as_internal_deploy_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::InternalDeployArgs {
         match self {
-            Commands::InternalDeploy { asset, env, revision, build_key, poll } => {
-                crate::commands::args::InternalDeployArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone(),
-                    revision: *revision,
-                    build_key: build_key.clone(),
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    no_wait: poll.no_wait,
-                }
-            }
+            Commands::InternalDeploy {
+                asset,
+                env,
+                revision,
+                build_key,
+                poll,
+            } => crate::commands::args::InternalDeployArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone(),
+                revision: *revision,
+                build_key: build_key.clone(),
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                no_wait: poll.no_wait,
+            },
             _ => panic!("Expected InternalDeploy command"),
         }
     }
 
-    pub fn as_deploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentOperationArgs {
+    pub fn as_deploy_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DeploymentOperationArgs {
         match self {
-            Commands::Deploy { asset, env, revision, build_type, poll } => {
-                crate::commands::args::DeploymentOperationArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone(),
-                    revision: *revision,
-                    build_type: build_type.clone(),
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    no_wait: poll.no_wait,
-                }
-            }
+            Commands::Deploy {
+                asset,
+                env,
+                revision,
+                build_type,
+                poll,
+            } => crate::commands::args::DeploymentOperationArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone(),
+                revision: *revision,
+                build_type: build_type.clone(),
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                no_wait: poll.no_wait,
+            },
             _ => panic!("Expected Deploy command"),
         }
     }
 
-    pub fn as_undeploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeploymentOperationArgs {
+    pub fn as_undeploy_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DeploymentOperationArgs {
         match self {
             Commands::Undeploy { asset, env, poll } => {
                 crate::commands::args::DeploymentOperationArgs {
-                    json, color,
+                    json,
+                    color,
                     asset: asset.clone(),
                     env: env.clone(),
                     revision: None,
@@ -901,14 +974,17 @@ impl Commands {
         }
     }
 
-    pub fn as_delete_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DeleteAssetArgs {
+    pub fn as_delete_asset_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DeleteAssetArgs {
         match self {
-            Commands::DeleteAsset { asset } => {
-                crate::commands::args::DeleteAssetArgs {
-                    json, color,
-                    asset: asset.clone(),
-                }
-            }
+            Commands::DeleteAsset { asset } => crate::commands::args::DeleteAssetArgs {
+                json,
+                color,
+                asset: asset.clone(),
+            },
             _ => panic!("Expected DeleteAsset command"),
         }
     }
@@ -917,83 +993,126 @@ impl Commands {
     // MENTOR COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_mentor_create_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorCreateAssetArgs {
+    pub fn as_mentor_create_asset_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorCreateAssetArgs {
         match self {
-            Commands::MentorCreateAsset { session_id, asset_type, name, portfolio_key, description, template_asset_key } => {
-                crate::commands::args::MentorCreateAssetArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    asset_type: asset_type.as_str().to_string(),
-                    name: name.clone(),
-                    portfolio_key: portfolio_key.clone(),
-                    description: description.clone(),
-                    template_asset_key: template_asset_key.clone(),
-                }
-            }
+            Commands::MentorCreateAsset {
+                session_id,
+                asset_type,
+                name,
+                portfolio_key,
+                description,
+                template_asset_key,
+            } => crate::commands::args::MentorCreateAssetArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                asset_type: asset_type.as_str().to_string(),
+                name: name.clone(),
+                portfolio_key: portfolio_key.clone(),
+                description: description.clone(),
+                template_asset_key: template_asset_key.clone(),
+            },
             _ => panic!("Expected MentorCreateAsset command"),
         }
     }
 
-    pub fn as_mentor_load_asset_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorLoadAssetArgs {
+    pub fn as_mentor_load_asset_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorLoadAssetArgs {
         match self {
-            Commands::MentorLoadAsset { session_id, revision, .. } => {
-                crate::commands::args::MentorLoadAssetArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    revision: *revision,
-                }
-            }
+            Commands::MentorLoadAsset {
+                session_id,
+                revision,
+                ..
+            } => crate::commands::args::MentorLoadAssetArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                revision: *revision,
+            },
             _ => panic!("Expected MentorLoadAsset command"),
         }
     }
 
-    pub fn as_mentor_prompt_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorPromptArgs {
+    pub fn as_mentor_prompt_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorPromptArgs {
         match self {
-            Commands::MentorPrompt { session_id, message, attachment_refs } => {
-                crate::commands::args::MentorPromptArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    message: message.clone(),
-                    attachment_refs: attachment_refs.clone(),
-                }
-            }
+            Commands::MentorPrompt {
+                session_id,
+                message,
+                attachment_refs,
+            } => crate::commands::args::MentorPromptArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                message: message.clone(),
+                attachment_refs: attachment_refs.clone(),
+            },
             _ => panic!("Expected MentorPrompt command"),
         }
     }
 
-    pub fn as_mentor_get_run_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorGetRunArgs {
+    pub fn as_mentor_get_run_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorGetRunArgs {
         match self {
-            Commands::MentorGetRun { session_id, run_id, cursor } => {
-                crate::commands::args::MentorGetRunArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    run_id: run_id.clone(),
-                    cursor: *cursor,
-                }
-            }
+            Commands::MentorGetRun {
+                session_id,
+                run_id,
+                cursor,
+            } => crate::commands::args::MentorGetRunArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                run_id: run_id.clone(),
+                cursor: *cursor,
+            },
             _ => panic!("Expected MentorGetRun command"),
         }
     }
 
-    pub fn as_mentor_get_event_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorGetEventArgs {
+    pub fn as_mentor_get_event_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorGetEventArgs {
         match self {
-            Commands::MentorGetEvent { session_id, run_id, event_id } => {
-                crate::commands::args::MentorGetEventArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    run_id: run_id.clone(),
-                    event_id: *event_id,
-                }
-            }
+            Commands::MentorGetEvent {
+                session_id,
+                run_id,
+                event_id,
+            } => crate::commands::args::MentorGetEventArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                run_id: run_id.clone(),
+                event_id: *event_id,
+            },
             _ => panic!("Expected MentorGetEvent command"),
         }
     }
 
-    pub fn as_mentor_start_session_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+    pub fn as_mentor_start_session_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorSessionArgs {
         match self {
             Commands::MentorStartSession => {
                 crate::commands::args::MentorSessionArgs {
-                    json, color,
+                    json,
+                    color,
                     session_id: String::new(), // Not used
                     run_id: None,
                 }
@@ -1002,11 +1121,16 @@ impl Commands {
         }
     }
 
-    pub fn as_mentor_cancel_prompt_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+    pub fn as_mentor_cancel_prompt_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorSessionArgs {
         match self {
             Commands::MentorCancelPrompt { session_id, run_id } => {
                 crate::commands::args::MentorSessionArgs {
-                    json, color,
+                    json,
+                    color,
                     session_id: session_id.clone(),
                     run_id: Some(run_id.clone()),
                 }
@@ -1015,11 +1139,16 @@ impl Commands {
         }
     }
 
-    pub fn as_mentor_close_session_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorSessionArgs {
+    pub fn as_mentor_close_session_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorSessionArgs {
         match self {
             Commands::MentorCloseSession { session_id } => {
                 crate::commands::args::MentorSessionArgs {
-                    json, color,
+                    json,
+                    color,
                     session_id: session_id.clone(),
                     run_id: None,
                 }
@@ -1028,29 +1157,42 @@ impl Commands {
         }
     }
 
-    pub fn as_mentor_request_upload_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorRequestUploadArgs {
+    pub fn as_mentor_request_upload_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorRequestUploadArgs {
         match self {
-            Commands::MentorRequestUpload { session_id, file_name, size_bytes } => {
-                crate::commands::args::MentorRequestUploadArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    file_name: file_name.clone(),
-                    size_bytes: *size_bytes,
-                }
-            }
+            Commands::MentorRequestUpload {
+                session_id,
+                file_name,
+                size_bytes,
+            } => crate::commands::args::MentorRequestUploadArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                file_name: file_name.clone(),
+                size_bytes: *size_bytes,
+            },
             _ => panic!("Expected MentorRequestUpload command"),
         }
     }
 
-    pub fn as_mentor_publish_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::MentorPublishArgs {
+    pub fn as_mentor_publish_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorPublishArgs {
         match self {
-            Commands::MentorPublish { session_id, comment } => {
-                crate::commands::args::MentorPublishArgs {
-                    json, color,
-                    session_id: session_id.clone(),
-                    comment: comment.clone(),
-                }
-            }
+            Commands::MentorPublish {
+                session_id,
+                comment,
+            } => crate::commands::args::MentorPublishArgs {
+                json,
+                color,
+                session_id: session_id.clone(),
+                comment: comment.clone(),
+            },
             _ => panic!("Expected MentorPublish command"),
         }
     }
@@ -1059,7 +1201,11 @@ impl Commands {
     // REVISION COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_latest_revision_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::LatestRevisionArgs {
+    pub fn as_latest_revision_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::LatestRevisionArgs {
         match self {
             Commands::LatestRevision { .. } => {
                 crate::commands::args::LatestRevisionArgs { json, color }
@@ -1068,11 +1214,16 @@ impl Commands {
         }
     }
 
-    pub fn as_list_revisions_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListRevisionsArgs {
+    pub fn as_list_revisions_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListRevisionsArgs {
         match self {
             Commands::ListRevisions { offset, limit, .. } => {
                 crate::commands::args::ListRevisionsArgs {
-                    json, color,
+                    json,
+                    color,
                     offset: *offset,
                     limit: *limit,
                 }
@@ -1081,31 +1232,45 @@ impl Commands {
         }
     }
 
-    pub fn as_get_revision_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GetRevisionArgs {
+    pub fn as_get_revision_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GetRevisionArgs {
         match self {
-            Commands::GetRevision { revision, .. } => {
-                crate::commands::args::GetRevisionArgs {
-                    json, color,
-                    revision: *revision,
-                }
-            }
+            Commands::GetRevision { revision, .. } => crate::commands::args::GetRevisionArgs {
+                json,
+                color,
+                revision: *revision,
+            },
             _ => panic!("Expected GetRevision command"),
         }
     }
 
-    pub fn as_producer_graph_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ProducerGraphArgs {
+    pub fn as_producer_graph_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ProducerGraphArgs {
         match self {
-            Commands::ProducerGraph { revision, env, max_depth, producer_type_filter, all_producers, output, .. } => {
-                crate::commands::args::ProducerGraphArgs {
-                    json, color,
-                    revision: *revision,
-                    env: env.clone().unwrap_or_default(),
-                    filter: producer_type_filter.clone(),
-                    all_producers: *all_producers,
-                    max_depth: *max_depth,
-                    output: output.clone().unwrap_or_default(),
-                }
-            }
+            Commands::ProducerGraph {
+                revision,
+                env,
+                max_depth,
+                producer_type_filter,
+                all_producers,
+                output,
+                ..
+            } => crate::commands::args::ProducerGraphArgs {
+                json,
+                color,
+                revision: *revision,
+                env: env.clone().unwrap_or_default(),
+                filter: producer_type_filter.clone(),
+                all_producers: *all_producers,
+                max_depth: *max_depth,
+                output: output.clone().unwrap_or_default(),
+            },
             _ => panic!("Expected ProducerGraph command"),
         }
     }
@@ -1114,16 +1279,22 @@ impl Commands {
     // AUTH & PORTFOLIO COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_discover_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DiscoverArgs {
+    pub fn as_discover_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DiscoverArgs {
         match self {
-            Commands::Discover => {
-                crate::commands::args::DiscoverArgs { json, color }
-            }
+            Commands::Discover => crate::commands::args::DiscoverArgs { json, color },
             _ => panic!("Expected Discover command"),
         }
     }
 
-    pub fn as_list_portfolios_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListPortfoliosArgs {
+    pub fn as_list_portfolios_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListPortfoliosArgs {
         match self {
             Commands::ListPortfolios { .. } => {
                 crate::commands::args::ListPortfoliosArgs { json, color }
@@ -1136,18 +1307,29 @@ impl Commands {
     // USER & GROUP COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_get_user_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GetUserArgs {
+    pub fn as_get_user_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GetUserArgs {
         match self {
-            Commands::GetUser { .. } => {
-                crate::commands::args::GetUserArgs { json, color }
-            }
+            Commands::GetUser { .. } => crate::commands::args::GetUserArgs { json, color },
             _ => panic!("Expected GetUser command"),
         }
     }
 
-    pub fn as_update_user_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::UpdateUserArgs {
+    pub fn as_update_user_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::UpdateUserArgs {
         match self {
-            Commands::UpdateUser { user: _, name, is_active: _, photo_url: _ } => {
+            Commands::UpdateUser {
+                user: _,
+                name,
+                is_active: _,
+                photo_url: _,
+            } => {
                 let (given_name, surname) = if let Some(n) = name {
                     let parts: Vec<&str> = n.splitn(2, ' ').collect();
                     match parts.as_slice() {
@@ -1159,7 +1341,8 @@ impl Commands {
                     (None, None)
                 };
                 crate::commands::args::UpdateUserArgs {
-                    json, color,
+                    json,
+                    color,
                     given_name,
                     surname,
                 }
@@ -1168,45 +1351,62 @@ impl Commands {
         }
     }
 
-    pub fn as_list_groups_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListGroupsArgs {
+    pub fn as_list_groups_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListGroupsArgs {
         match self {
-            Commands::ListGroups { filter: _, env } => {
-                crate::commands::args::ListGroupsArgs {
-                    json, color,
-                    filter: env.clone().unwrap_or_default(),
-                }
-            }
+            Commands::ListGroups { filter: _, env } => crate::commands::args::ListGroupsArgs {
+                json,
+                color,
+                filter: env.clone().unwrap_or_default(),
+            },
             _ => panic!("Expected ListGroups command"),
         }
     }
 
-    pub fn as_get_group_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GetGroupArgs {
+    pub fn as_get_group_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GetGroupArgs {
         match self {
-            Commands::GetGroup { .. } => {
-                crate::commands::args::GetGroupArgs { json, color }
-            }
+            Commands::GetGroup { .. } => crate::commands::args::GetGroupArgs { json, color },
             _ => panic!("Expected GetGroup command"),
         }
     }
 
-    pub fn as_update_group_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::UpdateGroupArgs {
+    pub fn as_update_group_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::UpdateGroupArgs {
         match self {
-            Commands::UpdateGroup { group: _, name: _, description } => {
-                crate::commands::args::UpdateGroupArgs {
-                    json, color,
-                    env: String::new(),
-                    description: description.clone(),
-                }
-            }
+            Commands::UpdateGroup {
+                group: _,
+                name: _,
+                description,
+            } => crate::commands::args::UpdateGroupArgs {
+                json,
+                color,
+                env: String::new(),
+                description: description.clone(),
+            },
             _ => panic!("Expected UpdateGroup command"),
         }
     }
 
-    pub fn as_list_group_members_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListGroupMembersArgs {
+    pub fn as_list_group_members_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListGroupMembersArgs {
         match self {
             Commands::ListGroupMembers { group: _ } => {
                 crate::commands::args::ListGroupMembersArgs {
-                    json, color,
+                    json,
+                    color,
                     env: String::new(),
                 }
             }
@@ -1214,11 +1414,16 @@ impl Commands {
         }
     }
 
-    pub fn as_add_user_to_group_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::UserGroupArgs {
+    pub fn as_add_user_to_group_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::UserGroupArgs {
         match self {
             Commands::AddUserToGroup { group: _, user: _ } => {
                 crate::commands::args::UserGroupArgs {
-                    json, color,
+                    json,
+                    color,
                     env: String::new(),
                 }
             }
@@ -1226,11 +1431,16 @@ impl Commands {
         }
     }
 
-    pub fn as_remove_user_from_group_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::UserGroupArgs {
+    pub fn as_remove_user_from_group_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::UserGroupArgs {
         match self {
             Commands::RemoveUserFromGroup { group: _, user: _ } => {
                 crate::commands::args::UserGroupArgs {
-                    json, color,
+                    json,
+                    color,
                     env: String::new(),
                 }
             }
@@ -1242,24 +1452,32 @@ impl Commands {
     // ROLE COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_list_roles_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListRolesArgs {
+    pub fn as_list_roles_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListRolesArgs {
         match self {
-            Commands::ListRoles { asset, env } => {
-                crate::commands::args::ListRolesArgs {
-                    json, color,
-                    asset: asset.clone(),
-                    env: env.clone().unwrap_or_default(),
-                }
-            }
+            Commands::ListRoles { asset, env } => crate::commands::args::ListRolesArgs {
+                json,
+                color,
+                asset: asset.clone(),
+                env: env.clone().unwrap_or_default(),
+            },
             _ => panic!("Expected ListRoles command"),
         }
     }
 
-    pub fn as_list_role_assignments_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::ListRoleAssignmentsArgs {
+    pub fn as_list_role_assignments_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::ListRoleAssignmentsArgs {
         match self {
             Commands::ListRoleAssignments { asset, env, .. } => {
                 crate::commands::args::ListRoleAssignmentsArgs {
-                    json, color,
+                    json,
+                    color,
                     asset: asset.clone(),
                     env: env.clone().unwrap_or_default(),
                 }
@@ -1268,60 +1486,80 @@ impl Commands {
         }
     }
 
-    pub fn as_grant_role_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::RoleGrantArgs {
+    pub fn as_grant_role_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::RoleGrantArgs {
         match self {
-            Commands::GrantRole { role, user, asset } => {
-                crate::commands::args::RoleGrantArgs {
-                    json, color,
-                    role: role.clone(),
-                    user: user.clone(),
-                    asset: asset.clone(),
-                }
-            }
+            Commands::GrantRole { role, user, asset } => crate::commands::args::RoleGrantArgs {
+                json,
+                color,
+                role: role.clone(),
+                user: user.clone(),
+                asset: asset.clone(),
+            },
             _ => panic!("Expected GrantRole command"),
         }
     }
 
-    pub fn as_revoke_role_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::RoleRevokeArgs {
+    pub fn as_revoke_role_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::RoleRevokeArgs {
         match self {
-            Commands::RevokeRole { role, user, asset } => {
-                crate::commands::args::RoleRevokeArgs {
-                    json, color,
-                    role: role.clone(),
-                    user: user.clone(),
-                    asset: asset.clone(),
-                }
-            }
+            Commands::RevokeRole { role, user, asset } => crate::commands::args::RoleRevokeArgs {
+                json,
+                color,
+                role: role.clone(),
+                user: user.clone(),
+                asset: asset.clone(),
+            },
             _ => panic!("Expected RevokeRole command"),
         }
     }
 
-    pub fn as_grant_group_role_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GroupRoleGrantArgs {
+    pub fn as_grant_group_role_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GroupRoleGrantArgs {
         match self {
-            Commands::GrantGroupRole { role, group: _, asset } => {
-                crate::commands::args::GroupRoleGrantArgs {
-                    json, color,
-                    role: role.clone(),
-                    group: String::new(),
-                    asset: asset.clone(),
-                    env: String::new(),
-                }
-            }
+            Commands::GrantGroupRole {
+                role,
+                group: _,
+                asset,
+            } => crate::commands::args::GroupRoleGrantArgs {
+                json,
+                color,
+                role: role.clone(),
+                group: String::new(),
+                asset: asset.clone(),
+                env: String::new(),
+            },
             _ => panic!("Expected GrantGroupRole command"),
         }
     }
 
-    pub fn as_revoke_group_role_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::GroupRoleRevokeArgs {
+    pub fn as_revoke_group_role_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::GroupRoleRevokeArgs {
         match self {
-            Commands::RevokeGroupRole { role, group: _, asset } => {
-                crate::commands::args::GroupRoleRevokeArgs {
-                    json, color,
-                    role: role.clone(),
-                    group: String::new(),
-                    asset: asset.clone(),
-                    env: String::new(),
-                }
-            }
+            Commands::RevokeGroupRole {
+                role,
+                group: _,
+                asset,
+            } => crate::commands::args::GroupRoleRevokeArgs {
+                json,
+                color,
+                role: role.clone(),
+                group: String::new(),
+                asset: asset.clone(),
+                env: String::new(),
+            },
             _ => panic!("Expected RevokeGroupRole command"),
         }
     }
@@ -1330,20 +1568,29 @@ impl Commands {
     // SOURCE CODE COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_download_source_code_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DownloadSourceCodeArgs {
+    pub fn as_download_source_code_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DownloadSourceCodeArgs {
         match self {
-            Commands::DownloadSourceCode { revision, output, .. } => {
-                crate::commands::args::DownloadSourceCodeArgs {
-                    json, color,
-                    revision: *revision,
-                    output: output.clone().unwrap_or_default(),
-                }
-            }
+            Commands::DownloadSourceCode {
+                revision, output, ..
+            } => crate::commands::args::DownloadSourceCodeArgs {
+                json,
+                color,
+                revision: *revision,
+                output: output.clone().unwrap_or_default(),
+            },
             _ => panic!("Expected DownloadSourceCode command"),
         }
     }
 
-    pub fn as_upload_source_code_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::UploadSourceCodeArgs {
+    pub fn as_upload_source_code_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::UploadSourceCodeArgs {
         match self {
             Commands::UploadSourceCode { .. } => {
                 crate::commands::args::UploadSourceCodeArgs { json, color }
@@ -1356,47 +1603,62 @@ impl Commands {
     // BATCH OPERATION COMMAND EXTRACTION METHODS
     // ========================================================================
 
-    pub fn as_batch_deploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::BatchDeployArgs {
+    pub fn as_batch_deploy_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::BatchDeployArgs {
         match self {
-            Commands::BatchDeploy { build_type, poll, .. } => {
-                crate::commands::args::BatchDeployArgs {
-                    json, color,
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                    build_type: build_type.clone(),
-                }
-            }
+            Commands::BatchDeploy {
+                build_type, poll, ..
+            } => crate::commands::args::BatchDeployArgs {
+                json,
+                color,
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+                build_type: build_type.clone(),
+            },
             _ => panic!("Expected BatchDeploy command"),
         }
     }
 
-    pub fn as_batch_undeploy_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::BatchUndeployArgs {
+    pub fn as_batch_undeploy_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::BatchUndeployArgs {
         match self {
-            Commands::BatchUndeploy { poll, .. } => {
-                crate::commands::args::BatchUndeployArgs {
-                    json, color,
-                    poll_interval: poll.poll_interval,
-                    timeout: poll.timeout,
-                }
-            }
+            Commands::BatchUndeploy { poll, .. } => crate::commands::args::BatchUndeployArgs {
+                json,
+                color,
+                poll_interval: poll.poll_interval,
+                timeout: poll.timeout,
+            },
             _ => panic!("Expected BatchUndeploy command"),
         }
     }
 
-    pub fn as_batch_delete_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::BatchDeleteArgs {
+    pub fn as_batch_delete_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::BatchDeleteArgs {
         match self {
-            Commands::BatchDelete { .. } => {
-                crate::commands::args::BatchDeleteArgs { json, color }
-            }
+            Commands::BatchDelete { .. } => crate::commands::args::BatchDeleteArgs { json, color },
             _ => panic!("Expected BatchDelete command"),
         }
     }
 
-    pub fn as_dangerous_batch_undeploy_all_args(&self, json: bool, color: crate::output::ColorMode) -> crate::commands::args::DangerousBatchUndeployAllArgs {
+    pub fn as_dangerous_batch_undeploy_all_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::DangerousBatchUndeployAllArgs {
         match self {
             Commands::DangerousBatchUndeployAll { poll, .. } => {
                 crate::commands::args::DangerousBatchUndeployAllArgs {
-                    json, color,
+                    json,
+                    color,
                     poll_interval: poll.poll_interval,
                     timeout: poll.timeout,
                 }
@@ -1404,7 +1666,6 @@ impl Commands {
             _ => panic!("Expected DangerousBatchUndeployAll command"),
         }
     }
-
 }
 
 /// Options bag threaded through to command implementations in `commands.rs`.

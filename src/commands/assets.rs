@@ -38,16 +38,19 @@ pub async fn cmd_list_assets(args: ListAssetsArgs, positionals: &[String]) -> Re
 
     if let Some(asset_type) = args.asset_type {
         let type_str = asset_type.as_str();
-        listing.items.retain(|item| {
-            item.get("assetType").and_then(|v| v.as_str()) == Some(type_str)
-        });
+        listing
+            .items
+            .retain(|item| item.get("assetType").and_then(|v| v.as_str()) == Some(type_str));
     }
 
     print_listing(&output, listing, ASSET_TABLE_COLUMNS)
 }
 
 /// List deployed assets, optionally filtered by environment and name/key.
-pub async fn cmd_list_deployed_assets(args: ListDeployedAssetsArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_deployed_assets(
+    args: ListDeployedAssetsArgs,
+    positionals: &[String],
+) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());

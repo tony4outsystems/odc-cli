@@ -114,7 +114,14 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
         }
 
         // Batch operations (handled by workflows module)
-        BatchDeploy { assets_file, env, build_type, skip_dependencies, poll, parallel } => {
+        BatchDeploy {
+            assets_file,
+            env,
+            build_type,
+            skip_dependencies,
+            poll,
+            parallel,
+        } => {
             shared::require_positional(&[assets_file.clone()], "batch-deploy", "an assets file")?;
             let options = crate::cli::Options {
                 json,
@@ -131,7 +138,12 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             };
             crate::workflows::batch_deploy(&options, assets_file).await
         }
-        BatchUndeploy { assets_file, env, poll, parallel } => {
+        BatchUndeploy {
+            assets_file,
+            env,
+            poll,
+            parallel,
+        } => {
             shared::require_positional(&[assets_file.clone()], "batch-undeploy", "an assets file")?;
             let options = crate::cli::Options {
                 json,
@@ -146,7 +158,10 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             };
             crate::workflows::batch_undeploy(&options, assets_file).await
         }
-        BatchDelete { assets_file, parallel } => {
+        BatchDelete {
+            assets_file,
+            parallel,
+        } => {
             shared::require_positional(&[assets_file.clone()], "batch-delete", "an assets file")?;
             let options = crate::cli::Options {
                 json,
@@ -157,7 +172,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             };
             crate::workflows::batch_delete(&options, assets_file).await
         }
-        DangerousBatchUndeployAll { env, poll, parallel } => {
+        DangerousBatchUndeployAll {
+            env,
+            poll,
+            parallel,
+        } => {
             let options = crate::cli::Options {
                 json,
                 color,
@@ -225,19 +244,35 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             let args = command.as_list_role_assignments_args(json, color);
             roles::cmd_list_role_assignments(args, &[asset.clone()]).await
         }
-        GrantRole { asset: _, role, user } => {
+        GrantRole {
+            asset: _,
+            role,
+            user,
+        } => {
             let args = command.as_grant_role_args(json, color);
             roles::cmd_grant_role(args, &[user.clone(), role.clone()]).await
         }
-        RevokeRole { asset: _, role, user } => {
+        RevokeRole {
+            asset: _,
+            role,
+            user,
+        } => {
             let args = command.as_revoke_role_args(json, color);
             roles::cmd_revoke_role(args, &[user.clone(), role.clone()]).await
         }
-        GrantGroupRole { asset: _, group, role } => {
+        GrantGroupRole {
+            asset: _,
+            group,
+            role,
+        } => {
             let args = command.as_grant_group_role_args(json, color);
             roles::cmd_grant_group_role(args, &[group.clone(), role.clone()]).await
         }
-        RevokeGroupRole { asset: _, group, role } => {
+        RevokeGroupRole {
+            asset: _,
+            group,
+            role,
+        } => {
             let args = command.as_revoke_group_role_args(json, color);
             roles::cmd_revoke_group_role(args, &[group.clone(), role.clone()]).await
         }

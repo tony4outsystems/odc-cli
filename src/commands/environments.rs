@@ -1,8 +1,8 @@
 //! Environment listing commands.
 
 use super::args::ListEnvironmentsArgs;
-use crate::output::Output;
 use crate::client::Client;
+use crate::output::Output;
 use crate::settings;
 use anyhow::Result;
 use serde_json::Value;

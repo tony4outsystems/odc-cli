@@ -191,7 +191,10 @@ pub async fn cmd_update_group(args: UpdateGroupArgs, positionals: &[String]) -> 
     output.print_result(&Value::Object(updated))
 }
 
-pub async fn cmd_list_group_members(args: ListGroupMembersArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_group_members(
+    args: ListGroupMembersArgs,
+    positionals: &[String],
+) -> Result<()> {
     require_positional(positionals, "list-group-members", "a group name or key")?;
 
     let settings = settings::load_settings()?;

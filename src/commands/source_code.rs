@@ -7,7 +7,10 @@ use crate::settings;
 use anyhow::Result;
 use std::sync::Arc;
 
-pub async fn cmd_download_source_code(args: DownloadSourceCodeArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_download_source_code(
+    args: DownloadSourceCodeArgs,
+    positionals: &[String],
+) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "download-source-code requires an app name or key"
@@ -41,7 +44,10 @@ pub async fn cmd_download_source_code(args: DownloadSourceCodeArgs, positionals:
     Ok(())
 }
 
-pub async fn cmd_upload_source_code(args: UploadSourceCodeArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_upload_source_code(
+    args: UploadSourceCodeArgs,
+    positionals: &[String],
+) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!(
             "upload-source-code requires an OML/XIF file"

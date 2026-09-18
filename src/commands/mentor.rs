@@ -8,7 +8,10 @@ use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
 
-fn mentor_client(json: bool, color: crate::output::ColorMode) -> Result<(MentorClient, Arc<Output>)> {
+fn mentor_client(
+    json: bool,
+    color: crate::output::ColorMode,
+) -> Result<(MentorClient, Arc<Output>)> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
     Ok((MentorClient::new(settings), output))
@@ -43,7 +46,10 @@ pub async fn cmd_mentor_create_asset(args: MentorCreateAssetArgs) -> Result<()> 
     output.print_result(&result)
 }
 
-pub async fn cmd_mentor_load_asset(args: MentorLoadAssetArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_mentor_load_asset(
+    args: MentorLoadAssetArgs,
+    positionals: &[String],
+) -> Result<()> {
     if positionals.is_empty() {
         return Err(anyhow::anyhow!("mentor-load-asset requires an asset key"));
     }

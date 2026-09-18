@@ -125,7 +125,10 @@ pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Resu
     output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_list_role_assignments(args: ListRoleAssignmentsArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_list_role_assignments(
+    args: ListRoleAssignmentsArgs,
+    positionals: &[String],
+) -> Result<()> {
     require_positional(positionals, "list-role-assignments", "an app name or key")?;
 
     let settings = settings::load_settings()?;
@@ -245,10 +248,7 @@ pub async fn cmd_grant_role(args: RoleGrantArgs, positionals: &[String]) -> Resu
     let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
 
     client.grant_role(&user_key, &role_key)?;
-    output.println_locked(&format!(
-        "Granted role {} to {}",
-        args.role, positionals[0]
-    ));
+    output.println_locked(&format!("Granted role {} to {}", args.role, positionals[0]));
     Ok(())
 }
 
@@ -304,7 +304,10 @@ pub async fn cmd_grant_group_role(args: GroupRoleGrantArgs, positionals: &[Strin
     Ok(())
 }
 
-pub async fn cmd_revoke_group_role(args: GroupRoleRevokeArgs, positionals: &[String]) -> Result<()> {
+pub async fn cmd_revoke_group_role(
+    args: GroupRoleRevokeArgs,
+    positionals: &[String],
+) -> Result<()> {
     if positionals.len() < 2 {
         return Err(anyhow::anyhow!(
             "revoke-group-role requires a group and a role"
