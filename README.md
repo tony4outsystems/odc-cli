@@ -53,7 +53,7 @@ Auth is loaded from the nearest `.env` file in the current directory or a parent
 - `ODC_CLIENT_ID`
 - `ODC_CLIENT_SECRET`
 
-App and environment are not read from `.env` — pass `--app`/`--env` explicitly to each command that needs them. Either accepts a name or a key. App names require an exact, case-insensitive match; environment names also accept a unique partial match. Ambiguous names produce suggestions and stop the command.
+Asset and environment are not read from `.env` — pass `--asset`/`--env` explicitly to each command that needs them. Either accepts a name or a key. Asset names require an exact, case-insensitive match; environment names also accept a unique partial match. Ambiguous names produce suggestions and stop the command.
 
 ### Getting your tenant URL, client ID, and client secret
 
@@ -67,11 +67,11 @@ App and environment are not read from `.env` — pass `--app`/`--env` explicitly
 
 ```bash
 odc discover
-odc latest-revision --app <app-name-or-key>
-odc deploy --app <app-name-or-key> --env <environment-name-or-key>
+odc latest-revision --asset <asset-name-or-key>
+odc deploy --asset <asset-name-or-key> --env <environment-name-or-key>
 ```
 
-The `deploy` command confirms the given app and environment keys are visible to the API client, selects the current app revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
+The `deploy` command confirms the given asset and environment keys are visible to the API client, selects the current asset revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
 
 ## Claude Code skill
 
@@ -92,15 +92,15 @@ Once installed, ask Claude Code things like "deploy MyApp to Production with odc
 
 Results use readable tables and labeled fields by default. Terminal output includes colored headings and status values; redirected output is plain text.
 
-List commands (`list-apps`, `list-deployed-apps`, `list-revisions`) show only a few key columns in their table (e.g. name, key, type, revision, tag) rather than every field the API returns — the full record, guids and all, is always available with `--json`.
+List commands (`list-assets`, `list-deployed-assets`, `list-revisions`) show only a few key columns in their table (e.g. name, key, type, revision, tag) rather than every field the API returns — the full record, guids and all, is always available with `--json`.
 
 - `--json` prints JSON for scripts. Commands with multiple stages emit successive JSON values, with progress messages on stderr.
 - `--color auto|always|never` controls ANSI colors (default `auto`). Automatic color respects `NO_COLOR` and `TERM=dumb`.
 
 ```bash
-odc list-apps
-odc get-app MyApp --color always
-odc list-apps --json > apps.json
+odc list-assets
+odc get-asset MyAsset --color always
+odc list-assets --json > assets.json
 ```
 
 ## Commands
@@ -117,11 +117,14 @@ Auth:
   discover                        Show the OAuth discovery document (issuer, endpoints, scopes)
   login                           Save credentials in ~/.odc/config.json (prompts for client secret)
 
-Apps & Environments:
+Portfolios:
+  list-portfolios                 List portfolios in the tenant
+
+Assets & Environments:
   list-environments               List environments in the tenant
-  list-apps                       List apps in the tenant, optionally filtered by name/key and/or type
-  list-deployed-apps              List deployed apps, optionally filtered by environment and name/key
-  get-app                         Retrieve app metadata
+  list-assets                     List assets in the tenant, optionally filtered by name/key and/or type
+  list-deployed-assets            List deployed assets, optionally filtered by environment and name/key
+  get-asset                       Retrieve asset metadata
 
 Revisions & Source:
   latest-revision                 Print the latest revision number of an app
@@ -136,24 +139,50 @@ Deployment:
   analyze-deletion                Analyze the impact of deleting an app
   deploy                          Deploy an app to an environment
   undeploy                        Undeploy an app from an environment
-  delete-app                      Delete an app
+  delete-asset                    Delete an asset
 
 Batch Operations:
-  batch-deploy                    Deploy multiple apps listed in a file
-  batch-undeploy                  Undeploy multiple apps listed in a file
-  batch-delete                    Delete multiple apps listed in a file
-  dangerous-batch-undeploy-all    Undeploy all apps from an environment
+  batch-deploy                    Deploy multiple assets listed in a file
+  batch-undeploy                  Undeploy multiple assets listed in a file
+  batch-delete                    Delete multiple assets listed in a file
+  dangerous-batch-undeploy-all    Undeploy all assets from an environment
 
-Users & Roles:
+Users:
   get-user                        Retrieve a user's details
   update-user                     Update a user's name, active status, or photo URL
+
+Groups:
+  list-groups                     List end-user groups, optionally filtered by name and/or environment
+  get-group                       Retrieve an end-user group's details
+  update-group                    Update a group's name or description
+  list-group-members              List the members of an end-user group
+  add-user-to-group               Add a user to an end-user group
+  remove-user-from-group          Remove a user from an end-user group
+
+Roles:
+  list-roles                      List application roles defined for an app
+  list-role-assignments           List, for each application role of an app, the users and/or groups assigned to it
   grant-role                      Grant an application role to a user
   revoke-role                     Revoke an application role from a user
+  grant-group-role                Grant an application role to an end-user group
+  revoke-group-role               Revoke an application role from an end-user group
 
 Internal (Advanced):
   internal-build                  Start a build for an app revision
   internal-publish                Publish a build to an environment
   internal-deploy                 Deploy an existing build to an environment
+
+Mentor:
+  mentor-start-session            Start a new Mentor session; prints the sessionId used for follow-up commands
+  mentor-create-asset             Create a new asset in a Mentor session, so `mentor-prompt` can edit it
+  mentor-load-asset               Load an existing app into a Mentor session, so `mentor-prompt` can edit it
+  mentor-prompt                   Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run`
+  mentor-get-run                  Poll a Mentor run's progress events and status
+  mentor-get-event                Fetch the full body of a truncated Mentor run event
+  mentor-cancel-prompt            Cancel the in-flight prompt for a Mentor session
+  mentor-request-upload           Mint a presigned upload URL for a Mentor session attachment
+  mentor-publish                  Publish the asset loaded in a Mentor session to the connected dev environment
+  mentor-close-session            Close a Mentor session and release its resources
 
 Misc:
   completion                      Generate shell completion scripts
@@ -181,10 +210,10 @@ odc discover
 
 #### latest-revision
 
-Print the latest revision number for an app.
+Print the latest revision number for an asset.
 
 ```bash
-odc latest-revision --app <app-name-or-key>
+odc latest-revision --asset <asset-name-or-key>
 ```
 
 #### list-environments
@@ -195,98 +224,98 @@ List environments visible to the API client (name, key, type).
 odc list-environments
 ```
 
-#### list-apps
+#### list-assets
 
-List apps visible to the API client (name, key, type).
+List assets visible to the API client (name, key, type).
 
 ```bash
-odc list-apps [name-or-key-substring] [--type WebApplication]
+odc list-assets [name-or-key-substring] [--type WebApplication]
 ```
 
-An optional positional filters to apps whose name or key contains it (case-insensitive). `--type` filters to an exact asset type; run `odc list-apps --help` for the full list of recognized values (`WebApplication`, `Agent`, `LowCodeLibrary`, ...).
+An optional positional filters to assets whose name or key contains it (case-insensitive). `--type` filters to an exact asset type; run `odc list-assets --help` for the full list of recognized values (`WebApplication`, `Agent`, `LowCodeLibrary`, ...).
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 
-#### list-deployed-apps
+#### list-deployed-assets
 
-List apps deployed across all visible environments, including their deployed revision, tag, and environment. One row per app/environment deployment.
+List assets deployed across all visible environments, including their deployed revision, tag, and environment. One row per asset/environment deployment.
 
 ```bash
-odc list-deployed-apps [name-or-key-substring] [--env <environment-name-or-key>]
+odc list-deployed-assets [name-or-key-substring] [--env <environment-name-or-key>]
 ```
 
-The positional filters to apps whose name or key contains it (case-insensitive). `--env` narrows to one environment (name, key, or unambiguous partial name — an unresolvable value is an error, it never matches nothing silently); omit it to include every environment the app is deployed to.
+The positional filters to assets whose name or key contains it (case-insensitive). `--env` narrows to one environment (name, key, or unambiguous partial name — an unresolvable value is an error, it never matches nothing silently); omit it to include every environment the asset is deployed to.
 
 See [Pagination](#pagination) for `--offset`/`--limit`.
 
 #### list-revisions / get-revision
 
-List all revisions of an app, or retrieve one specific revision.
+List all revisions of an asset, or retrieve one specific revision.
 
 ```bash
-odc list-revisions --app <app-name-or-key>
-odc get-revision --app <app-name-or-key> --revision <revision>
+odc list-revisions --asset <asset-name-or-key>
+odc get-revision --asset <asset-name-or-key> --revision <revision>
 ```
 
-Both commands also accept the app as a positional argument. `get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
+Both commands also accept the asset as a positional argument. `get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
 
 #### download-source-code
 
-Download the OML source code of an app revision.
+Download the OML source code of an asset revision.
 
 ```bash
-odc download-source-code <app-name-or-key> [--revision <revision>] [--output <path>]
+odc download-source-code <asset-name-or-key> [--revision <revision>] [--output <path>]
 ```
 
 - `--revision` — defaults to the latest revision
-- `--output` — output file path; defaults to `<app-key>-rev-<revision>.oml`
+- `--output` — output file path; defaults to `<asset-key>-rev-<revision>.oml`
 
 #### upload-source-code
 
-Upload an OML/XIF file, creating a new asset (first revision) or a new revision of an existing one. The asset key is derived from the file's embedded module key, not from a name or `--app` flag.
+Upload an OML/XIF file, creating a new asset (first revision) or a new revision of an existing one. The asset key is derived from the file's embedded module key, not from a name or `--asset` flag.
 
 ```bash
 odc upload-source-code <oml-file>
 ```
 
-Combine with `deploy --app <asset-key> --env <environment>` to build and deploy the uploaded revision.
+Combine with `deploy --asset <asset-key> --env <environment>` to build and deploy the uploaded revision.
 
 #### analyze-deployment / analyze-deletion
 
-Run impact analysis and print the resulting report. These commands do not deploy or delete the app.
+Run impact analysis and print the resulting report. These commands do not deploy or delete the asset.
 
 ```bash
-odc analyze-deployment --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
-odc analyze-deletion --app <app-name-or-key>
+odc analyze-deployment --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
+odc analyze-deletion --asset <asset-name-or-key>
 ```
 
-Both commands also accept the app as a positional argument. Deployment analysis defaults to the latest revision. Deletion analysis applies to the whole app and takes no environment or revision.
+Both commands also accept the asset as a positional argument. Deployment analysis defaults to the latest revision. Deletion analysis applies to the whole asset and takes no environment or revision.
 
 By default, commands poll until analysis finishes. Use `--poll-interval` (default 10 seconds), `--timeout` (default 1800 seconds), or `--no-wait` to return the analysis key immediately. Processing failures and timeouts return an error. A completed analysis prints its report, including any warnings or errors found; findings themselves do not change the exit status.
 
-#### get-app
+#### get-asset
 
-Retrieve a single app by name or key.
+Retrieve a single asset by name or key.
 
 ```bash
-odc get-app <app-name-or-key>
+odc get-asset <asset-name-or-key>
 ```
 
 #### producer-graph
 
-Generate a Mermaid graph of an app's producer dependencies.
+Generate a Mermaid graph of an asset's producer dependencies.
 
 ```bash
-odc producer-graph <app-name-or-key> [--max-depth 2] [--output graph.mmd]
+odc producer-graph <asset-name-or-key> [--max-depth 2] [--output graph.mmd]
 ```
 
-- `app_key` — positional (also settable via `--app`); name or key
+- `asset_key` — positional (also settable via `--asset`); name or key
 - `--revision` — defaults to the latest revision
 - `--env` — environment context for resolving producers
 - `--max-depth` — maximum producer depth to traverse; `0` (default) means infinite
 - `--producer-type-filter` — `Deployable` (default), `Libraries`, or `All`
 - `--all-producers` — shortcut for `--producer-type-filter All`
-- `--output` — output path; defaults to `producer-graph-<app>-rev-<revision>.mmd`
+- `--output` — output path; defaults to `producer-graph-<asset>-rev-<revision>.mmd`
 
 #### get-user
 
@@ -300,30 +329,30 @@ odc get-user <user-key-or-email>
 
 #### deploy
 
-Confirm the given app and environment are visible to the API client, select the current app revision, build (Release by default), wait for the build to finish, then deploy — all for one app/environment.
+Confirm the given asset and environment are visible to the API client, select the current asset revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-odc deploy --app <app-name-or-key> --env <environment-name-or-key> [--revision <revision>]
+odc deploy --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
 ```
 
-- `--revision` — defaults to the app's current revision (falls back to the latest if unavailable)
+- `--revision` — defaults to the asset's current revision (falls back to the latest if unavailable)
 - `--build-type` — `Debug` or `Release` (default `Release`)
 
 #### batch-deploy
 
-Build and deploy every app listed in a text file, one app per line: `app_key` to deploy its latest revision, or `app_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [examples/10-clicks-demos.txt](examples/10-clicks-demos.txt) for an example. Per-app pinning avoids the ambiguity of a single `--revision` flag when the file lists apps that need different revisions.
+Build and deploy every asset listed in a text file, one asset per line: `asset_key` to deploy its latest revision, or `asset_key@revision` to pin a specific one (blank lines and `#` comments ignored). See [examples/10-clicks-demos.txt](examples/10-clicks-demos.txt) for an example. Per-asset pinning avoids the ambiguity of a single `--revision` flag when the file lists assets that need different revisions.
 
 ```bash
 odc batch-deploy examples/10-clicks-demos.txt --env <environment-name-or-key> [--build-type Release] [--skip-dependencies]
 ```
 
-By default, each app's producer dependencies are resolved via the producer graph, deduplicated across all listed apps, and deployed before the apps that need them. Dependencies deploy at the revision resolved from the producer graph. Cycles and conflicting revisions for the same app are rejected before any builds start. Apps without a pinned revision use the latest revision when dependency planning is enabled; with `--skip-dependencies`, they use the current revision, falling back to the latest.
+By default, each asset's producer dependencies are resolved via the producer graph, deduplicated across all listed assets, and deployed before the assets that need them. Dependencies deploy at the revision resolved from the producer graph. Cycles and conflicting revisions for the same asset are rejected before any builds start. Assets without a pinned revision use the latest revision when dependency planning is enabled; with `--skip-dependencies`, they use the current revision, falling back to the latest.
 
 Options:
 
 - `--env` — environment name or key (required)
 - `--build-type` — `Debug` or `Release` (default `Release`)
-- `--skip-dependencies` — deploy only the apps listed in the file, without automatically including their producer dependencies
+- `--skip-dependencies` — deploy only the assets listed in the file, without automatically including their producer dependencies
 - see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
 
 Example with overrides:
@@ -336,15 +365,15 @@ odc batch-deploy examples/10-clicks-demos.txt --env <env> --build-type Release -
 
 #### undeploy
 
-Undeploy a single app from an environment.
+Undeploy a single asset from an environment.
 
 ```bash
-odc undeploy --app <app-name-or-key> --env <environment-name-or-key>
+odc undeploy --asset <asset-name-or-key> --env <environment-name-or-key>
 ```
 
 #### dangerous-batch-undeploy-all
 
-**Irreversible.** Undeploys every app currently deployed to an environment. Double-check `--env` before running this.
+**Irreversible.** Undeploys every asset currently deployed to an environment. Double-check `--env` before running this.
 
 ```bash
 odc dangerous-batch-undeploy-all --env <environment-name-or-key>
@@ -355,14 +384,14 @@ Options:
 - `--env` — environment name or key (required)
 - see [Shared polling and parallel options](#shared-polling-and-parallel-options) below
 
-### App management
+### Asset management
 
-#### delete-app
+#### delete-asset
 
-Permanently delete an app from the app repository.
+Permanently delete an asset from the asset repository.
 
 ```bash
-odc delete-app --app <app-name-or-key>
+odc delete-asset --asset <asset-name-or-key>
 ```
 
 #### update-user
@@ -375,32 +404,32 @@ odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-u
 
 #### grant-role / revoke-role
 
-Grant or revoke an application role for a user. The app disambiguates which app's role to use when the same role name exists on multiple apps.
+Grant or revoke an application role for a user. The asset disambiguates which asset's role to use when the same role name exists on multiple assets.
 
 ```bash
-odc grant-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
-odc revoke-role <app-name-or-key> <role-name-or-key> <user-key-or-email>
+odc grant-role <user-key-or-email> <role-name-or-key> --asset <asset-name-or-key>
+odc revoke-role <user-key-or-email> <role-name-or-key> --asset <asset-name-or-key>
 ```
 
 The API client needs the **User management > Manage end-user access** permission.
 
 ### Internal single-step operations
 
-`internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--app`/`--env` and polls until the operation finishes (`--no-wait` to skip polling):
+`internal-build`, `internal-publish`, and `internal-deploy` are the raw single-step operations that `deploy` and `batch-deploy` are built from. Reach for them only when you need to drive one step in isolation — e.g. deploying a build that already exists via `internal-deploy --build-key <build-key>`. Each requires `--asset`/`--env` and polls until the operation finishes (`--no-wait` to skip polling):
 
 ```bash
-odc internal-build --app <app-name-or-key> --env <environment-name-or-key> [--revision 1] [--build-type Release]
-odc internal-publish --app <app-name-or-key> --env <environment-name-or-key> [--revision 1]
-odc internal-deploy --app <app-name-or-key> --env <environment-name-or-key> [--revision 1] --build-key <build-key>
+odc internal-build --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1] [--build-type Release]
+odc internal-publish --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1]
+odc internal-deploy --asset <asset-name-or-key> --env <environment-name-or-key> [--revision 1] --build-key <build-key>
 ```
 
-- `--revision` — defaults to the app's current revision (falls back to the latest if that isn't available)
+- `--revision` — defaults to the asset's current revision (falls back to the latest if that isn't available)
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)
 - `internal-deploy` also requires `--build-key <build-key>`
 
 ## Pagination
 
-`list-apps`, `list-deployed-apps`, and `list-revisions` list results from API endpoints that
+`list-assets`, `list-deployed-assets`, and `list-revisions` list results from API endpoints that
 page their results. By default each of these commands fetches every page and returns the
 combined result, so no flags are needed for the common case.
 
@@ -408,7 +437,7 @@ combined result, so no flags are needed for the common case.
 - `--limit` — page size to request from the API (default `100`); applies whether or not `--offset` is set.
 
 ```bash
-odc list-apps --offset 100 --limit 50
+odc list-assets --offset 100 --limit 50
 odc list-revisions --app MyApp --offset 0 --limit 20 --json
 ```
 

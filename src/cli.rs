@@ -263,13 +263,13 @@ pub struct PollArgs {
     pub no_wait: bool,
 }
 
-/// Shared flags for commands that run multiple apps in parallel.
+/// Shared flags for commands that run multiple assets in parallel.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ParallelArgs {
-    /// Maximum apps to process concurrently
+    /// Maximum assets to process concurrently
     #[arg(long, default_value_t = 3)]
     pub max_parallel: usize,
-    /// Keep going on remaining apps if one fails, instead of stopping
+    /// Keep going on remaining assets if one fails, instead of stopping
     #[arg(long)]
     pub continue_on_error: bool,
 }
@@ -332,10 +332,10 @@ pub enum Commands {
     /// Retrieve asset metadata.
     GetAsset { asset: String },
 
-    /// Print the latest revision number of an app.
+    /// Print the latest revision number of an asset.
     LatestRevision { asset: String },
 
-    /// List all revisions of an app.
+    /// List all revisions of an asset.
     ListRevisions {
         asset: String,
         #[arg(long)]
@@ -344,7 +344,7 @@ pub enum Commands {
         limit: i64,
     },
 
-    /// Retrieve a specific app revision.
+    /// Retrieve a specific asset revision.
     GetRevision {
         asset: String,
         /// Revision number to retrieve
@@ -352,7 +352,7 @@ pub enum Commands {
         revision: i32,
     },
 
-    /// Render an app's producer dependency graph as Mermaid.
+    /// Render an asset's producer dependency graph as Mermaid.
     ProducerGraph {
         asset: String,
         /// Defaults to the latest revision
@@ -370,18 +370,18 @@ pub enum Commands {
         /// Shortcut for --producer-type-filter All
         #[arg(long)]
         all_producers: bool,
-        /// Output path; defaults to producer-graph-<app>-rev-<revision>.mmd
+        /// Output path; defaults to producer-graph-<asset>-rev-<revision>.mmd
         #[arg(long)]
         output: Option<String>,
     },
 
-    /// Download the OML source code of an app revision.
+    /// Download the OML source code of an asset revision.
     DownloadSourceCode {
         asset: String,
         /// Defaults to the latest revision
         #[arg(long)]
         revision: Option<i32>,
-        /// Output file path; defaults to <app-key>-rev-<revision>.oml
+        /// Output file path; defaults to <asset-key>-rev-<revision>.oml
         #[arg(long)]
         output: Option<String>,
     },
@@ -389,7 +389,7 @@ pub enum Commands {
     /// Upload an OML/XIF file, creating a new asset or revision.
     UploadSourceCode { oml_file: String },
 
-    /// Analyze the impact of deploying an app revision.
+    /// Analyze the impact of deploying an asset revision.
     AnalyzeDeployment {
         #[arg(long)]
         asset: String,
@@ -402,7 +402,7 @@ pub enum Commands {
         poll: PollArgs,
     },
 
-    /// Analyze the impact of deleting an app.
+    /// Analyze the impact of deleting an asset.
     AnalyzeDeletion {
         #[arg(long)]
         asset: String,
@@ -410,13 +410,13 @@ pub enum Commands {
         poll: PollArgs,
     },
 
-    /// Deploy an app to an environment.
+    /// Deploy an asset to an environment.
     Deploy {
         #[arg(long)]
         asset: String,
         #[arg(long)]
         env: String,
-        /// Defaults to the app's current revision (falls back to the latest)
+        /// Defaults to the asset's current revision (falls back to the latest)
         #[arg(long)]
         revision: Option<i32>,
         /// Debug or Release
@@ -426,7 +426,7 @@ pub enum Commands {
         poll: PollArgs,
     },
 
-    /// Undeploy an app from an environment.
+    /// Undeploy an asset from an environment.
     Undeploy {
         #[arg(long)]
         asset: String,
@@ -436,21 +436,21 @@ pub enum Commands {
         poll: PollArgs,
     },
 
-    /// Delete an app.
-    DeleteApp {
+    /// Delete an asset.
+    DeleteAsset {
         #[arg(long)]
         asset: String,
     },
 
-    /// Deploy multiple apps listed in a file.
+    /// Deploy multiple assets listed in a file.
     BatchDeploy {
-        apps_file: String,
+        assets_file: String,
         #[arg(long)]
         env: String,
         /// Debug or Release
         #[arg(long, default_value = "Release")]
         build_type: String,
-        /// Deploy only the apps listed in the file, without their producer dependencies
+        /// Deploy only the assets listed in the file, without their producer dependencies
         #[arg(long)]
         skip_dependencies: bool,
         #[command(flatten)]
@@ -459,9 +459,9 @@ pub enum Commands {
         parallel: ParallelArgs,
     },
 
-    /// Undeploy multiple apps listed in a file.
+    /// Undeploy multiple assets listed in a file.
     BatchUndeploy {
-        apps_file: String,
+        assets_file: String,
         #[arg(long)]
         env: String,
         #[command(flatten)]
@@ -470,14 +470,14 @@ pub enum Commands {
         parallel: ParallelArgs,
     },
 
-    /// Delete multiple apps listed in a file.
+    /// Delete multiple assets listed in a file.
     BatchDelete {
-        apps_file: String,
+        assets_file: String,
         #[command(flatten)]
         parallel: ParallelArgs,
     },
 
-    /// Undeploy all apps from an environment.
+    /// Undeploy all assets from an environment.
     DangerousBatchUndeployAll {
         #[arg(long)]
         env: String,
@@ -501,7 +501,7 @@ pub enum Commands {
         photo_url: Option<String>,
     },
 
-    /// List application roles defined for an app.
+    /// List application roles defined for an asset.
     ListRoles {
         /// App the roles belong to (name or key)
         asset: String,
@@ -510,7 +510,7 @@ pub enum Commands {
         env: Option<String>,
     },
 
-    /// List, for each application role of an app, the users and/or groups assigned to it.
+    /// List, for each application role of an asset, the users and/or groups assigned to it.
     ListRoleAssignments {
         /// App the roles belong to (name or key)
         asset: String,
@@ -586,7 +586,7 @@ pub enum Commands {
         group: String,
     },
 
-    /// Start a build for an app revision.
+    /// Start a build for an asset revision.
     InternalBuild {
         #[arg(long)]
         asset: String,
@@ -645,7 +645,7 @@ pub enum Commands {
         template_asset_key: Option<String>,
     },
 
-    /// Load an existing app into a Mentor session, so `mentor-prompt` can edit it.
+    /// Load an existing asset into a Mentor session, so `mentor-prompt` can edit it.
     MentorLoadAsset {
         session_id: String,
         asset_key: String,
@@ -724,7 +724,7 @@ impl Commands {
             Commands::AnalyzeDeletion { .. } => "analyze-deletion",
             Commands::Deploy { .. } => "deploy",
             Commands::Undeploy { .. } => "undeploy",
-            Commands::DeleteApp { .. } => "delete-app",
+            Commands::DeleteAsset { .. } => "delete-asset",
             Commands::BatchDeploy { .. } => "batch-deploy",
             Commands::BatchUndeploy { .. } => "batch-undeploy",
             Commands::BatchDelete { .. } => "batch-delete",
@@ -896,11 +896,11 @@ impl Commands {
                 options.env = env;
                 apply_poll(&mut options, poll);
             }
-            Commands::DeleteApp { asset } => {
+            Commands::DeleteAsset { asset } => {
                 options.asset = asset;
             }
             Commands::BatchDeploy {
-                apps_file,
+                assets_file,
                 env,
                 build_type,
                 skip_dependencies,
@@ -912,10 +912,10 @@ impl Commands {
                 options.skip_dependencies = skip_dependencies;
                 apply_poll(&mut options, poll);
                 apply_parallel(&mut options, parallel);
-                positionals = vec![apps_file];
+                positionals = vec![assets_file];
             }
             Commands::BatchUndeploy {
-                apps_file,
+                assets_file,
                 env,
                 poll,
                 parallel,
@@ -923,14 +923,14 @@ impl Commands {
                 options.env = env;
                 apply_poll(&mut options, poll);
                 apply_parallel(&mut options, parallel);
-                positionals = vec![apps_file];
+                positionals = vec![assets_file];
             }
             Commands::BatchDelete {
-                apps_file,
+                assets_file,
                 parallel,
             } => {
                 apply_parallel(&mut options, parallel);
-                positionals = vec![apps_file];
+                positionals = vec![assets_file];
             }
             Commands::DangerousBatchUndeployAll {
                 env,
