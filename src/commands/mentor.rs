@@ -140,11 +140,24 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
 
         let run_result = mentor.call_tool("mentor_get_run", Value::Object(run_args))?;
 
+        // Check top-level status field
+        if let Some(status) = run_result.get("status").and_then(|v| v.as_str()) {
+            match status {
+                "succeeded" | "completed" => run_finished = true,
+                "failed" => {
+                    run_finished = true;
+                    run_failed = true;
+                }
+                _ => {}
+            }
+        }
+
+        // Also check events for status changes
         if let Some(events) = run_result.get("events").and_then(|v| v.as_array()) {
             for event in events {
                 if let Some(status) = event.get("status").and_then(|v| v.as_str()) {
                     match status {
-                        "completed" => run_finished = true,
+                        "completed" | "succeeded" => run_finished = true,
                         "failed" => {
                             run_finished = true;
                             run_failed = true;
