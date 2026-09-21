@@ -9,96 +9,129 @@ permissions:
   contents: write
 
 jobs:
-  build-matrix:
-    name: Build ${{ matrix.target }}
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: odc
-            asset_name: odc-x86_64-linux-gnu
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            artifact_name: odc
-            asset_name: odc-x86_64-darwin
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            artifact_name: odc
-            asset_name: odc-aarch64-darwin
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact_name: odc.exe
-            asset_name: odc-x86_64-windows
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }} --locked
-      - name: Create archive (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p odc-${{ matrix.asset_name }}
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}/
-          cp README.md LICENSE odc-${{ matrix.asset_name }}/ 2>/dev/null || true
-          tar czf odc-${{ matrix.asset_name }}.tar.gz odc-${{ matrix.asset_name }}/
-          sha256sum odc-${{ matrix.asset_name }}.tar.gz > odc-${{ matrix.asset_name }}.tar.gz.sha256
-      - name: Create archive (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          mkdir odc-${{ matrix.asset_name }}
-          Copy-Item target\${{ matrix.target }}\release\${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}\
-          if (Test-Path README.md) { Copy-Item README.md odc-${{ matrix.asset_name }}\ }
-          if (Test-Path LICENSE) { Copy-Item LICENSE odc-${{ matrix.asset_name }}\ }
-          Compress-Archive -Path odc-${{ matrix.asset_name }} -DestinationPath odc-${{ matrix.asset_name }}.zip
-          $hash = (Get-FileHash "odc-${{ matrix.asset_name }}.zip" -Algorithm SHA256).Hash
-          "$hash  odc-${{ matrix.asset_name }}.zip" | Out-File "odc-${{ matrix.asset_name }}.zip.sha256"
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - run: cargo build --release --target x86_64-unknown-linux-gnu --locked
+      - run: |
+          mkdir -p odc-x86_64-linux-gnu
+          cp target/x86_64-unknown-linux-gnu/release/odc odc-x86_64-linux-gnu/
+          cp README.md LICENSE odc-x86_64-linux-gnu/ 2>/dev/null || true
+          tar czf odc-x86_64-linux-gnu.tar.gz odc-x86_64-linux-gnu/
+          sha256sum odc-x86_64-linux-gnu.tar.gz > odc-x86_64-linux-gnu.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
         with:
-          name: odc-${{ matrix.target }}
-          path: |
-            odc-${{ matrix.asset_name }}.tar.gz*
-            odc-${{ matrix.asset_name }}.zip*
+          name: linux-binaries
+          path: odc-*.tar.gz*
 
-  release-skill:
-    name: Release Skill
+  build-macos-intel:
+    name: Build macOS x86_64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --target x86_64-apple-darwin --locked
+      - run: |
+          mkdir -p odc-x86_64-darwin
+          cp target/x86_64-apple-darwin/release/odc odc-x86_64-darwin/
+          cp README.md LICENSE odc-x86_64-darwin/ 2>/dev/null || true
+          tar czf odc-x86_64-darwin.tar.gz odc-x86_64-darwin/
+          shasum -a 256 odc-x86_64-darwin.tar.gz > odc-x86_64-darwin.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel-binaries
+          path: odc-*.tar.gz*
+
+  build-macos-arm:
+    name: Build macOS ARM64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --target aarch64-apple-darwin --locked
+      - run: |
+          mkdir -p odc-aarch64-darwin
+          cp target/aarch64-apple-darwin/release/odc odc-aarch64-darwin/
+          cp README.md LICENSE odc-aarch64-darwin/ 2>/dev/null || true
+          tar czf odc-aarch64-darwin.tar.gz odc-aarch64-darwin/
+          shasum -a 256 odc-aarch64-darwin.tar.gz > odc-aarch64-darwin.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm-binaries
+          path: odc-*.tar.gz*
+
+  build-windows:
+    name: Build Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --target x86_64-pc-windows-msvc --locked
+      - shell: powershell
+        run: |
+          mkdir odc-x86_64-windows
+          Copy-Item target\x86_64-pc-windows-msvc\release\odc.exe odc-x86_64-windows\
+          if (Test-Path README.md) { Copy-Item README.md odc-x86_64-windows\ }
+          if (Test-Path LICENSE) { Copy-Item LICENSE odc-x86_64-windows\ }
+          Compress-Archive -Path odc-x86_64-windows -DestinationPath odc-x86_64-windows.zip
+          $hash = (Get-FileHash "odc-x86_64-windows.zip" -Algorithm SHA256).Hash
+          "$hash  odc-x86_64-windows.zip" | Out-File "odc-x86_64-windows.zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: odc-*.zip*
+
+  package-skill:
+    name: Package Agent Skill
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-      - name: Package skill
-        run: |
-          python scripts/package_skill.py skills/odc-cli-helper odc-cli-helper.skill
-          ls -lh odc-cli-helper.skill
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - run: python scripts/package_skill.py skills/odc-cli-helper odc-cli-helper.skill
+      - uses: actions/upload-artifact@v4
         with:
-          name: odc-cli-helper-skill
+          name: skill
           path: odc-cli-helper.skill
 
   publish:
     name: Publish Release
-    needs: [build-matrix, release-skill]
+    needs: [build-linux, build-macos-intel, build-macos-arm, build-windows, package-skill]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-      - name: List artifacts
-        run: find artifacts -type f -exec ls -lh {} \;
-      - name: Create release
+          path: release-artifacts
+
+      - name: Flatten artifacts and list
+        run: |
+          mkdir final-release
+          find release-artifacts -type f -exec cp {} final-release/ \;
+          ls -lh final-release/
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          files: final-release/*
           body: |
             # Release ${{ github.ref_name }}
 
@@ -109,10 +142,15 @@ jobs:
             ## Installation
 
             ### Binary Installation
-            Download the appropriate archive for your platform from the assets below.
-            Extract and copy the `odc` (or `odc.exe` on Windows) binary to your PATH.
+            Download the appropriate archive for your platform from the assets below:
+            - `odc-x86_64-linux-gnu.tar.gz` — Linux x86_64
+            - `odc-x86_64-darwin.tar.gz` — macOS Intel
+            - `odc-aarch64-darwin.tar.gz` — macOS ARM
+            - `odc-x86_64-windows.zip` — Windows
 
-            Verify: `odc --version`
+            Extract and add the `odc` (or `odc.exe` on Windows) binary to your PATH.
+
+            Verify installation: `odc --version`
 
             ### Skill Installation
             1. Download `odc-cli-helper.skill` from the assets
@@ -125,9 +163,8 @@ jobs:
             - Common commands reference
             - Deployment and app management
             - Troubleshooting guide
-          files: |
-            artifacts/**/*.tar.gz*
-            artifacts/**/*.zip*
-            artifacts/**/*.skill
+
+            ## Checksums
+            SHA256 checksums are included for each archive to verify integrity.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
