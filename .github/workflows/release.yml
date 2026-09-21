@@ -9,31 +9,60 @@ permissions:
   contents: write
 
 jobs:
-  release-binaries:
-    name: Release Binaries
-    runs-on: ubuntu-latest
+  build-matrix:
+    name: Build ${{ matrix.target }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: odc
+            asset_name: odc-x86_64-linux-gnu
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: odc
+            asset_name: odc-x86_64-darwin
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: odc
+            asset_name: odc-aarch64-darwin
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: odc.exe
+            asset_name: odc-x86_64-windows
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-dist
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh | sh
-      - name: Build dist artifacts
-        run: |
-          cargo dist build --output-format=json > dist-manifest.json
-          ls -la dist/ || echo "No dist/ directory"
-          cat dist-manifest.json | head -20
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v1
         with:
-          files: |
-            dist/**/*.tar.xz
-            dist/**/*.zip
-            dist/**/SHA256SUMS
-            dist/**/*.msi
-            dist/**/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} --locked
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p odc-${{ matrix.asset_name }}
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}/
+          cp README.md LICENSE odc-${{ matrix.asset_name }}/ 2>/dev/null || true
+          tar czf odc-${{ matrix.asset_name }}.tar.gz odc-${{ matrix.asset_name }}/
+          sha256sum odc-${{ matrix.asset_name }}.tar.gz > odc-${{ matrix.asset_name }}.tar.gz.sha256
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir odc-${{ matrix.asset_name }}
+          copy target\${{ matrix.target }}\release\${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}\
+          copy README.md LICENSE odc-${{ matrix.asset_name }}\ 2>nul || echo "License files not found"
+          powershell -Command "Compress-Archive -Path odc-${{ matrix.asset_name }} -DestinationPath odc-${{ matrix.asset_name }}.zip"
+          $hash = (Get-FileHash "odc-${{ matrix.asset_name }}.zip" -Algorithm SHA256).Hash
+          "$hash  odc-${{ matrix.asset_name }}.zip" | Out-File "odc-${{ matrix.asset_name }}.zip.sha256"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: odc-${{ matrix.target }}
+          path: |
+            odc-${{ matrix.asset_name }}.tar.gz*
+            odc-${{ matrix.asset_name }}.zip*
 
   release-skill:
     name: Release Skill
@@ -47,40 +76,56 @@ jobs:
         run: |
           python scripts/package_skill.py skills/odc-cli-helper odc-cli-helper.skill
           ls -lh odc-cli-helper.skill
-      - name: Get skill metadata
-        id: metadata
-        run: |
-          VERSION=$(git describe --tags --always --dirty)
-          SKILL_NAME=$(grep "^name:" skills/odc-cli-helper/SKILL.md | cut -d: -f2 | xargs)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "skill_name=$SKILL_NAME" >> $GITHUB_OUTPUT
-          echo "Skill: $SKILL_NAME (version: $VERSION)"
-      - name: Upload skill to release
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: odc-cli-helper-skill
+          path: odc-cli-helper.skill
+
+  publish:
+    name: Publish Release
+    needs: [build-matrix, release-skill]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: List artifacts
+        run: find artifacts -type f -exec ls -lh {} \;
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          files: odc-cli-helper.skill
           body: |
             # Release ${{ github.ref_name }}
 
             This release includes:
-            - **CLI Binaries**: macOS (Intel/ARM), Linux (amd64/arm64), Windows (amd64)
+            - **CLI Binaries**: macOS (Intel/ARM), Linux (amd64), Windows (amd64)
             - **Agent Skill**: ODC CLI Helper skill for Claude Code
 
             ## Installation
 
             ### Binary Installation
-            See the assets below for platform-specific binaries.
+            Download the appropriate archive for your platform from the assets below.
+            Extract and copy the `odc` (or `odc.exe` on Windows) binary to your PATH.
+
+            Verify: `odc --version`
 
             ### Skill Installation
-            1. Download `odc-cli-helper.skill` from this release
+            1. Download `odc-cli-helper.skill` from the assets
             2. Open it with Claude Code
             3. Click "Install" or copy to `~/.claude/skills/`
 
             ## What's included
-            - Installation guidance (Homebrew on macOS, build from source on Windows/Linux)
-            - Credential setup and configuration
+            - Installation guidance and setup
+            - Credential configuration
             - Common commands reference
             - Deployment and app management
             - Troubleshooting guide
+          files: |
+            artifacts/**/*.tar.gz*
+            artifacts/**/*.zip*
+            artifacts/**/*.skill
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
