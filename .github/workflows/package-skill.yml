@@ -41,38 +41,6 @@ jobs:
           echo "skill_name=$SKILL_NAME" >> $GITHUB_OUTPUT
           echo "Skill: $SKILL_NAME (version: $VERSION)"
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: skill-${{ steps.metadata.outputs.skill_name }}-${{ github.sha }}
-          name: "ODC CLI Skill - ${{ steps.metadata.outputs.version }}"
-          body: |
-            # ODC CLI Helper Skill
-
-            OutSystems ODC CLI helper for installing, configuring, and using the CLI tool.
-
-            **What's included:**
-            - Installation guidance (Homebrew on macOS, build from source on Windows/Linux)
-            - Credential setup and configuration
-            - Common commands reference
-            - Deployment and app management
-            - Troubleshooting guide
-
-            **Installation:**
-            1. Download `odc-cli-helper.skill` from this release
-            2. Open it with Claude Code
-            3. Click "Install" or copy to `~/.claude/skills/`
-
-            **Usage:**
-            Mention "odc-cli" in Claude and it will help you with any ODC CLI tasks.
-          files: |
-            odc-cli-helper.skill
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
