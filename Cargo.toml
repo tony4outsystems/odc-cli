@@ -3,6 +3,7 @@ name = "odc"
 version = "2.0.0"
 edition = "2021"
 rust-version = "1.88"
+repository = "https://github.com/tony4outsystems/odc-cli"
 
 [dependencies]
 clap = { version = "4", features = ["string", "derive"] }
