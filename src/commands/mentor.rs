@@ -10,6 +10,16 @@ use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
 
+/// Flush accumulated streaming text to stderr, rendering it as markdown via termimad.
+/// Clears the buffer after printing.
+fn flush_text_buf(buf: &mut String) {
+    let text = buf.trim().to_string();
+    if !text.is_empty() && text != "null" {
+        termimad::print_text(&text);
+    }
+    buf.clear();
+}
+
 fn mentor_client(
     json: bool,
     color: crate::output::ColorMode,
@@ -126,6 +136,8 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     let mut run_failed = false;
     let max_polls = 30; // 5 minutes with 10-second interval
     let mut poll_count = 0;
+    // Buffer for streaming "text" chunks — flushed when a non-text event arrives or polling ends.
+    let mut text_buf = String::new();
 
     while !run_finished && poll_count < max_polls {
         std::thread::sleep(std::time::Duration::from_secs(10));
@@ -152,10 +164,9 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
             }
         }
 
-        // Display events and check for status changes
+        // Display events
         if let Some(events) = run_result.get("events").and_then(|v| v.as_array()) {
             for event in events {
-                // Events can be strings (JSON) or objects. Parse if string.
                 let event_obj = if let Some(s) = event.as_str() {
                     serde_json::from_str::<serde_json::Value>(s).ok()
                 } else {
@@ -163,33 +174,39 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
                 };
 
                 if let Some(obj) = event_obj {
-                    // Extract message based on MsgType
                     let msg_type = obj
                         .get("MsgType")
                         .or_else(|| obj.get("msgType"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
 
-                    let msg = match msg_type {
-                        "text" => obj.get("text").and_then(|v| v.as_str()).map(|s| s.trim()),
-                        "conversationInfoUpdated" => obj.get("title").and_then(|v| v.as_str()),
+                    match msg_type {
+                        "text" => {
+                            // Accumulate streaming text chunks into a single buffer.
+                            if let Some(chunk) = obj.get("text").and_then(|v| v.as_str()) {
+                                text_buf.push_str(chunk);
+                            }
+                        }
+                        "conversationInfoUpdated" => {
+                            // Flush accumulated text before printing a status line.
+                            flush_text_buf(&mut text_buf);
+                            if let Some(title) = obj.get("title").and_then(|v| v.as_str()) {
+                                if !title.is_empty() && title != "null" {
+                                    output.stderr(&format!("  → {}", title));
+                                }
+                            }
+                        }
                         "reasoning" => {
-                            // Show reasoning title if available
-                            obj.get("title")
+                            flush_text_buf(&mut text_buf);
+                            let label = obj
+                                .get("title")
                                 .and_then(|v| v.as_str())
-                                .or_else(|| Some("Thinking..."))
+                                .unwrap_or("Thinking...");
+                            output.stderr(&format!("  → {}", label));
                         }
-                        _ => None,
-                    };
-
-                    // Display non-empty messages
-                    if let Some(msg) = msg {
-                        if !msg.is_empty() && msg != "null" {
-                            output.stderr(&format!("  → {}", msg));
-                        }
+                        _ => {}
                     }
 
-                    // Check for status changes
                     if let Some(status) = obj.get("status").and_then(|v| v.as_str()) {
                         match status {
                             "completed" | "succeeded" => run_finished = true,
@@ -208,6 +225,9 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
             poll_cursor = Some(cursor_val);
         }
     }
+
+    // Flush any remaining buffered text after polling completes.
+    flush_text_buf(&mut text_buf);
 
     if !run_finished {
         // Close session before returning error
