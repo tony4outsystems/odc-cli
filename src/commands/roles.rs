@@ -113,12 +113,17 @@ pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Resu
 
     let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
-    // Resolve environment keys to names in user-friendly output
-    if !args.json && !args.no_resolve {
+    // For table output, always populate "environment" field
+    // Either with resolved name (default) or raw key (with -n flag)
+    if !args.json {
         for role in roles.iter_mut() {
             if let Some(Value::String(env_key)) = role.get("environmentKey") {
-                let env_name = resolve_environment_key(&client, env_key)?;
-                role.insert("environment".to_string(), Value::String(env_name));
+                let env_value = if args.no_resolve {
+                    env_key.clone()
+                } else {
+                    resolve_environment_key(&client, env_key)?
+                };
+                role.insert("environment".to_string(), Value::String(env_value));
             }
         }
     }
@@ -147,12 +152,17 @@ pub async fn cmd_list_role_assignments(
 
     let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
-    // Resolve environment keys to names in user-friendly output
-    if !args.json && !args.no_resolve {
+    // For table output, always populate "environment" field
+    // Either with resolved name (default) or raw key (with -n flag)
+    if !args.json {
         for role in roles.iter_mut() {
             if let Some(Value::String(env_key)) = role.get("environmentKey") {
-                let env_name = resolve_environment_key(&client, env_key)?;
-                role.insert("environment".to_string(), Value::String(env_name));
+                let env_value = if args.no_resolve {
+                    env_key.clone()
+                } else {
+                    resolve_environment_key(&client, env_key)?
+                };
+                role.insert("environment".to_string(), Value::String(env_value));
             }
         }
     }
