@@ -124,7 +124,7 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     let mut poll_cursor: Option<i64> = None;
     let mut run_finished = false;
     let mut run_failed = false;
-    let max_polls = 180; // 30 minutes with 10-second interval
+    let max_polls = 30; // 5 minutes with 10-second interval
     let mut poll_count = 0;
 
     while !run_finished && poll_count < max_polls {
