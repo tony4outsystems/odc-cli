@@ -72,10 +72,7 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
     ),
-    (
-        "Mentor",
-        &["mentor-prompt"],
-    ),
+    ("Mentor", &["mentor-prompt"]),
     (
         "Mentor (Advanced)",
         &[
@@ -142,7 +139,10 @@ pub fn print_categorized_help() {
 
         // Add value placeholder only if the argument takes a value
         // Boolean flags don't need a value placeholder
-        if !matches!(arg.get_action(), clap::ArgAction::SetTrue | clap::ArgAction::SetFalse) {
+        if !matches!(
+            arg.get_action(),
+            clap::ArgAction::SetTrue | clap::ArgAction::SetFalse
+        ) {
             if let Some(value_names) = arg.get_value_names() {
                 if !value_names.is_empty() {
                     let value_placeholder = value_names
@@ -1098,12 +1098,14 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::MentorPromptArgs {
         match self {
-            Commands::MentorPrompt { app_name, prompt } => crate::commands::args::MentorPromptArgs {
-                json,
-                color,
-                app_name: app_name.clone(),
-                prompt: prompt.clone(),
-            },
+            Commands::MentorPrompt { app_name, prompt } => {
+                crate::commands::args::MentorPromptArgs {
+                    json,
+                    color,
+                    app_name: app_name.clone(),
+                    prompt: prompt.clone(),
+                }
+            }
             _ => panic!("Expected MentorPrompt command"),
         }
     }

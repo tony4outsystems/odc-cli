@@ -29,7 +29,12 @@ use crate::output::ColorMode;
 use anyhow::Result;
 
 /// Execute a command by matching on the Commands enum directly, dispatching to the appropriate module.
-pub async fn execute(command: &Commands, json: bool, color: ColorMode, no_resolve: bool) -> Result<()> {
+pub async fn execute(
+    command: &Commands,
+    json: bool,
+    color: ColorMode,
+    no_resolve: bool,
+) -> Result<()> {
     use Commands::*;
 
     match command {
