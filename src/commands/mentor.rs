@@ -152,17 +152,53 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
             }
         }
 
-        // Also check events for status changes
+        // Display events and check for status changes
         if let Some(events) = run_result.get("events").and_then(|v| v.as_array()) {
             for event in events {
-                if let Some(status) = event.get("status").and_then(|v| v.as_str()) {
-                    match status {
-                        "completed" | "succeeded" => run_finished = true,
-                        "failed" => {
-                            run_finished = true;
-                            run_failed = true;
+                // Events can be strings (JSON) or objects. Parse if string.
+                let event_obj = if let Some(s) = event.as_str() {
+                    serde_json::from_str::<serde_json::Value>(s).ok()
+                } else {
+                    Some(event.clone())
+                };
+
+                if let Some(obj) = event_obj {
+                    // Extract message based on MsgType
+                    let msg_type = obj
+                        .get("MsgType")
+                        .or_else(|| obj.get("msgType"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let msg = match msg_type {
+                        "text" => obj.get("text").and_then(|v| v.as_str()).map(|s| s.trim()),
+                        "conversationInfoUpdated" => obj.get("title").and_then(|v| v.as_str()),
+                        "reasoning" => {
+                            // Show reasoning title if available
+                            obj.get("title")
+                                .and_then(|v| v.as_str())
+                                .or_else(|| Some("Thinking..."))
                         }
-                        _ => {}
+                        _ => None,
+                    };
+
+                    // Display non-empty messages
+                    if let Some(msg) = msg {
+                        if !msg.is_empty() && msg != "null" {
+                            output.stderr(&format!("  → {}", msg));
+                        }
+                    }
+
+                    // Check for status changes
+                    if let Some(status) = obj.get("status").and_then(|v| v.as_str()) {
+                        match status {
+                            "completed" | "succeeded" => run_finished = true,
+                            "failed" => {
+                                run_finished = true;
+                                run_failed = true;
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
