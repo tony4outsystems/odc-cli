@@ -20,15 +20,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --target x86_64-unknown-linux-gnu --locked
       - run: |
-          mkdir -p odc-x86_64-linux-gnu
-          cp target/x86_64-unknown-linux-gnu/release/odc odc-x86_64-linux-gnu/
-          cp README.md LICENSE odc-x86_64-linux-gnu/ 2>/dev/null || true
-          tar czf odc-x86_64-linux-gnu.tar.gz odc-x86_64-linux-gnu/
-          sha256sum odc-x86_64-linux-gnu.tar.gz > odc-x86_64-linux-gnu.tar.gz.sha256
+          mkdir -p odc-cli-x86_64-linux-gnu
+          cp target/x86_64-unknown-linux-gnu/release/odc odc-cli-x86_64-linux-gnu/
+          cp README.md LICENSE odc-cli-x86_64-linux-gnu/ 2>/dev/null || true
+          tar czf odc-cli-x86_64-linux-gnu.tar.gz odc-cli-x86_64-linux-gnu/
+          sha256sum odc-cli-x86_64-linux-gnu.tar.gz > odc-cli-x86_64-linux-gnu.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: linux-binaries
-          path: odc-*.tar.gz*
+          path: odc-cli-*.tar.gz*
 
   build-macos-intel:
     name: Build macOS x86_64
@@ -41,15 +41,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --target x86_64-apple-darwin --locked
       - run: |
-          mkdir -p odc-x86_64-darwin
-          cp target/x86_64-apple-darwin/release/odc odc-x86_64-darwin/
-          cp README.md LICENSE odc-x86_64-darwin/ 2>/dev/null || true
-          tar czf odc-x86_64-darwin.tar.gz odc-x86_64-darwin/
-          shasum -a 256 odc-x86_64-darwin.tar.gz > odc-x86_64-darwin.tar.gz.sha256
+          mkdir -p odc-cli-x86_64-darwin
+          cp target/x86_64-apple-darwin/release/odc odc-cli-x86_64-darwin/
+          cp README.md LICENSE odc-cli-x86_64-darwin/ 2>/dev/null || true
+          tar czf odc-cli-x86_64-darwin.tar.gz odc-cli-x86_64-darwin/
+          shasum -a 256 odc-cli-x86_64-darwin.tar.gz > odc-cli-x86_64-darwin.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: macos-intel-binaries
-          path: odc-*.tar.gz*
+          path: odc-cli-*.tar.gz*
 
   build-macos-arm:
     name: Build macOS ARM64
@@ -62,15 +62,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --target aarch64-apple-darwin --locked
       - run: |
-          mkdir -p odc-aarch64-darwin
-          cp target/aarch64-apple-darwin/release/odc odc-aarch64-darwin/
-          cp README.md LICENSE odc-aarch64-darwin/ 2>/dev/null || true
-          tar czf odc-aarch64-darwin.tar.gz odc-aarch64-darwin/
-          shasum -a 256 odc-aarch64-darwin.tar.gz > odc-aarch64-darwin.tar.gz.sha256
+          mkdir -p odc-cli-aarch64-darwin
+          cp target/aarch64-apple-darwin/release/odc odc-cli-aarch64-darwin/
+          cp README.md LICENSE odc-cli-aarch64-darwin/ 2>/dev/null || true
+          tar czf odc-cli-aarch64-darwin.tar.gz odc-cli-aarch64-darwin/
+          shasum -a 256 odc-cli-aarch64-darwin.tar.gz > odc-cli-aarch64-darwin.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: macos-arm-binaries
-          path: odc-*.tar.gz*
+          path: odc-cli-*.tar.gz*
 
   build-windows:
     name: Build Windows x86_64
@@ -84,17 +84,17 @@ jobs:
       - run: cargo build --release --target x86_64-pc-windows-msvc --locked
       - shell: powershell
         run: |
-          mkdir odc-x86_64-windows
-          Copy-Item target\x86_64-pc-windows-msvc\release\odc.exe odc-x86_64-windows\
-          if (Test-Path README.md) { Copy-Item README.md odc-x86_64-windows\ }
-          if (Test-Path LICENSE) { Copy-Item LICENSE odc-x86_64-windows\ }
-          Compress-Archive -Path odc-x86_64-windows -DestinationPath odc-x86_64-windows.zip
-          $hash = (Get-FileHash "odc-x86_64-windows.zip" -Algorithm SHA256).Hash
-          "$hash  odc-x86_64-windows.zip" | Out-File "odc-x86_64-windows.zip.sha256"
+          mkdir odc-cli-x86_64-windows
+          Copy-Item target\x86_64-pc-windows-msvc\release\odc.exe odc-cli-x86_64-windows\
+          if (Test-Path README.md) { Copy-Item README.md odc-cli-x86_64-windows\ }
+          if (Test-Path LICENSE) { Copy-Item LICENSE odc-cli-x86_64-windows\ }
+          Compress-Archive -Path odc-cli-x86_64-windows -DestinationPath odc-cli-x86_64-windows.zip
+          $hash = (Get-FileHash "odc-cli-x86_64-windows.zip" -Algorithm SHA256).Hash
+          "$hash  odc-cli-x86_64-windows.zip" | Out-File "odc-cli-x86_64-windows.zip.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-binaries
-          path: odc-*.zip*
+          path: odc-cli-*.zip*
 
   package-skill:
     name: Package Agent Skill
@@ -143,10 +143,10 @@ jobs:
 
             ### Binary Installation
             Download the appropriate archive for your platform from the assets below:
-            - `odc-x86_64-linux-gnu.tar.gz` — Linux x86_64
-            - `odc-x86_64-darwin.tar.gz` — macOS Intel
-            - `odc-aarch64-darwin.tar.gz` — macOS ARM
-            - `odc-x86_64-windows.zip` — Windows
+            - `odc-cli-x86_64-linux-gnu.tar.gz` — Linux x86_64
+            - `odc-cli-x86_64-darwin.tar.gz` — macOS Intel
+            - `odc-cli-aarch64-darwin.tar.gz` — macOS ARM
+            - `odc-cli-x86_64-windows.zip` — Windows
 
             Extract and add the `odc` (or `odc.exe` on Windows) binary to your PATH.
 
