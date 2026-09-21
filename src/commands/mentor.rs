@@ -1,6 +1,8 @@
 //! Mentor (AI) integration commands.
 
 use super::args::*;
+use super::shared::resolve_asset;
+use crate::client::Client;
 use crate::mentor::MentorClient;
 use crate::output::Output;
 use crate::settings;
@@ -67,6 +69,127 @@ pub async fn cmd_mentor_load_asset(
 }
 
 pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(Output::new(args.json, args.color));
+
+    // Resolve the app name/key to an actual asset (shows "did you mean" on mismatch)
+    let api_client = Client::new(settings.clone(), output.clone());
+    let asset = resolve_asset(&api_client, &args.app_name)?;
+    let asset_key = asset
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Asset has no assetKey"))?
+        .to_string();
+    let asset_name = asset
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&asset_key)
+        .to_string();
+
+    let mentor = MentorClient::new(settings);
+
+    // 1. Start a session
+    output.stderr("Starting Mentor session...");
+    let session_result = mentor.call_tool("mentor_start_session", json!({}))?;
+    let session_id = session_result
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Failed to get sessionId from mentor_start_session"))?
+        .to_string();
+    output.stderr(&format!("Session started: {}", session_id));
+
+    // 2. Load the asset into the session
+    output.stderr(&format!("Loading app: {} ({})", asset_name, asset_key));
+    let mut load_args = Map::new();
+    load_args.insert("sessionId".to_string(), json!(session_id.clone()));
+    load_args.insert("assetKey".to_string(), json!(asset_key.clone()));
+    let _load_result = mentor.call_tool("mentor_load_asset", Value::Object(load_args))?;
+    output.stderr("App loaded successfully");
+
+    // 3. Send the prompt
+    output.stderr("Sending prompt...");
+    let mut prompt_args = Map::new();
+    prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
+    prompt_args.insert("message".to_string(), json!(args.prompt));
+    let prompt_result = mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
+    let run_id = prompt_result
+        .get("runId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Failed to get runId from mentor_prompt"))?
+        .to_string();
+    output.stderr(&format!("Prompt sent, run ID: {}", run_id));
+
+    // 4. Poll until completion
+    output.stderr("Waiting for prompt to complete (this may take a few minutes)...");
+    let mut poll_cursor: Option<i64> = None;
+    let mut run_finished = false;
+    let mut run_failed = false;
+    let max_polls = 180; // 30 minutes with 10-second interval
+    let mut poll_count = 0;
+
+    while !run_finished && poll_count < max_polls {
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        poll_count += 1;
+
+        let mut run_args = Map::new();
+        run_args.insert("sessionId".to_string(), json!(session_id.clone()));
+        run_args.insert("runId".to_string(), json!(run_id.clone()));
+        if let Some(cursor) = poll_cursor {
+            run_args.insert("cursor".to_string(), json!(cursor));
+        }
+
+        let run_result = mentor.call_tool("mentor_get_run", Value::Object(run_args))?;
+
+        if let Some(events) = run_result.get("events").and_then(|v| v.as_array()) {
+            for event in events {
+                if let Some(status) = event.get("status").and_then(|v| v.as_str()) {
+                    match status {
+                        "completed" => run_finished = true,
+                        "failed" => {
+                            run_finished = true;
+                            run_failed = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        if let Some(cursor_val) = run_result.get("cursor").and_then(|v| v.as_i64()) {
+            poll_cursor = Some(cursor_val);
+        }
+    }
+
+    if !run_finished {
+        // Close session before returning error
+        let _ = mentor.call_tool("mentor_close_session", json!({ "sessionId": session_id }));
+        return Err(anyhow::anyhow!("Timeout waiting for prompt completion"));
+    }
+
+    if run_failed {
+        let _ = mentor.call_tool("mentor_close_session", json!({ "sessionId": session_id }));
+        return Err(anyhow::anyhow!("Mentor prompt run failed"));
+    }
+
+    output.stderr("Prompt completed, publishing...");
+
+    // 5. Auto-publish
+    let mut publish_args = Map::new();
+    publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
+    let publish_result = mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
+    output.stderr("Asset published successfully");
+    output.print_result(&publish_result)?;
+
+    // 6. Close the session
+    output.stderr("Closing session...");
+    let close_args = json!({ "sessionId": session_id });
+    let _close_result = mentor.call_tool("mentor_close_session", close_args)?;
+    output.stderr("Session closed");
+
+    Ok(())
+}
+
+pub async fn cmd_mentor_prompt_raw(args: MentorPromptRawArgs) -> Result<()> {
     let (client, output) = mentor_client(args.json, args.color)?;
 
     let mut tool_args = Map::new();

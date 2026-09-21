@@ -151,9 +151,9 @@ pub fn resolve_generic(
             })
             .collect();
         return Err(anyhow!(
-            "No exact match for {:?}. Did you mean: {}",
+            "No exact match for {:?}. Did you mean:\n  {}",
             input,
-            suggestions.len()
+            suggestions.join("\n  ")
         ));
     }
 

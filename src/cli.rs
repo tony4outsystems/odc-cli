@@ -74,11 +74,15 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "Mentor",
+        &["mentor-prompt"],
+    ),
+    (
+        "Mentor (Advanced)",
         &[
             "mentor-start-session",
             "mentor-create-asset",
             "mentor-load-asset",
-            "mentor-prompt",
+            "mentor-prompt-raw",
             "mentor-get-run",
             "mentor-get-event",
             "mentor-cancel-prompt",
@@ -709,8 +713,16 @@ pub enum Commands {
         revision: Option<i32>,
     },
 
-    /// Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run`.
+    /// Send a prompt to Mentor and wait for completion, auto-publishing the result.
     MentorPrompt {
+        /// Name or key of the app to edit
+        app_name: String,
+        /// The prompt message
+        prompt: String,
+    },
+
+    /// Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run` (low-level).
+    MentorPromptRaw {
         session_id: String,
         message: String,
         /// Attachment id(s) from a prior `mentor-request-upload`
@@ -1086,18 +1098,34 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::MentorPromptArgs {
         match self {
-            Commands::MentorPrompt {
+            Commands::MentorPrompt { app_name, prompt } => crate::commands::args::MentorPromptArgs {
+                json,
+                color,
+                app_name: app_name.clone(),
+                prompt: prompt.clone(),
+            },
+            _ => panic!("Expected MentorPrompt command"),
+        }
+    }
+
+    pub fn as_mentor_prompt_raw_args(
+        &self,
+        json: bool,
+        color: crate::output::ColorMode,
+    ) -> crate::commands::args::MentorPromptRawArgs {
+        match self {
+            Commands::MentorPromptRaw {
                 session_id,
                 message,
                 attachment_refs,
-            } => crate::commands::args::MentorPromptArgs {
+            } => crate::commands::args::MentorPromptRawArgs {
                 json,
                 color,
                 session_id: session_id.clone(),
                 message: message.clone(),
                 attachment_refs: attachment_refs.clone(),
             },
-            _ => panic!("Expected MentorPrompt command"),
+            _ => panic!("Expected MentorPromptRaw command"),
         }
     }
 

@@ -107,19 +107,12 @@ These are natural language prompts users can ask Claude to execute ODC CLI comma
 ## Real-World Use Cases
 
 ### Pre-Deployment Checklist
-- "Walk me through deploying CustomerPortal to Production safely"
 - "I want to deploy an app. Check availability and analyze impact first"
 - "Verify that all dependencies are available before deploying"
 
-### CI/CD & Automation
-- "Upload this built app and deploy it to Development"
-- "Build and deploy the latest version to Staging"
-- "Promote the current version from Staging to Production"
 
 ### Disaster Recovery
 - "Backup all my apps' source code"
-- "Create a complete snapshot of what's deployed"
-- "Restore this app from backup"
 
 ### Audit & Compliance
 - "Give me a complete list of all deployments"

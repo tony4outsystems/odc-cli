@@ -306,6 +306,10 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode, no_resolv
             let args = command.as_mentor_prompt_args(json, color);
             mentor::cmd_mentor_prompt(args).await
         }
+        MentorPromptRaw { .. } => {
+            let args = command.as_mentor_prompt_raw_args(json, color);
+            mentor::cmd_mentor_prompt_raw(args).await
+        }
         MentorGetRun { .. } => {
             let args = command.as_mentor_get_run_args(json, color);
             mentor::cmd_mentor_get_run(args).await

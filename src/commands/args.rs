@@ -181,6 +181,15 @@ pub struct MentorLoadAssetArgs {
 pub struct MentorPromptArgs {
     pub json: bool,
     pub color: ColorMode,
+    pub app_name: String,
+    pub prompt: String,
+}
+
+/// Arguments for mentor-prompt-raw command (low-level).
+#[derive(Debug, Clone)]
+pub struct MentorPromptRawArgs {
+    pub json: bool,
+    pub color: ColorMode,
     pub session_id: String,
     pub message: String,
     pub attachment_refs: Vec<String>,
