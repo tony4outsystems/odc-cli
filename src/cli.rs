@@ -118,6 +118,7 @@ pub fn print_categorized_help() {
     println!("Options:");
     println!("      --json           Output in JSON format");
     println!("      --color <COLOR>  Control color output [default: auto]");
+    println!("  -n, --no-resolve     Disable resolution of external keys in user-friendly output");
     println!("  -h, --help           Print help");
     println!("  -V, --version        Print version");
 }
