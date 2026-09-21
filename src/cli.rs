@@ -116,9 +116,44 @@ pub fn print_categorized_help() {
     }
 
     println!("Options:");
-    println!("      --json           Output in JSON format");
-    println!("      --color <COLOR>  Control color output [default: auto]");
-    println!("  -n, --no-resolve     Disable resolution of external keys in user-friendly output");
+
+    // Extract and print global arguments automatically
+    for arg in app.get_arguments() {
+        // Skip help and version (they're handled separately below)
+        if matches!(arg.get_id().as_str(), "help" | "version") {
+            continue;
+        }
+
+        let short = arg.get_short();
+        let long = arg.get_long();
+        let help = arg.get_help().map(|h| h.to_string()).unwrap_or_default();
+
+        // Format flag part: "  -n, --no-resolve" or "      --json"
+        let mut flag_str = match (short, long) {
+            (Some(s), Some(l)) => format!("  -{}, --{}", s, l),
+            (Some(s), None) => format!("  -{}", s),
+            (None, Some(l)) => format!("      --{}", l),
+            _ => continue,
+        };
+
+        // Add value placeholder only if the argument takes a value
+        // Boolean flags don't need a value placeholder
+        if !matches!(arg.get_action(), clap::ArgAction::SetTrue | clap::ArgAction::SetFalse) {
+            if let Some(value_names) = arg.get_value_names() {
+                if !value_names.is_empty() {
+                    let value_placeholder = value_names
+                        .first()
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "VALUE".to_string());
+                    flag_str.push_str(&format!(" <{}>", value_placeholder));
+                }
+            }
+        }
+
+        println!("{:<35}  {}", flag_str, help);
+    }
+
+    // Print help and version explicitly at the end
     println!("  -h, --help           Print help");
     println!("  -V, --version        Print version");
 }
