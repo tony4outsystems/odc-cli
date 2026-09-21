@@ -122,7 +122,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             poll,
             parallel,
         } => {
-            shared::require_positional(std::slice::from_ref(assets_file), "batch-deploy", "an assets file")?;
+            shared::require_positional(
+                std::slice::from_ref(assets_file),
+                "batch-deploy",
+                "an assets file",
+            )?;
             let options = crate::cli::Options {
                 json,
                 color,
@@ -144,7 +148,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             poll,
             parallel,
         } => {
-            shared::require_positional(std::slice::from_ref(assets_file), "batch-undeploy", "an assets file")?;
+            shared::require_positional(
+                std::slice::from_ref(assets_file),
+                "batch-undeploy",
+                "an assets file",
+            )?;
             let options = crate::cli::Options {
                 json,
                 color,
@@ -162,7 +170,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             assets_file,
             parallel,
         } => {
-            shared::require_positional(std::slice::from_ref(assets_file), "batch-delete", "an assets file")?;
+            shared::require_positional(
+                std::slice::from_ref(assets_file),
+                "batch-delete",
+                "an assets file",
+            )?;
             let options = crate::cli::Options {
                 json,
                 color,
