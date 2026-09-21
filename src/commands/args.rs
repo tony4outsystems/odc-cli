@@ -319,6 +319,7 @@ pub struct ListGroupsArgs {
     pub json: bool,
     pub color: ColorMode,
     pub filter: String,
+    pub no_resolve: bool,
 }
 
 /// Arguments for group query/update commands.
@@ -364,6 +365,7 @@ pub struct ListRolesArgs {
     pub color: ColorMode,
     pub asset: String,
     pub env: String,
+    pub no_resolve: bool,
 }
 
 /// Arguments for list-role-assignments command.
@@ -373,6 +375,7 @@ pub struct ListRoleAssignmentsArgs {
     pub color: ColorMode,
     pub asset: String,
     pub env: String,
+    pub no_resolve: bool,
 }
 
 /// Arguments for role grant/revoke commands.

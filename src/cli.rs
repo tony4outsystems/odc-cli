@@ -139,6 +139,10 @@ pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = parse_color_arg)]
     pub color: crate::output::ColorMode,
 
+    /// Disable resolution of external keys (environment names, role names, etc.) in user-friendly output
+    #[arg(short = 'n', long, global = true)]
+    pub no_resolve: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -1355,12 +1359,14 @@ impl Commands {
         &self,
         json: bool,
         color: crate::output::ColorMode,
+        no_resolve: bool,
     ) -> crate::commands::args::ListGroupsArgs {
         match self {
             Commands::ListGroups { filter: _, env } => crate::commands::args::ListGroupsArgs {
                 json,
                 color,
                 filter: env.clone().unwrap_or_default(),
+                no_resolve,
             },
             _ => panic!("Expected ListGroups command"),
         }
@@ -1456,6 +1462,7 @@ impl Commands {
         &self,
         json: bool,
         color: crate::output::ColorMode,
+        no_resolve: bool,
     ) -> crate::commands::args::ListRolesArgs {
         match self {
             Commands::ListRoles { asset, env } => crate::commands::args::ListRolesArgs {
@@ -1463,6 +1470,7 @@ impl Commands {
                 color,
                 asset: asset.clone(),
                 env: env.clone().unwrap_or_default(),
+                no_resolve,
             },
             _ => panic!("Expected ListRoles command"),
         }
@@ -1472,6 +1480,7 @@ impl Commands {
         &self,
         json: bool,
         color: crate::output::ColorMode,
+        no_resolve: bool,
     ) -> crate::commands::args::ListRoleAssignmentsArgs {
         match self {
             Commands::ListRoleAssignments { asset, env, .. } => {
@@ -1480,6 +1489,7 @@ impl Commands {
                     color,
                     asset: asset.clone(),
                     env: env.clone().unwrap_or_default(),
+                    no_resolve,
                 }
             }
             _ => panic!("Expected ListRoleAssignments command"),
@@ -1674,6 +1684,7 @@ impl Commands {
 pub struct Options {
     pub json: bool,
     pub color: crate::output::ColorMode,
+    pub no_resolve: bool,
     pub asset: String,
     pub env: String,
     pub build_type: String,
@@ -1715,6 +1726,7 @@ impl Default for Options {
         Self {
             json: false,
             color: crate::output::ColorMode::Auto,
+            no_resolve: false,
             asset: String::new(),
             env: String::new(),
             build_type: "Release".to_string(),

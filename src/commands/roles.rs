@@ -111,7 +111,17 @@ pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Resu
     let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+    let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+
+    // Resolve environment keys to names in user-friendly output
+    if !args.json && !args.no_resolve {
+        for role in roles.iter_mut() {
+            if let Some(Value::String(env_key)) = role.get("environmentKey") {
+                let env_name = resolve_environment_key(&client, env_key)?;
+                role.insert("environment".to_string(), Value::String(env_name));
+            }
+        }
+    }
 
     let items = if args.json {
         roles
@@ -135,7 +145,17 @@ pub async fn cmd_list_role_assignments(
     let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+    let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+
+    // Resolve environment keys to names in user-friendly output
+    if !args.json && !args.no_resolve {
+        for role in roles.iter_mut() {
+            if let Some(Value::String(env_key)) = role.get("environmentKey") {
+                let env_name = resolve_environment_key(&client, env_key)?;
+                role.insert("environment".to_string(), Value::String(env_name));
+            }
+        }
+    }
 
     let want_users = true; // For now, always fetch both
     let want_groups = true;

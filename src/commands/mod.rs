@@ -29,7 +29,7 @@ use crate::output::ColorMode;
 use anyhow::Result;
 
 /// Execute a command by matching on the Commands enum directly, dispatching to the appropriate module.
-pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result<()> {
+pub async fn execute(command: &Commands, json: bool, color: ColorMode, no_resolve: bool) -> Result<()> {
     use Commands::*;
 
     match command {
@@ -223,7 +223,7 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
             users::cmd_update_user(args, std::slice::from_ref(user)).await
         }
         ListGroups { .. } => {
-            let args = command.as_list_groups_args(json, color);
+            let args = command.as_list_groups_args(json, color, no_resolve);
             users::cmd_list_groups(args, &[]).await
         }
         GetGroup { group } => {
@@ -249,11 +249,11 @@ pub async fn execute(command: &Commands, json: bool, color: ColorMode) -> Result
 
         // Roles (now using typed args)
         ListRoles { asset, .. } => {
-            let args = command.as_list_roles_args(json, color);
+            let args = command.as_list_roles_args(json, color, no_resolve);
             roles::cmd_list_roles(args, std::slice::from_ref(asset)).await
         }
         ListRoleAssignments { asset, .. } => {
-            let args = command.as_list_role_assignments_args(json, color);
+            let args = command.as_list_role_assignments_args(json, color, no_resolve);
             roles::cmd_list_role_assignments(args, std::slice::from_ref(asset)).await
         }
         GrantRole {

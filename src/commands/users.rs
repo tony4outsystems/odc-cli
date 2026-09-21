@@ -138,7 +138,17 @@ pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Re
         resolve_env(&client, &args.filter)?
     };
     let filter = positionals.first().map(String::as_str).unwrap_or("");
-    let groups = client.list_groups(filter, &env_key)?;
+    let mut groups = client.list_groups(filter, &env_key)?;
+
+    // Resolve environment keys to names in user-friendly output
+    if !args.json && !args.no_resolve {
+        for group in groups.iter_mut() {
+            if let Some(Value::String(env_key)) = group.get("environmentKey") {
+                let env_name = resolve_environment_key(&client, env_key)?;
+                group.insert("environment".to_string(), Value::String(env_name));
+            }
+        }
+    }
 
     let items = if args.json {
         groups

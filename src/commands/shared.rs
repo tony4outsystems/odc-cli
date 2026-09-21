@@ -208,6 +208,29 @@ pub fn resolve_env(client: &Client, env_input: &str) -> Result<String> {
     crate::resolve::resolve(env_input, "environment", &environments, "key")
 }
 
+/// Resolve an environment key to its human-readable name.
+/// If the key is empty or cannot be resolved, returns the original key unchanged.
+pub fn resolve_environment_key(client: &Client, env_key: &str) -> Result<String> {
+    if env_key.is_empty() {
+        return Ok(env_key.to_string());
+    }
+
+    let environments = client.list_environments()?;
+    for env in environments {
+        if let Some(Value::String(key)) = env.get("key") {
+            if key == env_key {
+                if let Some(Value::String(name)) = env.get("name") {
+                    return Ok(name.clone());
+                }
+                break;
+            }
+        }
+    }
+
+    // Graceful fallback: return the original key if not found
+    Ok(env_key.to_string())
+}
+
 // Table column definitions for various entity types
 
 pub const PORTFOLIO_TABLE_COLUMNS: &[&str] = &["name", "key", "id"];
@@ -217,6 +240,6 @@ pub const DEPLOYED_ASSET_TABLE_COLUMNS: &[&str] =
 pub const REVISION_TABLE_COLUMNS: &[&str] = &["revision", "tag", "createdAt", "createdBy"];
 pub const ROLE_TABLE_COLUMNS: &[&str] = &["name", "key", "environment"];
 pub const ROLE_ASSIGNMENT_TABLE_COLUMNS: &[&str] = &["role", "environment", "type", "name", "key"];
-pub const GROUP_TABLE_COLUMNS: &[&str] = &["name", "key", "environmentKey", "description"];
+pub const GROUP_TABLE_COLUMNS: &[&str] = &["name", "key", "environment", "description"];
 pub const GROUP_USER_TABLE_COLUMNS: &[&str] = &["name", "email", "key", "status"];
 pub const USER_TABLE_COLUMNS: &[&str] = &["key", "name", "email", "status"];

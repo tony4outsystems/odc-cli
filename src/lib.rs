@@ -48,5 +48,5 @@ pub async fn run(args: &[String]) -> Result<()> {
         return login::login(tenant_url, client_id);
     }
 
-    commands::execute(&cli.command, cli.json, cli.color).await
+    commands::execute(&cli.command, cli.json, cli.color, cli.no_resolve).await
 }
