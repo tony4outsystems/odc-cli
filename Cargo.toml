@@ -41,6 +41,8 @@ lto = "fat"
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml syntax)
 cargo-dist-version = "0.33.0"
+# Allow out-of-date CI files (we maintain custom release.yml)
+allow-dirty = ["ci"]
 # CI backends, see Cargo.toml documentation for valid options
 ci = ["github"]
 # The installers to generate for each app
