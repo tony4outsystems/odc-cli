@@ -4,6 +4,8 @@ version = "2.0.0"
 edition = "2021"
 rust-version = "1.88"
 repository = "https://github.com/tony4outsystems/odc-cli"
+description = "OutSystems ODC CLI - Deploy and manage apps in OutSystems Developer Cloud"
+homepage = "https://github.com/tony4outsystems/odc-cli"
 
 [dependencies]
 clap = { version = "4", features = ["string", "derive"] }
@@ -38,7 +40,7 @@ lto = "fat"
 
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml syntax)
-cargo-dist-version = "0.14.1"
+cargo-dist-version = "0.33.0"
 # CI backends, see Cargo.toml documentation for valid options
 ci = ["github"]
 # The installers to generate for each app
