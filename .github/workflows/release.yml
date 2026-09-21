@@ -49,11 +49,13 @@ jobs:
           sha256sum odc-${{ matrix.asset_name }}.tar.gz > odc-${{ matrix.asset_name }}.tar.gz.sha256
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
+        shell: powershell
         run: |
           mkdir odc-${{ matrix.asset_name }}
-          copy target\${{ matrix.target }}\release\${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}\
-          copy README.md LICENSE odc-${{ matrix.asset_name }}\ 2>nul || echo "License files not found"
-          powershell -Command "Compress-Archive -Path odc-${{ matrix.asset_name }} -DestinationPath odc-${{ matrix.asset_name }}.zip"
+          Copy-Item target\${{ matrix.target }}\release\${{ matrix.artifact_name }} odc-${{ matrix.asset_name }}\
+          if (Test-Path README.md) { Copy-Item README.md odc-${{ matrix.asset_name }}\ }
+          if (Test-Path LICENSE) { Copy-Item LICENSE odc-${{ matrix.asset_name }}\ }
+          Compress-Archive -Path odc-${{ matrix.asset_name }} -DestinationPath odc-${{ matrix.asset_name }}.zip
           $hash = (Get-FileHash "odc-${{ matrix.asset_name }}.zip" -Algorithm SHA256).Hash
           "$hash  odc-${{ matrix.asset_name }}.zip" | Out-File "odc-${{ matrix.asset_name }}.zip.sha256"
       - name: Upload artifacts
