@@ -19,7 +19,7 @@ jobs:
       - name: Install cargo-dist
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh | sh
       - name: Build dist artifacts
-        run: cargo dist --output-format=json > dist-manifest.json
+        run: cargo dist build --output-format=json > dist-manifest.json
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v1
         with:
