@@ -30,3 +30,23 @@ termimad = "0.30"
 strip = true
 lto = "thin"
 codegen-units = 1
+
+[profile.dist]
+inherits = "release"
+lto = "fat"
+
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml syntax)
+cargo-dist-version = "0.14.1"
+# CI backends, see Cargo.toml documentation for valid options
+ci = ["github"]
+# The installers to generate for each app
+installers = ["homebrew", "shell"]
+# A GitHub repo to push HomebrewFormulas to
+tap = "tony4outsystems/homebrew-tap"
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Target platforms
+targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-gnu", "aarch64-unknown-linux-musl", "x86_64-apple-darwin", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
+# The archives to generate
+archives = ["tar-xz", "zip"]
