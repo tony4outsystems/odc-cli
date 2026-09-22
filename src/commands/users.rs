@@ -132,12 +132,16 @@ pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Re
     let output = Arc::new(crate::output::Output::new(args.json, args.color));
     let client = Client::new(settings, output.clone());
 
-    let env_key = if args.filter.is_empty() {
-        String::new()
+    let env_key = if let Some(ref env_input) = args.env {
+        if env_input.is_empty() {
+            String::new()
+        } else {
+            resolve_env(&client, env_input)?
+        }
     } else {
-        resolve_env(&client, &args.filter)?
+        String::new()
     };
-    let filter = positionals.first().map(String::as_str).unwrap_or("");
+    let filter = args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)).unwrap_or("");
     let mut groups = client.list_groups(filter, &env_key)?;
 
     // For table output, always populate "environment" field

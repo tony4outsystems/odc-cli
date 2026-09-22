@@ -25,7 +25,7 @@ pub async fn cmd_list_portfolios(args: ListPortfoliosArgs, positionals: &[String
     let listing = client.list_portfolios()?;
     let items = filter_by_substring(
         listing,
-        positionals.first().map(String::as_str),
+        args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)),
         &["name", "key"],
     );
 

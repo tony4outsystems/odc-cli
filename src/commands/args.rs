@@ -300,6 +300,7 @@ pub struct DiscoverArgs {
 pub struct ListPortfoliosArgs {
     pub json: bool,
     pub color: ColorMode,
+    pub filter: Option<String>,
 }
 
 // ============================================================================
@@ -327,7 +328,8 @@ pub struct UpdateUserArgs {
 pub struct ListGroupsArgs {
     pub json: bool,
     pub color: ColorMode,
-    pub filter: String,
+    pub filter: Option<String>,
+    pub env: Option<String>,
     pub no_resolve: bool,
 }
 

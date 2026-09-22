@@ -32,7 +32,7 @@ pub async fn cmd_list_assets(args: ListAssetsArgs, positionals: &[String]) -> Re
 
     listing.items = filter_by_substring(
         listing.items,
-        positionals.first().map(String::as_str),
+        args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)),
         &["name", "assetKey"],
     );
 
@@ -89,7 +89,7 @@ pub async fn cmd_list_deployed_assets(
         || client.list_deployed_assets(),
     )?;
 
-    let search = positionals.first().map(String::as_str).unwrap_or("");
+    let search = args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)).unwrap_or("");
     let mut rows = crate::inspection::deployed_asset_rows(&listing.items, &env_key, search);
     for row in &mut rows {
         if let Some(Value::String(key)) = row.get("environmentKey").cloned() {

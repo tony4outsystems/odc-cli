@@ -349,7 +349,7 @@ pub enum Commands {
     ListPortfolios {
         /// Filter to portfolios whose name or key contains this (case-insensitive)
         #[arg(long)]
-        filter: Option<String>,
+        asset: Option<String>,
         /// Fetch a single page starting at this result index (default: fetch every page)
         #[arg(long)]
         offset: Option<i64>,
@@ -365,7 +365,7 @@ pub enum Commands {
     ListAssets {
         /// Filter to assets whose name or key contains this (case-insensitive)
         #[arg(long)]
-        filter: Option<String>,
+        asset: Option<String>,
         /// Filter to assets of this type
         #[arg(long = "type")]
         app_type: Option<AppType>,
@@ -381,7 +381,7 @@ pub enum Commands {
     ListDeployedAssets {
         /// Filter to assets whose name or key contains this (case-insensitive)
         #[arg(long)]
-        filter: Option<String>,
+        asset: Option<String>,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
         env: Option<String>,
@@ -605,7 +605,7 @@ pub enum Commands {
     ListGroups {
         /// Substring to filter groups by name
         #[arg(long)]
-        filter: Option<String>,
+        group: Option<String>,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
         env: Option<String>,
@@ -786,7 +786,7 @@ impl Commands {
     ) -> crate::commands::args::ListAssetsArgs {
         match self {
             Commands::ListAssets {
-                filter,
+                asset: filter,
                 app_type,
                 offset,
                 limit,
@@ -810,7 +810,7 @@ impl Commands {
     ) -> crate::commands::args::ListDeployedAssetsArgs {
         match self {
             Commands::ListDeployedAssets {
-                filter,
+                asset: filter,
                 env,
                 offset,
                 limit,
@@ -1370,8 +1370,8 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::ListPortfoliosArgs {
         match self {
-            Commands::ListPortfolios { .. } => {
-                crate::commands::args::ListPortfoliosArgs { json, color }
+            Commands::ListPortfolios { asset, .. } => {
+                crate::commands::args::ListPortfoliosArgs { json, color, filter: asset.clone() }
             }
             _ => panic!("Expected ListPortfolios command"),
         }
@@ -1432,10 +1432,11 @@ impl Commands {
         no_resolve: bool,
     ) -> crate::commands::args::ListGroupsArgs {
         match self {
-            Commands::ListGroups { filter: _, env } => crate::commands::args::ListGroupsArgs {
+            Commands::ListGroups { group, env } => crate::commands::args::ListGroupsArgs {
                 json,
                 color,
-                filter: env.clone().unwrap_or_default(),
+                filter: group.clone(),
+                env: env.clone(),
                 no_resolve,
             },
             _ => panic!("Expected ListGroups command"),
@@ -1873,10 +1874,10 @@ mod tests {
 
     #[test]
     fn test_parses_list_assets_with_filter_and_pagination() {
-        let cli = Cli::try_parse_from(["odc", "list-assets", "--filter", "eGov", "--offset", "10"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "list-assets", "--asset", "eGov", "--offset", "10"]).unwrap();
         match cli.command {
             Commands::ListAssets {
-                filter,
+                asset: filter,
                 app_type,
                 offset,
                 limit,
@@ -1887,6 +1888,68 @@ mod tests {
                 assert_eq!(limit, 100);
             }
             _ => panic!("expected ListAssets"),
+        }
+    }
+
+    #[test]
+    fn test_list_portfolios_requires_flag() {
+        // --asset flag is required for portfolios filter
+        let cli = Cli::try_parse_from(["odc", "list-portfolios", "--asset", "MyPortfolio"]).unwrap();
+        match cli.command {
+            Commands::ListPortfolios { asset, .. } => {
+                assert_eq!(asset, Some("MyPortfolio".to_string()));
+            }
+            _ => panic!("expected ListPortfolios"),
+        }
+    }
+
+    #[test]
+    fn test_list_deployed_assets_with_filter_and_env() {
+        let cli = Cli::try_parse_from(["odc", "list-deployed-assets", "--asset", "MyAsset", "--env", "dev"]).unwrap();
+        match cli.command {
+            Commands::ListDeployedAssets { asset, env, .. } => {
+                assert_eq!(asset, Some("MyAsset".to_string()));
+                assert_eq!(env, Some("dev".to_string()));
+            }
+            _ => panic!("expected ListDeployedAssets"),
+        }
+    }
+
+    #[test]
+    fn test_list_roles_with_optional_env() {
+        // asset is mandatory positional, env is optional flag
+        let cli = Cli::try_parse_from(["odc", "list-roles", "MyApp", "--env", "dev"]).unwrap();
+        match cli.command {
+            Commands::ListRoles { asset, env } => {
+                assert_eq!(asset, "MyApp");
+                assert_eq!(env, Some("dev".to_string()));
+            }
+            _ => panic!("expected ListRoles"),
+        }
+    }
+
+    #[test]
+    fn test_list_role_assignments_with_optional_env_and_type() {
+        let cli = Cli::try_parse_from(["odc", "list-role-assignments", "MyApp", "--env", "dev", "--type", "User"]).unwrap();
+        match cli.command {
+            Commands::ListRoleAssignments { asset, env, r#type } => {
+                assert_eq!(asset, "MyApp");
+                assert_eq!(env, Some("dev".to_string()));
+                assert!(r#type.is_some());
+            }
+            _ => panic!("expected ListRoleAssignments"),
+        }
+    }
+
+    #[test]
+    fn test_list_groups_with_optional_filter_and_env() {
+        let cli = Cli::try_parse_from(["odc", "list-groups", "--group", "MyGroup", "--env", "dev"]).unwrap();
+        match cli.command {
+            Commands::ListGroups { group, env } => {
+                assert_eq!(group, Some("MyGroup".to_string()));
+                assert_eq!(env, Some("dev".to_string()));
+            }
+            _ => panic!("expected ListGroups"),
         }
     }
 
