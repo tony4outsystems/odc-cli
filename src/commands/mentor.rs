@@ -138,6 +138,8 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     let mut poll_count = 0;
     // Buffer for streaming "text" chunks — flushed when a non-text event arrives or polling ends.
     let mut text_buf = String::new();
+    // Track the final run result to check for changes
+    let mut final_run_result = json!({});
 
     while !run_finished && poll_count < max_polls {
         std::thread::sleep(std::time::Duration::from_secs(10));
@@ -151,6 +153,7 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
         }
 
         let run_result = mentor.call_tool("mentor_get_run", Value::Object(run_args))?;
+        final_run_result = run_result.clone();
 
         // Check top-level status field
         if let Some(status) = run_result.get("status").and_then(|v| v.as_str()) {
@@ -240,14 +243,27 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
         return Err(anyhow::anyhow!("Mentor prompt run failed"));
     }
 
-    output.stderr("Prompt completed, publishing...");
+    output.stderr("Prompt completed");
 
-    // 5. Auto-publish
-    let mut publish_args = Map::new();
-    publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
-    let publish_result = mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
-    output.stderr("Asset published successfully");
-    output.print_result(&publish_result)?;
+    // 5. Check if changes were actually applied before publishing
+    let change_applied = final_run_result
+        .get("result")
+        .and_then(|r| r.get("changeApplied"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if change_applied {
+        output.stderr("Changes detected, publishing...");
+        // Auto-publish
+        let mut publish_args = Map::new();
+        publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
+        let publish_result = mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
+        output.stderr("Asset published successfully");
+        output.print_result(&publish_result)?;
+    } else {
+        output.stderr("No changes applied, skipping publish");
+        output.print_result(&json!({"status": "completed", "changeApplied": false}))?;
+    }
 
     // 6. Close the session
     output.stderr("Closing session...");
