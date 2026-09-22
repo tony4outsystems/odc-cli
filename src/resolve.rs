@@ -24,53 +24,34 @@ fn contains(value: &Value, query: &str) -> bool {
 pub struct ResolveConfig {
     /// Kind name for error messages (e.g., "app", "role", "environment")
     pub kind: String,
-    /// Allow matching on partial name/key (lenient), or require exact match (strict)
-    pub allow_partial_match: bool,
     /// API field name that contains the identifier key (e.g., "assetKey", "key")
     pub key_field: String,
     /// Maximum suggestions to show in error messages
     pub max_suggestions: usize,
-    /// If true, exact name matches have highest priority. If false, treat name and key equally.
-    pub prefer_exact_name: bool,
 }
 
 impl ResolveConfig {
-    /// Configuration for strict asset resolution (exact match required, name-preferred)
-    pub fn for_asset() -> Self {
-        ResolveConfig {
-            kind: "asset".to_string(),
-            allow_partial_match: false,
-            key_field: "assetKey".to_string(),
-            max_suggestions: 10,
-            prefer_exact_name: true,
-        }
-    }
-
-    /// Configuration for lenient resolution (partial match allowed)
+    /// Configuration for exact-match resolution (name must match exactly)
     pub fn for_kind(kind: &str, key_field: &str) -> Self {
         ResolveConfig {
             kind: kind.to_string(),
-            allow_partial_match: true,
             key_field: key_field.to_string(),
             max_suggestions: 10,
-            prefer_exact_name: false,
         }
     }
 }
 
 /// Generic resolver: resolve a user-supplied identifier to an API key.
 ///
-/// Supports exact name matching, partial matching, GUID pass-through, and suggestions.
+/// Supports exact name matching, GUID pass-through, and suggestions.
 ///
 /// # Matching Strategy
 ///
 /// 1. If `input` is a GUID, return it directly (short-circuit)
 /// 2. Find exact matches on `name` field (case-insensitive)
-/// 3. Find partial matches on `name` and `key_field` (case-insensitive substring)
-/// 4. Apply resolution rules based on `config`:
-///    - Strict (apps): require exactly one exact match
-///    - Lenient (others): allow single partial match if no exact match
-/// 5. Return key of unique match, or error with suggestions
+/// 3. Find partial matches on `name` and `key_field` (case-insensitive substring), used only
+///    to build suggestions when there is no exact match
+/// 4. Require exactly one exact match; error with suggestions otherwise
 ///
 /// # Returns
 ///
@@ -129,16 +110,27 @@ pub fn resolve_generic(
         )
         .ok();
     } else if exact_name.len() > 1 {
-        // Multiple exact name matches: error
+        // Multiple exact name matches: error with candidates listed
+        let candidates: Vec<String> = exact_name
+            .iter()
+            .map(|item| {
+                format!(
+                    "{} ({})",
+                    crate::value::str(item.get("name").unwrap_or(&Value::Null)),
+                    crate::value::str(item.get(&config.key_field).unwrap_or(&Value::Null))
+                )
+            })
+            .collect();
         return Err(anyhow!(
-            "Multiple {}s match the name (ambiguous): {}",
+            "Multiple {}s match {:?} (ambiguous). Use a key to disambiguate:\n  {}",
             config.kind,
-            exact_name.len()
+            input,
+            candidates.join("\n  ")
         ));
     }
 
-    // Strict mode: require exact match
-    if result.is_none() && !config.allow_partial_match && exact_name.is_empty() {
+    // Require exact match
+    if result.is_none() && exact_name.is_empty() {
         let suggestions: Vec<String> = matches
             .iter()
             .take(config.max_suggestions)
@@ -155,15 +147,6 @@ pub fn resolve_generic(
             input,
             suggestions.join("\n  ")
         ));
-    }
-
-    // Lenient mode: allow single partial match if no exact match
-    if result.is_none() && config.allow_partial_match && matches.len() == 1 {
-        result = crate::value::require_string(
-            matches[0].get(&config.key_field).unwrap_or(&Value::Null),
-            &format!("{} key", config.kind),
-        )
-        .ok();
     }
 
     if let Some(key) = result {
@@ -208,17 +191,12 @@ pub fn resolve(
     items: &[serde_json::Map<String, Value>],
     key_field: &str,
 ) -> anyhow::Result<String> {
-    let config = if kind == "asset" {
-        ResolveConfig::for_asset()
-    } else {
-        ResolveConfig::for_kind(kind, key_field)
-    };
+    let config = ResolveConfig::for_kind(kind, key_field);
     resolve_generic(input, &config, items)
 }
 
 /// Resolve a role name by name and optional app key
 ///
-/// Uses lenient matching: returns single partial match if no exact match found.
 /// See [`resolve_generic`] for matching strategy details.
 pub fn resolve_role(
     name: &str,
