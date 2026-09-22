@@ -562,7 +562,7 @@ pub enum Commands {
 
     /// List application roles defined for an asset.
     ListRoles {
-        /// App the roles belong to (name or key)
+        /// Asset name or key (app the roles belong to)
         asset: String,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
@@ -571,7 +571,7 @@ pub enum Commands {
 
     /// List, for each application role of an asset, the users and/or groups assigned to it.
     ListRoleAssignments {
-        /// App the roles belong to (name or key)
+        /// Asset name or key (app the roles belong to)
         asset: String,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
