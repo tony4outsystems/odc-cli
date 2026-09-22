@@ -1,25 +1,25 @@
 # Regenerating the README demo
 
-`demo.tape` drives the real `odc` CLI via `odc ...` against a real
-tenant (through your `.env`) — it is not a fake/canned recording. Before
-running it:
+The demo runs the real `odc` CLI against a real tenant (through your `.env`) — it is not a fake/canned recording.
 
-- Run `go install ./cmd/odc` from the repository root and ensure `$(go env GOPATH)/bin` is on your `PATH`.
+## Prerequisites
 
-- Edit the `--app`/`--env` values in `demo.tape` to point at apps and an
-  environment you're OK deploying to publicly (the last command really runs
-  `deploy`, not a simulation).
-- Prefer a sandbox/non-production environment — the recording performs a
-  real build and deploy.
+- `.env` file configured with `TENANT_URL`, `CLIENT_ID`, `CLIENT_SECRET`
+- `odc` CLI built and available in PATH
+- `asciinema` installed (for recording)
+- `agg` installed (for GIF conversion; installed automatically by the task if needed)
 
-To regenerate `demo.gif` at the repo root:
+## Regenerating demo.gif
+
+Edit the commands in `cmds.txt` as needed, then run:
 
 ```bash
-brew install charmbracelet/tap/vhs
-cd /path/to/repo/root
-vhs scripts/demo/demo.tape
+mise run demo
 ```
 
-VHS drives a real terminal and screenshots it via headless Chrome, so it
-needs a real desktop session — it won't produce output in a fully headless
-CI/sandbox environment.
+This will:
+1. Build `odc` in release mode
+2. Record the commands from `cmds.txt` using asciinema
+3. Convert the recording to `demo.gif` at the repo root
+
+The task is automated via [mise](https://mise.jdx.dev/) and defined in `mise.toml` at the repo root.

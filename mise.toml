@@ -1,0 +1,19 @@
+[tasks.demo]
+description = "Regenerate demo.gif using asciinema and agg"
+run = """
+set -e
+echo "Building odc in release mode..."
+cargo build --release
+echo ""
+echo "Recording demo with asciinema..."
+./scripts/demo/record.sh
+echo ""
+echo "Converting .cast to .gif with agg..."
+if ! command -v agg &> /dev/null; then
+  echo "Installing agg..."
+  cargo install agg
+fi
+agg scripts/demo/demo.cast demo.gif
+echo ""
+echo "✓ demo.gif generated at repo root"
+"""
