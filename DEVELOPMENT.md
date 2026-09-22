@@ -44,17 +44,4 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-The `Release binaries` workflow runs tests and clippy checks, then uses cargo-dist (configured in `Cargo.toml.dist`) to build all six archives and publish a GitHub release with checksums and generated release notes. Tags containing a hyphen (for example, `v0.2.0-rc.1`) produce prereleases. Use a new version tag for each release, after the release configuration has been committed and pushed. Pushing `main` alone does not publish a release or add assets to existing releases. Skill releases use separate `skill-*` tags and do not trigger binary releases.
-
-To validate the release locally without publishing (requires [cargo-dist](https://github.com/axo-dev/cargo-dist)):
-
-```bash
-cargo dist plan
-cargo dist build --artifacts=local
-```
-
-Artifacts are written to `target/distrib/`.
-
 ## TODO
-
-* Support Portfolio
