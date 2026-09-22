@@ -348,6 +348,7 @@ pub enum Commands {
     /// List portfolios in the tenant.
     ListPortfolios {
         /// Filter to portfolios whose name or key contains this (case-insensitive)
+        #[arg(long)]
         filter: Option<String>,
         /// Fetch a single page starting at this result index (default: fetch every page)
         #[arg(long)]
@@ -363,6 +364,7 @@ pub enum Commands {
     /// List assets in the tenant, optionally filtered by name/key and/or type.
     ListAssets {
         /// Filter to assets whose name or key contains this (case-insensitive)
+        #[arg(long)]
         filter: Option<String>,
         /// Filter to assets of this type
         #[arg(long = "type")]
@@ -378,6 +380,7 @@ pub enum Commands {
     /// List deployed assets, optionally filtered by environment and name/key.
     ListDeployedAssets {
         /// Filter to assets whose name or key contains this (case-insensitive)
+        #[arg(long)]
         filter: Option<String>,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
@@ -565,6 +568,7 @@ pub enum Commands {
         /// Asset name or key (app the roles belong to)
         asset: String,
         /// Environment name, key, or unambiguous partial name (optional)
+        #[arg(long)]
         env: Option<String>,
     },
 
@@ -573,6 +577,7 @@ pub enum Commands {
         /// Asset name or key (app the roles belong to)
         asset: String,
         /// Environment name, key, or unambiguous partial name (optional)
+        #[arg(long)]
         env: Option<String>,
         /// Only show assignments of this type (default: both)
         #[arg(long, value_enum)]
@@ -599,6 +604,7 @@ pub enum Commands {
     /// List end-user groups, optionally filtered by name and/or environment.
     ListGroups {
         /// Substring to filter groups by name
+        #[arg(long)]
         filter: Option<String>,
         /// Environment name, key, or unambiguous partial name
         #[arg(long)]
@@ -1867,7 +1873,7 @@ mod tests {
 
     #[test]
     fn test_parses_list_assets_with_filter_and_pagination() {
-        let cli = Cli::try_parse_from(["odc", "list-assets", "eGov", "--offset", "10"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "list-assets", "--filter", "eGov", "--offset", "10"]).unwrap();
         match cli.command {
             Commands::ListAssets {
                 filter,
