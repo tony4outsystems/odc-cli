@@ -68,7 +68,7 @@ Asset and environment are not read from `.env` — pass `--asset`/`--env` explic
 ```bash
 odc discover
 odc latest-revision --asset <asset-name-or-key>
-odc deploy --asset <asset-name-or-key> --env <environment-name-or-key>
+odc deploy <asset-name-or-key> <environment-name-or-key>
 ```
 
 The `deploy` command confirms the given asset and environment keys are visible to the API client, selects the current asset revision (falling back to the latest), starts a Release build, waits for it to finish, then deploys it to the given environment.
@@ -280,18 +280,18 @@ Upload an OML/XIF file, creating a new asset (first revision) or a new revision 
 odc upload-source-code <oml-file>
 ```
 
-Combine with `deploy --asset <asset-key> --env <environment>` to build and deploy the uploaded revision.
+Combine with `deploy <asset-key> <environment>` to build and deploy the uploaded revision.
 
 #### analyze-deployment / analyze-deletion
 
 Run impact analysis and print the resulting report. These commands do not deploy or delete the asset.
 
 ```bash
-odc analyze-deployment --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
-odc analyze-deletion --asset <asset-name-or-key>
+odc analyze-deployment <asset-name-or-key> <environment-name-or-key> [--revision <revision>]
+odc analyze-deletion <asset-name-or-key>
 ```
 
-Both commands also accept the asset as a positional argument. Deployment analysis defaults to the latest revision. Deletion analysis applies to the whole asset and takes no environment or revision.
+Deployment analysis defaults to the latest revision. Deletion analysis applies to the whole asset and takes no environment or revision.
 
 By default, commands poll until analysis finishes. Use `--poll-interval` (default 10 seconds), `--timeout` (default 1800 seconds), or `--no-wait` to return the analysis key immediately. Processing failures and timeouts return an error. A completed analysis prints its report, including any warnings or errors found; findings themselves do not change the exit status.
 
@@ -334,7 +334,7 @@ odc get-user <user-key-or-email>
 Confirm the given asset and environment are visible to the API client, select the current asset revision, build (Release by default), wait for the build to finish, then deploy — all for one asset/environment.
 
 ```bash
-odc deploy --asset <asset-name-or-key> --env <environment-name-or-key> [--revision <revision>]
+odc deploy <asset-name-or-key> <environment-name-or-key> [--revision <revision>]
 ```
 
 - `--revision` — defaults to the asset's current revision (falls back to the latest if unavailable)
@@ -370,7 +370,7 @@ odc batch-deploy examples/10-clicks-demos.txt --env <env> --build-type Release -
 Undeploy a single asset from an environment.
 
 ```bash
-odc undeploy --asset <asset-name-or-key> --env <environment-name-or-key>
+odc undeploy <asset-name-or-key> <environment-name-or-key>
 ```
 
 #### dangerous-batch-undeploy-all
