@@ -292,116 +292,34 @@ fn poll_mentor_run(
     Ok(final_run_result)
 }
 
-/// Interactive prompt selector using ratatui.
+/// Interactive prompt selector using termimad.
 /// Returns true if "Publish" was selected, false if "Continue" was selected.
 fn select_publish_option() -> Result<bool> {
-    use ratatui::backend::CrosstermBackend;
-    use ratatui::Terminal;
-    use ratatui::widgets::{Block, Borders, Paragraph};
-    use ratatui::layout::Alignment;
-    use crossterm::{
-        event::{self, Event, KeyCode, KeyEvent},
-        execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    };
-    use std::io::stdout;
-
-    // Setup terminal
-    enable_raw_mode()?;
-    let mut stdout = stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let mut selected = 0; // 0 = Publish, 1 = Continue
-    let options = vec!["Publish changes", "Continue without publishing"];
+    let options = vec!["**[y]** Publish changes", "**[n]** Continue without publishing"];
 
     loop {
-        terminal.draw(|f| {
-            let size = f.area();
-            let block = Block::default()
-                .title("Changes detected")
-                .borders(Borders::ALL);
+        // Display options using termimad
+        eprint!("\n");
+        termimad::print_text("**Changes detected. Would you like to publish?**\n");
+        for option in options.iter() {
+            termimad::print_text(&format!("  {}\n", option));
+        }
+        eprint!("\nSelect (y/n): ");
+        io::stderr().flush()?;
 
-            let inner = block.inner(size);
-            f.render_widget(block, size);
+        // Read input
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim().to_lowercase();
 
-            let prompt_text = "Would you like to publish the changes?";
-            let prompt = Paragraph::new(prompt_text)
-                .alignment(Alignment::Center);
-            let prompt_area = ratatui::layout::Rect {
-                x: inner.x,
-                y: inner.y,
-                width: inner.width,
-                height: 1,
-            };
-            f.render_widget(prompt, prompt_area);
-
-            let options_area = ratatui::layout::Rect {
-                x: inner.x,
-                y: inner.y + 2,
-                width: inner.width,
-                height: options.len() as u16,
-            };
-
-            for (i, option) in options.iter().enumerate() {
-                let is_selected = i == selected;
-                let style = if is_selected {
-                    ratatui::style::Style::default()
-                        .fg(ratatui::style::Color::Yellow)
-                        .add_modifier(ratatui::style::Modifier::BOLD)
-                } else {
-                    ratatui::style::Style::default()
-                };
-                let prefix = if is_selected { "> " } else { "  " };
-                let text = format!("{}{}", prefix, option);
-                let para = Paragraph::new(text).style(style);
-                let option_rect = ratatui::layout::Rect {
-                    x: options_area.x,
-                    y: options_area.y + i as u16,
-                    width: options_area.width,
-                    height: 1,
-                };
-                f.render_widget(para, option_rect);
-            }
-
-            let hint_text = "(Use ↑↓ or y/n to select, Enter to confirm)";
-            let hint = Paragraph::new(hint_text)
-                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Gray))
-                .alignment(Alignment::Center);
-            let hint_area = ratatui::layout::Rect {
-                x: inner.x,
-                y: size.height.saturating_sub(2),
-                width: inner.width,
-                height: 1,
-            };
-            f.render_widget(hint, hint_area);
-        })?;
-
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
-                match code {
-                    KeyCode::Up | KeyCode::Char('n') => selected = (selected + 1) % options.len(),
-                    KeyCode::Down | KeyCode::Char('y') | KeyCode::Char('p') => {
-                        selected = (selected + options.len() - 1) % options.len()
-                    }
-                    KeyCode::Enter => break,
-                    KeyCode::Char('c') if selected == 1 => break, // c for continue
-                    KeyCode::Esc => selected = 1, // ESC defaults to continue
-                    _ => {}
-                }
+        match input.as_str() {
+            "y" => return Ok(true),
+            "n" => return Ok(false),
+            _ => {
+                eprint!("Invalid input. Please enter 'y' or 'n'.\n");
             }
         }
     }
-
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )?;
-
-    Ok(selected == 0) // true if Publish selected
 }
 
 async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
