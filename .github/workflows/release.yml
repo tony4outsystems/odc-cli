@@ -18,7 +18,7 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --target x86_64-unknown-linux-gnu --locked
+      - run: cargo build --release --target x86_64-unknown-linux-gnu
       - run: |
           mkdir -p odc-cli-x86_64-linux-gnu
           cp target/x86_64-unknown-linux-gnu/release/odc odc-cli-x86_64-linux-gnu/
@@ -39,7 +39,7 @@ jobs:
         with:
           targets: x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --target x86_64-apple-darwin --locked
+      - run: cargo build --release --target x86_64-apple-darwin
       - run: |
           mkdir -p odc-cli-x86_64-darwin
           cp target/x86_64-apple-darwin/release/odc odc-cli-x86_64-darwin/
@@ -60,7 +60,7 @@ jobs:
         with:
           targets: aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --target aarch64-apple-darwin --locked
+      - run: cargo build --release --target aarch64-apple-darwin
       - run: |
           mkdir -p odc-cli-aarch64-darwin
           cp target/aarch64-apple-darwin/release/odc odc-cli-aarch64-darwin/
@@ -81,7 +81,7 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --target x86_64-pc-windows-msvc --locked
+      - run: cargo build --release --target x86_64-pc-windows-msvc
       - shell: powershell
         run: |
           mkdir odc-cli-x86_64-windows
