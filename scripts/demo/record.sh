@@ -13,28 +13,25 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
   set +a
 fi
 
-# Ensure odc is in PATH
 if ! command -v odc &> /dev/null; then
   echo "Error: odc binary not found in PATH"
   exit 1
 fi
 
-# Create a temporary script with all commands
+echo "Recording demo commands..."
+
+# Create temp script with pv typing effect
 TEMP_SCRIPT=$(mktemp)
 trap "rm -f $TEMP_SCRIPT" EXIT
 
-cat > "$TEMP_SCRIPT" << 'EOF'
-set +e
-EOF
+{
+  echo "set +e"
+  while IFS= read -r cmd || [ -n "$cmd" ]; do
+    [ -z "$cmd" ] || [ "${cmd:0:1}" = "#" ] && continue
+    echo "pv -qL 50 <<<'$cmd' && sleep 0.5"
+  done < "$CMDS_FILE"
+} > "$TEMP_SCRIPT"
 
-while IFS= read -r cmd || [ -n "$cmd" ]; do
-  # Skip empty lines and comments
-  [ -z "$cmd" ] || [ "${cmd:0:1}" = "#" ] && continue
-  echo "$cmd" >> "$TEMP_SCRIPT"
-done < "$CMDS_FILE"
-
-# Record commands with asciinema
-echo "Recording demo commands..."
 asciinema rec --overwrite --title "ODC CLI Demo" "$CAST_FILE" -c "bash $TEMP_SCRIPT"
 
 echo "Recording saved to $CAST_FILE"

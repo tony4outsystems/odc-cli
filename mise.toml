@@ -10,10 +10,6 @@ export PATH="$PWD/target/release:$PATH"
 ./scripts/demo/record.sh
 echo ""
 echo "Converting .cast to .gif with agg..."
-if ! command -v agg &> /dev/null; then
-  echo "Installing agg..."
-  cargo install agg
-fi
 agg scripts/demo/demo.cast demo.gif
 echo ""
 echo "✓ demo.gif generated at repo root"
