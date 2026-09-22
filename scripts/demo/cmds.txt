@@ -1,0 +1,4 @@
+odc list-assets --asset eGov
+odc producer-graph eGovPortal
+odc deploy eGovPortal Test
+odc grant-role eGovPortalCore eGovPortal tony.lefebvre@outsystems.com Test

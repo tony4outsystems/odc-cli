@@ -330,6 +330,10 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
         ));
     }
 
+    output.stderr(&format!(
+        "Building {} revision {}...",
+        args.asset, revision
+    ));
     let (build_key, _) = run_build(
         &client,
         &args.build_type,
@@ -340,7 +344,12 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
         revision,
     )
     .await?;
+    output.stderr(&format!("Build completed (buildKey: {})", build_key));
 
+    output.stderr(&format!(
+        "Deploying {} to {}...",
+        args.asset, args.env
+    ));
     let (_, deploy_result) = run_deployment_operation(
         &client,
         "Deploy",
@@ -353,6 +362,7 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
         false, // deploy always waits
     )
     .await?;
+    output.stderr("Deployment completed");
 
     output.print_result(&serde_json::Value::Object(
         deploy_result.unwrap_or_default(),
