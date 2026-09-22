@@ -717,7 +717,7 @@ pub enum Commands {
         revision: Option<i32>,
     },
 
-    /// Send a prompt to Mentor and wait for completion, auto-publishing the result.
+    /// Send a prompt to Mentor and wait for completion, auto-publishing the result; or start interactive mode if no prompt is given.
     Mentor {
         /// Name or key of the app to edit
         app_name: String,
