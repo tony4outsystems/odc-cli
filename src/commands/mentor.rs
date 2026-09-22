@@ -314,7 +314,7 @@ fn select_publish_option() -> Result<bool> {
             1 => return Ok(true),
             0 => return Ok(false),
             _ => {
-                termimad::print_text("*This feature is not implemented!* 🚀\n\n“We are all in the gutter, but some of us are looking at the stars.” — Oscar Wilde\n");
+                termimad::print_text("*This feature is not implemented!* 🚀\n“We are all in the gutter, but some of us are looking at the stars.” — Oscar Wilde\n");
             }
         }
     }
