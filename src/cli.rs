@@ -588,6 +588,8 @@ pub enum Commands {
     GrantRole {
         /// App the role belongs to (name or key)
         asset: String,
+        /// Environment name, key, or unambiguous partial name
+        env: String,
         /// Role name or key
         role: String,
         /// User key or email
@@ -597,6 +599,7 @@ pub enum Commands {
     /// Revoke an application role from a user.
     RevokeRole {
         asset: String,
+        env: String,
         role: String,
         user: String,
     },
@@ -636,6 +639,8 @@ pub enum Commands {
     GrantGroupRole {
         /// App the role belongs to (name or key)
         asset: String,
+        /// Environment name, key, or unambiguous partial name
+        env: String,
         /// Role name or key
         role: String,
         /// Group name or key
@@ -645,6 +650,7 @@ pub enum Commands {
     /// Revoke an application role from an end-user group.
     RevokeGroupRole {
         asset: String,
+        env: String,
         role: String,
         group: String,
     },
@@ -1573,12 +1579,13 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::RoleGrantArgs {
         match self {
-            Commands::GrantRole { role, user, asset } => crate::commands::args::RoleGrantArgs {
+            Commands::GrantRole { asset, env, role, user } => crate::commands::args::RoleGrantArgs {
                 json,
                 color,
                 role: role.clone(),
                 user: user.clone(),
                 asset: asset.clone(),
+                env: env.clone(),
             },
             _ => panic!("Expected GrantRole command"),
         }
@@ -1590,12 +1597,13 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::RoleRevokeArgs {
         match self {
-            Commands::RevokeRole { role, user, asset } => crate::commands::args::RoleRevokeArgs {
+            Commands::RevokeRole { asset, env, role, user } => crate::commands::args::RoleRevokeArgs {
                 json,
                 color,
                 role: role.clone(),
                 user: user.clone(),
                 asset: asset.clone(),
+                env: env.clone(),
             },
             _ => panic!("Expected RevokeRole command"),
         }
@@ -1608,16 +1616,17 @@ impl Commands {
     ) -> crate::commands::args::GroupRoleGrantArgs {
         match self {
             Commands::GrantGroupRole {
+                asset,
+                env,
                 role,
                 group: _,
-                asset,
             } => crate::commands::args::GroupRoleGrantArgs {
                 json,
                 color,
                 role: role.clone(),
                 group: String::new(),
                 asset: asset.clone(),
-                env: String::new(),
+                env: env.clone(),
             },
             _ => panic!("Expected GrantGroupRole command"),
         }
@@ -1630,16 +1639,17 @@ impl Commands {
     ) -> crate::commands::args::GroupRoleRevokeArgs {
         match self {
             Commands::RevokeGroupRole {
+                asset,
+                env,
                 role,
                 group: _,
-                asset,
             } => crate::commands::args::GroupRoleRevokeArgs {
                 json,
                 color,
                 role: role.clone(),
                 group: String::new(),
                 asset: asset.clone(),
-                env: String::new(),
+                env: env.clone(),
             },
             _ => panic!("Expected RevokeGroupRole command"),
         }
@@ -1916,8 +1926,21 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn test_list_roles_without_env() {
+        // env is optional for list-roles
+        let cli = Cli::try_parse_from(["odc", "list-roles", "MyApp"]).unwrap();
+        match cli.command {
+            Commands::ListRoles { asset, env } => {
+                assert_eq!(asset, "MyApp");
+                assert_eq!(env, None);
+            }
+            _ => panic!("expected ListRoles"),
+        }
+    }
+
+    #[test]
     fn test_list_roles_with_optional_env() {
-        // asset is mandatory positional, env is optional flag
         let cli = Cli::try_parse_from(["odc", "list-roles", "MyApp", "--env", "dev"]).unwrap();
         match cli.command {
             Commands::ListRoles { asset, env } => {
@@ -1925,6 +1948,18 @@ mod tests {
                 assert_eq!(env, Some("dev".to_string()));
             }
             _ => panic!("expected ListRoles"),
+        }
+    }
+
+    #[test]
+    fn test_list_role_assignments_without_env() {
+        let cli = Cli::try_parse_from(["odc", "list-role-assignments", "MyApp"]).unwrap();
+        match cli.command {
+            Commands::ListRoleAssignments { asset, env, .. } => {
+                assert_eq!(asset, "MyApp");
+                assert_eq!(env, None);
+            }
+            _ => panic!("expected ListRoleAssignments"),
         }
     }
 
@@ -1972,8 +2007,23 @@ mod tests {
     }
 
     #[test]
+    #[test]
     fn test_grant_role_missing_user_is_rejected() {
-        let result = Cli::try_parse_from(["odc", "grant-role", "MyApp", "Admin"]);
+        let result = Cli::try_parse_from(["odc", "grant-role", "MyApp", "dev", "Admin"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_grant_role_complete() {
+        let cli = Cli::try_parse_from(["odc", "grant-role", "MyApp", "dev", "Admin", "user@example.com"]).unwrap();
+        match cli.command {
+            Commands::GrantRole { asset, env, role, user } => {
+                assert_eq!(asset, "MyApp");
+                assert_eq!(env, "dev");
+                assert_eq!(role, "Admin");
+                assert_eq!(user, "user@example.com");
+            }
+            _ => panic!("expected GrantRole"),
+        }
     }
 }

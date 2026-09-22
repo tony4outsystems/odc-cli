@@ -265,6 +265,7 @@ pub async fn execute(
             asset: _,
             role,
             user,
+            env: _,
         } => {
             let args = command.as_grant_role_args(json, color);
             roles::cmd_grant_role(args, &[user.clone(), role.clone()]).await
@@ -273,6 +274,7 @@ pub async fn execute(
             asset: _,
             role,
             user,
+            env: _,
         } => {
             let args = command.as_revoke_role_args(json, color);
             roles::cmd_revoke_role(args, &[user.clone(), role.clone()]).await
@@ -281,6 +283,7 @@ pub async fn execute(
             asset: _,
             group,
             role,
+            env: _,
         } => {
             let args = command.as_grant_group_role_args(json, color);
             roles::cmd_grant_group_role(args, &[group.clone(), role.clone()]).await
@@ -289,6 +292,7 @@ pub async fn execute(
             asset: _,
             group,
             role,
+            env: _,
         } => {
             let args = command.as_revoke_group_role_args(json, color);
             roles::cmd_revoke_group_role(args, &[group.clone(), role.clone()]).await

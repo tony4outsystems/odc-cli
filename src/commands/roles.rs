@@ -8,10 +8,18 @@ use anyhow::Result;
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
-/// Resolve a role name/key to its key, optionally disambiguated by app (name/key).
-fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Result<String> {
+/// Resolve a role name/key to its key, filtered by app (name/key) and environment (name/key).
+/// The `env_filter` is required — roles are always environment-scoped, so an environment must
+/// always be provided to avoid ambiguity.
+/// If `role_input` is a GUID, it is validated to belong to the resolved environment.
+fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str, env_filter: &str) -> Result<String> {
+    // Resolve env to key (required)
+    let environments = client.list_environments()?;
+    let env_key = crate::resolve::resolve(env_filter, "environment", &environments, "key")?;
+
     let mut roles = client.list_application_roles(role_input)?;
 
+    // Filter by app
     if !app_filter.is_empty() {
         let asset_key = resolve_asset(client, app_filter)?
             .get("assetKey")
@@ -19,6 +27,22 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str) -> Resu
             .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_filter))?
             .to_string();
         roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
+    }
+
+    // Filter by environment
+    roles.retain(|r| r.get("environmentKey").and_then(|v| v.as_str()) == Some(env_key.as_str()));
+
+    // If role_input is a GUID key, validate it belongs to the given environment
+    if crate::resolve::is_guid(role_input) {
+        let found = roles.iter().any(|r| r.get("key").and_then(|v| v.as_str()) == Some(role_input));
+        if !found {
+            return Err(anyhow::anyhow!(
+                "Role key {} does not belong to environment {}",
+                role_input,
+                env_filter
+            ));
+        }
+        return Ok(role_input.to_string());
     }
 
     crate::resolve::resolve_role(role_input, &roles)
@@ -275,7 +299,7 @@ pub async fn cmd_grant_role(args: RoleGrantArgs, positionals: &[String]) -> Resu
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.grant_role(&user_key, &role_key)?;
     output.println_locked(&format!("Granted role {} to {}", args.role, positionals[0]));
@@ -297,7 +321,7 @@ pub async fn cmd_revoke_role(args: RoleRevokeArgs, positionals: &[String]) -> Re
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.revoke_role(&user_key, &role_key)?;
     output.println_locked(&format!(
@@ -324,7 +348,7 @@ pub async fn cmd_grant_group_role(args: GroupRoleGrantArgs, positionals: &[Strin
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.patch_group_application_roles(&group_key, &[role_key], &[])?;
     output.println_locked(&format!(
@@ -354,7 +378,7 @@ pub async fn cmd_revoke_group_role(
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
         .to_string();
-    let role_key = resolve_role_key(&client, &args.role, &args.asset)?;
+    let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.patch_group_application_roles(&group_key, &[], &[role_key])?;
     output.println_locked(&format!(

@@ -397,6 +397,7 @@ pub struct RoleGrantArgs {
     pub role: String,
     pub user: String,
     pub asset: String,
+    pub env: String,
 }
 
 /// Arguments for role revoke commands.
@@ -407,6 +408,7 @@ pub struct RoleRevokeArgs {
     pub role: String,
     pub user: String,
     pub asset: String,
+    pub env: String,
 }
 
 /// Arguments for group role grant commands.
