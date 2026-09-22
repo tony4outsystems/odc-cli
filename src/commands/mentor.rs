@@ -297,16 +297,27 @@ fn poll_mentor_run(
 fn select_publish_option() -> Result<bool> {
     let skin = termimad::MadSkin::default();
 
-    let choice = termimad::ask!(&skin, "Would you like to publish the changes?", ('n') {
-        ('y', "**Y**es, publish the changes") => {
-            true
-        }
-        ('n', "**N**o, continue without publishing") => {
-            false
-        }
-    });
+    loop {
+        let choice = termimad::ask!(&skin, "Would you like to publish the changes?", ('n') {
+            ('y', "**Y**es, publish the changes") => {
+                1u8
+            }
+            ('n', "**N**o, continue without publishing") => {
+                0u8
+            }
+            ('d', "**D**iff - Open the diff in ODC Studio") => {
+                2u8
+            }
+        });
 
-    Ok(choice)
+        match choice {
+            1 => return Ok(true),
+            0 => return Ok(false),
+            _ => {
+                termimad::print_text("*This feature is coming soon!* 🚀\n\nFor now, you'll have to go cry in the ODC Studio yourself... 😢\n");
+            }
+        }
+    }
 }
 
 async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
