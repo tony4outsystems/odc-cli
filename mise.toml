@@ -6,6 +6,7 @@ echo "Building odc in release mode..."
 cargo build --release
 echo ""
 echo "Recording demo with asciinema..."
+export PATH="$PWD/target/release:$PATH"
 ./scripts/demo/record.sh
 echo ""
 echo "Converting .cast to .gif with agg..."
