@@ -452,6 +452,66 @@ odc internal-deploy --asset <asset-name-or-key> --env <environment-name-or-key> 
 - `--build-type` — `Debug` or `Release` (default `Release`; `internal-build` only)
 - `internal-deploy` also requires `--build-key <build-key>`
 
+## Examples
+
+### Producer dependency graph
+
+Visualize an asset's producer dependencies as a Mermaid flowchart. This shows which libraries, agents, and other assets your app depends on:
+
+```bash
+odc producer-graph eGovPortal
+```
+
+Output (Mermaid diagram):
+
+```mermaid
+---
+title: Producer dependency graph
+---
+flowchart LR
+    app_01b41d5824bc["Scheduler Agent
+rev 3 / Agent" ]
+    app_039ac016e589["eGovPortalCore
+rev 6 / WebApplication" ]
+    app_08bbebec64c0["Document Validation Agent
+rev 12 / Agent" ]
+    app_32a85fa9e9b7["Triage Agent
+rev 2 / Agent" ]
+    app_39e090e491c5["Underwriter Agent
+rev 16 / Agent" ]
+    app_45449aa04038["Orchestrator Agent
+rev 3 / Agent" ]
+    app_47ddf305c5c2["Enrichment Agent
+rev 14 / Agent" ]
+    app_8107c0b6da90["eGovPortal
+rev 7" ]
+    app_907cc220ecb9["Intake Agent
+rev 12 / Agent" ]
+    app_96046015550f["Apps Common Core
+rev 8 / WebApplication" ]
+    app_9f8430b1c94f["Communication Agent
+rev 12 / Agent" ]
+    app_d179d8af026e["eGovPortalBackoffice
+rev 6 / WebApplication" ]
+    app_8107c0b6da90 --> app_01b41d5824bc
+    app_8107c0b6da90 --> app_039ac016e589
+    app_8107c0b6da90 --> app_08bbebec64c0
+    app_8107c0b6da90 --> app_32a85fa9e9b7
+    app_8107c0b6da90 --> app_39e090e491c5
+    app_8107c0b6da90 --> app_45449aa04038
+    app_8107c0b6da90 --> app_47ddf305c5c2
+    app_8107c0b6da90 --> app_907cc220ecb9
+    app_8107c0b6da90 --> app_96046015550f
+    app_8107c0b6da90 --> app_9f8430b1c94f
+    app_8107c0b6da90 --> app_d179d8af026e
+```
+
+Use `--output` to save the diagram to a file for embedding in documentation or sharing:
+
+```bash
+odc producer-graph eGovPortal --output my-app-graph.mmd
+```
+
 ## Pagination
 
 `list-assets`, `list-deployed-assets`, and `list-revisions` list results from API endpoints that

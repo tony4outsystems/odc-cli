@@ -14,17 +14,22 @@ Enter
 Sleep 500ms
 Show
 
-Type "odc list-apps --search eGov"
+Type "odc list-assets --asset eGov"
 Sleep 500ms
 Enter
 Sleep 3s
 
-Type "odc validate --app eGovPortal --env Test"
+Type "odc grant-role eGovPortal eGovPortal tony.lefebvre@outsystems.com"
 Sleep 500ms
 Enter
-Sleep 4s
+Sleep 3s
 
-Type "odc deploy --app eGovPortal --env Test"
+Type "odc producer-graph eGovPortal"
 Sleep 500ms
 Enter
-Sleep 20s
+Sleep 3s
+
+Type "odc deploy eGovPortal Test"
+Sleep 500ms
+Enter
+Sleep 5s
