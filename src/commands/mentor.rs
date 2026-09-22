@@ -295,31 +295,18 @@ fn poll_mentor_run(
 /// Interactive prompt selector using termimad.
 /// Returns true if "Publish" was selected, false if "Continue" was selected.
 fn select_publish_option() -> Result<bool> {
-    let options = vec!["**[y]** Publish changes", "**[n]** Continue without publishing"];
+    let skin = termimad::MadSkin::default();
 
-    loop {
-        // Display options using termimad
-        eprint!("\n");
-        termimad::print_text("**Changes detected. Would you like to publish?**\n");
-        for option in options.iter() {
-            termimad::print_text(&format!("  {}\n", option));
+    let choice = termimad::ask!(&skin, "Would you like to publish the changes?", ('n') {
+        ('y', "**Y**es, publish the changes") => {
+            true
         }
-        eprint!("\nSelect (y/n): ");
-        io::stderr().flush()?;
-
-        // Read input
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        let input = input.trim().to_lowercase();
-
-        match input.as_str() {
-            "y" => return Ok(true),
-            "n" => return Ok(false),
-            _ => {
-                eprint!("Invalid input. Please enter 'y' or 'n'.\n");
-            }
+        ('n', "**N**o, continue without publishing") => {
+            false
         }
-    }
+    });
+
+    Ok(choice)
 }
 
 async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
