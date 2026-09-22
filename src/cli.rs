@@ -72,14 +72,14 @@ const HELP_CATEGORIES: &[(&str, &[&str])] = &[
         "Internal (Advanced)",
         &["internal-build", "internal-publish", "internal-deploy"],
     ),
-    ("Mentor", &["mentor-prompt"]),
+    ("Mentor", &["mentor"]),
     (
         "Mentor (Advanced)",
         &[
             "mentor-start-session",
             "mentor-create-asset",
             "mentor-load-asset",
-            "mentor-prompt-raw",
+            "mentor-prompt",
             "mentor-get-run",
             "mentor-get-event",
             "mentor-cancel-prompt",
@@ -692,7 +692,7 @@ pub enum Commands {
     /// Start a new Mentor session; prints the sessionId used for follow-up commands.
     MentorStartSession,
 
-    /// Create a new asset in a Mentor session, so `mentor-prompt` can edit it.
+    /// Create a new asset in a Mentor session, so `mentor` can edit it.
     MentorCreateAsset {
         session_id: String,
         #[arg(long = "type", value_enum)]
@@ -708,7 +708,7 @@ pub enum Commands {
         template_asset_key: Option<String>,
     },
 
-    /// Load an existing asset into a Mentor session, so `mentor-prompt` can edit it.
+    /// Load an existing asset into a Mentor session, so `mentor` can edit it.
     MentorLoadAsset {
         session_id: String,
         asset_key: String,
@@ -718,7 +718,7 @@ pub enum Commands {
     },
 
     /// Send a prompt to Mentor and wait for completion, auto-publishing the result.
-    MentorPrompt {
+    Mentor {
         /// Name or key of the app to edit
         app_name: String,
         /// The prompt message (optional; if not provided, starts interactive mode)
@@ -726,7 +726,7 @@ pub enum Commands {
     },
 
     /// Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run` (low-level).
-    MentorPromptRaw {
+    MentorPrompt {
         session_id: String,
         message: String,
         /// Attachment id(s) from a prior `mentor-request-upload`
@@ -1096,42 +1096,42 @@ impl Commands {
         }
     }
 
-    pub fn as_mentor_prompt_args(
+    pub fn as_mentor_args(
         &self,
         json: bool,
         color: crate::output::ColorMode,
-    ) -> crate::commands::args::MentorPromptArgs {
+    ) -> crate::commands::args::MentorArgs {
         match self {
-            Commands::MentorPrompt { app_name, prompt } => {
-                crate::commands::args::MentorPromptArgs {
+            Commands::Mentor { app_name, prompt } => {
+                crate::commands::args::MentorArgs {
                     json,
                     color,
                     app_name: app_name.clone(),
                     prompt: prompt.clone(),
                 }
             }
-            _ => panic!("Expected MentorPrompt command"),
+            _ => panic!("Expected Mentor command"),
         }
     }
 
-    pub fn as_mentor_prompt_raw_args(
+    pub fn as_mentor_prompt_args(
         &self,
         json: bool,
         color: crate::output::ColorMode,
-    ) -> crate::commands::args::MentorPromptRawArgs {
+    ) -> crate::commands::args::MentorPromptArgs {
         match self {
-            Commands::MentorPromptRaw {
+            Commands::MentorPrompt {
                 session_id,
                 message,
                 attachment_refs,
-            } => crate::commands::args::MentorPromptRawArgs {
+            } => crate::commands::args::MentorPromptArgs {
                 json,
                 color,
                 session_id: session_id.clone(),
                 message: message.clone(),
                 attachment_refs: attachment_refs.clone(),
             },
-            _ => panic!("Expected MentorPromptRaw command"),
+            _ => panic!("Expected MentorPrompt command"),
         }
     }
 

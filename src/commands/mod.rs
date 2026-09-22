@@ -307,13 +307,13 @@ pub async fn execute(
             let args = command.as_mentor_load_asset_args(json, color);
             mentor::cmd_mentor_load_asset(args, &[]).await
         }
+        Mentor { .. } => {
+            let args = command.as_mentor_args(json, color);
+            mentor::cmd_mentor(args).await
+        }
         MentorPrompt { .. } => {
             let args = command.as_mentor_prompt_args(json, color);
             mentor::cmd_mentor_prompt(args).await
-        }
-        MentorPromptRaw { .. } => {
-            let args = command.as_mentor_prompt_raw_args(json, color);
-            mentor::cmd_mentor_prompt_raw(args).await
         }
         MentorGetRun { .. } => {
             let args = command.as_mentor_get_run_args(json, color);

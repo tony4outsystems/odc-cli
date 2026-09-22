@@ -176,18 +176,18 @@ pub struct MentorLoadAssetArgs {
     pub revision: Option<i32>,
 }
 
-/// Arguments for mentor-prompt command.
+/// Arguments for mentor command.
 #[derive(Debug, Clone)]
-pub struct MentorPromptArgs {
+pub struct MentorArgs {
     pub json: bool,
     pub color: ColorMode,
     pub app_name: String,
     pub prompt: Option<String>,
 }
 
-/// Arguments for mentor-prompt-raw command (low-level).
+/// Arguments for mentor-prompt command (low-level).
 #[derive(Debug, Clone)]
-pub struct MentorPromptRawArgs {
+pub struct MentorPromptArgs {
     pub json: bool,
     pub color: ColorMode,
     pub session_id: String,

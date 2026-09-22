@@ -79,14 +79,14 @@ pub async fn cmd_mentor_load_asset(
     output.print_result(&result)
 }
 
-pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
+pub async fn cmd_mentor(args: MentorArgs) -> Result<()> {
     match &args.prompt {
-        Some(prompt) => cmd_mentor_prompt_single_shot(args.app_name, prompt.clone(), args.json, args.color).await,
-        None => cmd_mentor_prompt_interactive(args.app_name, args.json, args.color).await,
+        Some(prompt) => cmd_mentor_single_shot(args.app_name, prompt.clone(), args.json, args.color).await,
+        None => cmd_mentor_interactive(args.app_name, args.json, args.color).await,
     }
 }
 
-async fn cmd_mentor_prompt_single_shot(app_name: String, prompt: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
+async fn cmd_mentor_single_shot(app_name: String, prompt: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
 
@@ -309,7 +309,7 @@ fn select_publish_option() -> Result<bool> {
     Ok(choice)
 }
 
-async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
+async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
 
@@ -352,7 +352,7 @@ async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crat
     // 3. Interactive loop
     loop {
         // Read multi-line input
-        eprint!("You: ");
+        eprint!("Ask Mentor: ");
         io::stderr().flush()?;
 
         let mut input = String::new();
@@ -394,7 +394,6 @@ async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crat
                     .unwrap_or(false);
 
                 if change_applied {
-                    output.stderr("\nChanges detected.");
                     match select_publish_option() {
                         Ok(true) => {
                             output.stderr("Publishing...");
@@ -411,8 +410,6 @@ async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crat
                             output.stderr(&format!("Error during publish prompt: {}\n", e));
                         }
                     }
-                } else {
-                    output.stderr("No changes applied.\n");
                 }
             }
             Err(e) => {
@@ -431,7 +428,7 @@ async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crat
     Ok(())
 }
 
-pub async fn cmd_mentor_prompt_raw(args: MentorPromptRawArgs) -> Result<()> {
+pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     let (client, output) = mentor_client(args.json, args.color)?;
 
     let mut tool_args = Map::new();
