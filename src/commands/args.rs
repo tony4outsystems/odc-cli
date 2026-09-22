@@ -182,7 +182,7 @@ pub struct MentorPromptArgs {
     pub json: bool,
     pub color: ColorMode,
     pub app_name: String,
-    pub prompt: String,
+    pub prompt: Option<String>,
 }
 
 /// Arguments for mentor-prompt-raw command (low-level).

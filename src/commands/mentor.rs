@@ -8,6 +8,7 @@ use crate::output::Output;
 use crate::settings;
 use anyhow::Result;
 use serde_json::{json, Map, Value};
+use std::io::{self, Write};
 use std::sync::Arc;
 
 /// Flush accumulated streaming text to stderr, rendering it as markdown via termimad.
@@ -79,12 +80,19 @@ pub async fn cmd_mentor_load_asset(
 }
 
 pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
+    match &args.prompt {
+        Some(prompt) => cmd_mentor_prompt_single_shot(args.app_name, prompt.clone(), args.json, args.color).await,
+        None => cmd_mentor_prompt_interactive(args.app_name, args.json, args.color).await,
+    }
+}
+
+async fn cmd_mentor_prompt_single_shot(app_name: String, prompt: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
     let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
+    let output = Arc::new(Output::new(json, color));
 
     // Resolve the app name/key to an actual asset (shows "did you mean" on mismatch)
     let api_client = Client::new(settings.clone(), output.clone());
-    let asset = resolve_asset(&api_client, &args.app_name)?;
+    let asset = resolve_asset(&api_client, &app_name)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
@@ -120,7 +128,7 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     output.stderr("Sending prompt...");
     let mut prompt_args = Map::new();
     prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
-    prompt_args.insert("message".to_string(), json!(args.prompt));
+    prompt_args.insert("message".to_string(), json!(prompt));
     let prompt_result = mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
     let run_id = prompt_result
         .get("runId")
@@ -129,7 +137,48 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
         .to_string();
     output.stderr(&format!("Prompt sent, run ID: {}", run_id));
 
-    // 4. Poll until completion
+    // 4. Poll until completion and get result
+    let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output)?;
+
+    output.stderr("Prompt completed");
+
+    // 5. Check if changes were actually applied before publishing
+    let change_applied = final_run_result
+        .get("result")
+        .and_then(|r| r.get("changeApplied"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if change_applied {
+        output.stderr("Changes detected, publishing...");
+        // Auto-publish
+        let mut publish_args = Map::new();
+        publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
+        let publish_result = mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
+        output.stderr("Asset published successfully");
+        output.print_result(&publish_result)?;
+    } else {
+        output.stderr("No changes applied, skipping publish");
+        output.print_result(&json!({"status": "completed", "changeApplied": false}))?;
+    }
+
+    // 6. Close the session
+    output.stderr("Closing session...");
+    let close_args = json!({ "sessionId": session_id });
+    let _close_result = mentor.call_tool("mentor_close_session", close_args)?;
+    output.stderr("Session closed");
+
+    Ok(())
+}
+
+/// Helper function to poll a mentor run until completion, handling events and text streaming.
+/// Returns the final run result.
+fn poll_mentor_run(
+    mentor: &MentorClient,
+    session_id: &str,
+    run_id: &str,
+    output: &Arc<Output>,
+) -> Result<Value> {
     output.stderr("Waiting for prompt to complete (this may take a few minutes)...");
     let mut poll_cursor: Option<i64> = None;
     let mut run_finished = false;
@@ -146,8 +195,8 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
         poll_count += 1;
 
         let mut run_args = Map::new();
-        run_args.insert("sessionId".to_string(), json!(session_id.clone()));
-        run_args.insert("runId".to_string(), json!(run_id.clone()));
+        run_args.insert("sessionId".to_string(), json!(session_id));
+        run_args.insert("runId".to_string(), json!(run_id));
         if let Some(cursor) = poll_cursor {
             run_args.insert("cursor".to_string(), json!(cursor));
         }
@@ -233,39 +282,242 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     flush_text_buf(&mut text_buf);
 
     if !run_finished {
-        // Close session before returning error
-        let _ = mentor.call_tool("mentor_close_session", json!({ "sessionId": session_id }));
         return Err(anyhow::anyhow!("Timeout waiting for prompt completion"));
     }
 
     if run_failed {
-        let _ = mentor.call_tool("mentor_close_session", json!({ "sessionId": session_id }));
         return Err(anyhow::anyhow!("Mentor prompt run failed"));
     }
 
-    output.stderr("Prompt completed");
+    Ok(final_run_result)
+}
 
-    // 5. Check if changes were actually applied before publishing
-    let change_applied = final_run_result
-        .get("result")
-        .and_then(|r| r.get("changeApplied"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+/// Interactive prompt selector using ratatui.
+/// Returns true if "Publish" was selected, false if "Continue" was selected.
+fn select_publish_option() -> Result<bool> {
+    use ratatui::backend::CrosstermBackend;
+    use ratatui::Terminal;
+    use ratatui::widgets::{Block, Borders, Paragraph};
+    use ratatui::layout::Alignment;
+    use crossterm::{
+        event::{self, Event, KeyCode, KeyEvent},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    };
+    use std::io::stdout;
 
-    if change_applied {
-        output.stderr("Changes detected, publishing...");
-        // Auto-publish
-        let mut publish_args = Map::new();
-        publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
-        let publish_result = mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
-        output.stderr("Asset published successfully");
-        output.print_result(&publish_result)?;
-    } else {
-        output.stderr("No changes applied, skipping publish");
-        output.print_result(&json!({"status": "completed", "changeApplied": false}))?;
+    // Setup terminal
+    enable_raw_mode()?;
+    let mut stdout = stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut selected = 0; // 0 = Publish, 1 = Continue
+    let options = vec!["Publish changes", "Continue without publishing"];
+
+    loop {
+        terminal.draw(|f| {
+            let size = f.area();
+            let block = Block::default()
+                .title("Changes detected")
+                .borders(Borders::ALL);
+
+            let inner = block.inner(size);
+            f.render_widget(block, size);
+
+            let prompt_text = "Would you like to publish the changes?";
+            let prompt = Paragraph::new(prompt_text)
+                .alignment(Alignment::Center);
+            let prompt_area = ratatui::layout::Rect {
+                x: inner.x,
+                y: inner.y,
+                width: inner.width,
+                height: 1,
+            };
+            f.render_widget(prompt, prompt_area);
+
+            let options_area = ratatui::layout::Rect {
+                x: inner.x,
+                y: inner.y + 2,
+                width: inner.width,
+                height: options.len() as u16,
+            };
+
+            for (i, option) in options.iter().enumerate() {
+                let is_selected = i == selected;
+                let style = if is_selected {
+                    ratatui::style::Style::default()
+                        .fg(ratatui::style::Color::Yellow)
+                        .add_modifier(ratatui::style::Modifier::BOLD)
+                } else {
+                    ratatui::style::Style::default()
+                };
+                let prefix = if is_selected { "> " } else { "  " };
+                let text = format!("{}{}", prefix, option);
+                let para = Paragraph::new(text).style(style);
+                let option_rect = ratatui::layout::Rect {
+                    x: options_area.x,
+                    y: options_area.y + i as u16,
+                    width: options_area.width,
+                    height: 1,
+                };
+                f.render_widget(para, option_rect);
+            }
+
+            let hint_text = "(Use ↑↓ or y/n to select, Enter to confirm)";
+            let hint = Paragraph::new(hint_text)
+                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Gray))
+                .alignment(Alignment::Center);
+            let hint_area = ratatui::layout::Rect {
+                x: inner.x,
+                y: size.height.saturating_sub(2),
+                width: inner.width,
+                height: 1,
+            };
+            f.render_widget(hint, hint_area);
+        })?;
+
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
+                match code {
+                    KeyCode::Up | KeyCode::Char('n') => selected = (selected + 1) % options.len(),
+                    KeyCode::Down | KeyCode::Char('y') | KeyCode::Char('p') => {
+                        selected = (selected + options.len() - 1) % options.len()
+                    }
+                    KeyCode::Enter => break,
+                    KeyCode::Char('c') if selected == 1 => break, // c for continue
+                    KeyCode::Esc => selected = 1, // ESC defaults to continue
+                    _ => {}
+                }
+            }
+        }
     }
 
-    // 6. Close the session
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen
+    )?;
+
+    Ok(selected == 0) // true if Publish selected
+}
+
+async fn cmd_mentor_prompt_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
+    let settings = settings::load_settings()?;
+    let output = Arc::new(Output::new(json, color));
+
+    // Resolve the app name/key to an actual asset
+    let api_client = Client::new(settings.clone(), output.clone());
+    let asset = resolve_asset(&api_client, &app_name)?;
+    let asset_key = asset
+        .get("assetKey")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Asset has no assetKey"))?
+        .to_string();
+    let asset_name = asset
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&asset_key)
+        .to_string();
+
+    let mentor = MentorClient::new(settings);
+
+    // 1. Start a session
+    output.stderr("Starting Mentor session...");
+    let session_result = mentor.call_tool("mentor_start_session", json!({}))?;
+    let session_id = session_result
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Failed to get sessionId from mentor_start_session"))?
+        .to_string();
+    output.stderr(&format!("Session started: {}", session_id));
+
+    // 2. Load the asset into the session
+    output.stderr(&format!("Loading app: {} ({})", asset_name, asset_key));
+    let mut load_args = Map::new();
+    load_args.insert("sessionId".to_string(), json!(session_id.clone()));
+    load_args.insert("assetKey".to_string(), json!(asset_key.clone()));
+    let _load_result = mentor.call_tool("mentor_load_asset", Value::Object(load_args))?;
+    output.stderr("App loaded successfully");
+    output.stderr("Entering interactive mode. Type your prompts below (Enter to send, Shift+Enter for new line).");
+    output.stderr("Press Ctrl+D to exit.\n");
+
+    // 3. Interactive loop
+    loop {
+        // Read multi-line input
+        eprint!("You: ");
+        io::stderr().flush()?;
+
+        let mut input = String::new();
+        // Read lines until we get a complete input (for now, just read one line at a time)
+        // TODO: Support Shift+Enter for multi-line later if needed
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => {
+                // EOF (Ctrl+D)
+                output.stderr("\nExiting interactive mode...");
+                break;
+            }
+            Ok(_) => {
+                let input = input.trim();
+                if input.is_empty() {
+                    continue;
+                }
+
+                // Send the prompt
+                output.stderr("Sending prompt...");
+                let mut prompt_args = Map::new();
+                prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
+                prompt_args.insert("message".to_string(), json!(input));
+                let prompt_result = mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
+                let run_id = prompt_result
+                    .get("runId")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Failed to get runId from mentor_prompt"))?
+                    .to_string();
+                output.stderr(&format!("Prompt sent, run ID: {}", run_id));
+
+                // Poll until completion
+                let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output)?;
+
+                // Check if changes were applied
+                let change_applied = final_run_result
+                    .get("result")
+                    .and_then(|r| r.get("changeApplied"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                if change_applied {
+                    output.stderr("\nChanges detected.");
+                    match select_publish_option() {
+                        Ok(true) => {
+                            output.stderr("Publishing...");
+                            let mut publish_args = Map::new();
+                            publish_args.insert("sessionId".to_string(), json!(session_id.clone()));
+                            let _publish_result =
+                                mentor.call_tool("mentor_publish", Value::Object(publish_args))?;
+                            output.stderr("Asset published successfully.\n");
+                        }
+                        Ok(false) => {
+                            output.stderr("Continuing without publishing.\n");
+                        }
+                        Err(e) => {
+                            output.stderr(&format!("Error during publish prompt: {}\n", e));
+                        }
+                    }
+                } else {
+                    output.stderr("No changes applied.\n");
+                }
+            }
+            Err(e) => {
+                output.stderr(&format!("Error reading input: {}", e));
+                break;
+            }
+        }
+    }
+
+    // 4. Close the session
     output.stderr("Closing session...");
     let close_args = json!({ "sessionId": session_id });
     let _close_result = mentor.call_tool("mentor_close_session", close_args)?;

@@ -721,8 +721,8 @@ pub enum Commands {
     MentorPrompt {
         /// Name or key of the app to edit
         app_name: String,
-        /// The prompt message
-        prompt: String,
+        /// The prompt message (optional; if not provided, starts interactive mode)
+        prompt: Option<String>,
     },
 
     /// Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run` (low-level).
