@@ -30,27 +30,6 @@ jobs:
           name: linux-binaries
           path: odc-cli-*.tar.gz*
 
-  build-macos-intel:
-    name: Build macOS x86_64
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --target x86_64-apple-darwin
-      - run: |
-          mkdir -p odc-cli-x86_64-darwin
-          cp target/x86_64-apple-darwin/release/odc odc-cli-x86_64-darwin/
-          cp README.md LICENSE odc-cli-x86_64-darwin/ 2>/dev/null || true
-          tar czf odc-cli-x86_64-darwin.tar.gz odc-cli-x86_64-darwin/
-          shasum -a 256 odc-cli-x86_64-darwin.tar.gz > odc-cli-x86_64-darwin.tar.gz.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-intel-binaries
-          path: odc-cli-*.tar.gz*
-
   build-macos-arm:
     name: Build macOS ARM64
     runs-on: macos-14
@@ -136,7 +115,7 @@ jobs:
             # Release ${{ github.ref_name }}
 
             This release includes:
-            - **CLI Binaries**: macOS (Intel/ARM), Linux (amd64), Windows (amd64)
+            - **CLI Binaries**: macOS ARM, Linux (amd64), Windows (amd64)
             - **Agent Skill**: ODC CLI Helper skill for Claude Code
 
             ## Installation
@@ -144,7 +123,6 @@ jobs:
             ### Binary Installation
             Download the appropriate archive for your platform from the assets below:
             - `odc-cli-x86_64-linux-gnu.tar.gz` — Linux x86_64
-            - `odc-cli-x86_64-darwin.tar.gz` — macOS Intel
             - `odc-cli-aarch64-darwin.tar.gz` — macOS ARM
             - `odc-cli-x86_64-windows.zip` — Windows
 
