@@ -497,7 +497,7 @@ pub enum Commands {
 
     /// Delete an asset.
     DeleteAsset {
-        #[arg(long)]
+        /// Asset name or key
         asset: String,
     },
 
@@ -564,8 +564,7 @@ pub enum Commands {
     ListRoles {
         /// Asset name or key (app the roles belong to)
         asset: String,
-        /// Environment name, key, or unambiguous partial name
-        #[arg(long)]
+        /// Environment name, key, or unambiguous partial name (optional)
         env: Option<String>,
     },
 
@@ -573,8 +572,7 @@ pub enum Commands {
     ListRoleAssignments {
         /// Asset name or key (app the roles belong to)
         asset: String,
-        /// Environment name, key, or unambiguous partial name
-        #[arg(long)]
+        /// Environment name, key, or unambiguous partial name (optional)
         env: Option<String>,
         /// Only show assignments of this type (default: both)
         #[arg(long, value_enum)]

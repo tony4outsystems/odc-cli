@@ -393,7 +393,7 @@ Options:
 Permanently delete an asset from the asset repository.
 
 ```bash
-odc delete-asset --asset <asset-name-or-key>
+odc delete-asset <asset-name-or-key>
 ```
 
 #### update-user
@@ -403,6 +403,29 @@ Update a user's name, active status, or photo URL. At least one of `--name`, `--
 ```bash
 odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-url https://example.com/photo.jpg
 ```
+
+#### list-roles
+
+List application roles defined for an asset, optionally scoped to an environment.
+
+```bash
+odc list-roles <asset-name-or-key> [environment-name-or-key]
+```
+
+- First positional: asset name or key (required)
+- Second positional: environment name, key, or unambiguous partial name (optional)
+
+#### list-role-assignments
+
+List, for each application role of an asset, the users and/or groups assigned to it. Optionally scoped to an environment.
+
+```bash
+odc list-role-assignments <asset-name-or-key> [environment-name-or-key] [--type User|Group]
+```
+
+- First positional: asset name or key (required)
+- Second positional: environment name, key, or unambiguous partial name (optional)
+- `--type` — filter to assignments of this type: `User` or `Group` (both shown by default)
 
 #### grant-role / revoke-role
 
