@@ -450,9 +450,9 @@ pub enum Commands {
 
     /// Analyze the impact of deploying an asset revision.
     AnalyzeDeployment {
-        #[arg(long)]
+        /// Asset name or key
         asset: String,
-        #[arg(long)]
+        /// Environment name or key
         env: String,
         /// Defaults to the latest revision
         #[arg(long)]
@@ -463,7 +463,7 @@ pub enum Commands {
 
     /// Analyze the impact of deleting an asset.
     AnalyzeDeletion {
-        #[arg(long)]
+        /// Asset name or key
         asset: String,
         #[command(flatten)]
         poll: PollArgs,
@@ -471,9 +471,9 @@ pub enum Commands {
 
     /// Deploy an asset to an environment.
     Deploy {
-        #[arg(long)]
+        /// Asset name or key
         asset: String,
-        #[arg(long)]
+        /// Environment name or key
         env: String,
         /// Defaults to the asset's current revision (falls back to the latest)
         #[arg(long)]
@@ -487,9 +487,9 @@ pub enum Commands {
 
     /// Undeploy an asset from an environment.
     Undeploy {
-        #[arg(long)]
+        /// Asset name or key
         asset: String,
-        #[arg(long)]
+        /// Environment name or key
         env: String,
         #[command(flatten)]
         poll: PollArgs,
