@@ -30,28 +30,6 @@ jobs:
           name: linux-binaries
           path: odc-cli-*.tar.gz*
 
-  build-linux-arm64:
-    name: Build Linux ARM64
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-unknown-linux-gnu
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo install cross
-      - run: cross build --release --target aarch64-unknown-linux-gnu
-      - run: |
-          mkdir -p odc-cli-aarch64-linux-gnu
-          cp target/aarch64-unknown-linux-gnu/release/odc odc-cli-aarch64-linux-gnu/
-          cp README.md LICENSE odc-cli-aarch64-linux-gnu/ 2>/dev/null || true
-          tar czf odc-cli-aarch64-linux-gnu.tar.gz odc-cli-aarch64-linux-gnu/
-          sha256sum odc-cli-aarch64-linux-gnu.tar.gz > odc-cli-aarch64-linux-gnu.tar.gz.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-arm64-binaries
-          path: odc-cli-*.tar.gz*
-
   build-macos-arm:
     name: Build macOS ARM64
     runs-on: macos-15
@@ -113,7 +91,7 @@ jobs:
 
   publish:
     name: Publish Release
-    needs: [build-linux, build-linux-arm64, build-macos-arm, build-windows, package-skill]
+    needs: [build-linux, build-macos-arm, build-windows, package-skill]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -137,7 +115,7 @@ jobs:
             # Release ${{ github.ref_name }}
 
             This release includes:
-            - **CLI Binaries**: macOS ARM, Linux (amd64), Linux (ARM64), Windows (amd64)
+            - **CLI Binaries**: macOS ARM, Linux (amd64), Windows (amd64)
             - **Agent Skill**: ODC CLI Helper skill for Claude Code
 
             ## Installation
@@ -145,7 +123,6 @@ jobs:
             ### Binary Installation
             Download the appropriate archive for your platform from the assets below:
             - `odc-cli-x86_64-linux-gnu.tar.gz` — Linux x86_64
-            - `odc-cli-aarch64-linux-gnu.tar.gz` — Linux ARM64
             - `odc-cli-aarch64-darwin.tar.gz` — macOS ARM
             - `odc-cli-x86_64-windows.zip` — Windows
 
