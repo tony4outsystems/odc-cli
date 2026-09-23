@@ -1,11 +1,18 @@
+[tasks.build]
+description = 'Build release'
+sources = ['Cargo.toml', 'src/**/*.rs']
+outputs = ['target/release/odc']
+run = "cargo build --release"
+
 [tasks.demo]
 description = "Regenerate demo.gif using VHS"
-run = """
-set -e
-echo "Building odc in release mode..."
-cargo build --release
-echo ""
-echo "Recording demo with VHS..."
-export PATH="$PWD/target/release:$PATH"
-vhs scripts/demo/demo.tape
-"""
+depends = ["build"]
+sources = ["scripts/demo/demo.tape"]
+outputs = ["demo.gif"]
+run = 'PATH="$PWD/target/release:$PATH" vhs scripts/demo/demo.tape --output demo.gif'
+
+[tasks.mermaid-graph]
+description = "Generate mermaid-graph.png"
+sources = ["eGovPortal-producers-graph.mmd"]
+outputs = ["mermaid-graph.png"]
+run = "npx @mermaid-js/mermaid-cli -i eGovPortal-producers-graph.mmd -o mermaid-graph.png"
