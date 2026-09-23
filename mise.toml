@@ -1,16 +1,11 @@
 [tasks.demo]
-description = "Regenerate demo.gif using asciinema and agg"
+description = "Regenerate demo.gif using VHS"
 run = """
 set -e
 echo "Building odc in release mode..."
 cargo build --release
 echo ""
-echo "Recording demo with asciinema..."
+echo "Recording demo with VHS..."
 export PATH="$PWD/target/release:$PATH"
-./scripts/demo/record.sh
-echo ""
-echo "Converting .cast to .gif with agg..."
-agg scripts/demo/demo.cast demo.gif
-echo ""
-echo "✓ demo.gif generated at repo root"
+vhs scripts/demo/demo.tape
 """
