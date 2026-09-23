@@ -512,6 +512,20 @@ Use `--output` to save the diagram to a file for embedding in documentation or s
 odc producer-graph eGovPortal --output my-app-graph.mmd
 ```
 
+Generate a PNG image from the Mermaid diagram:
+
+```bash
+npx @mermaid-js/mermaid-cli -i my-app-graph.mmd -o my-app-graph.png
+```
+
+Or use the `mermaid-graph` mise task:
+
+```bash
+mise run mermaid-graph
+```
+
+![Producer dependency graph](mermaid-graph.png)
+
 ## Pagination
 
 `list-assets`, `list-deployed-assets`, and `list-revisions` list results from API endpoints that
