@@ -24,5 +24,3 @@ Sleep 2s
 Type "odc deploy eGovPortal Test"
 Enter
 Sleep 5s
-Wait@60 /completed/
-Sleep 5s
