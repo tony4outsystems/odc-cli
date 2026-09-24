@@ -3,11 +3,8 @@
 use super::args::*;
 use super::shared::*;
 use crate::client::Client;
-use crate::output::Output;
-use crate::settings;
 use anyhow::Result;
 use serde_json::Map;
-use std::sync::Arc;
 use std::time::Duration;
 
 fn analysis_is_terminal(map: &Map<std::string::String, serde_json::Value>) -> bool {
@@ -26,9 +23,7 @@ fn operation_is_terminal(map: &Map<std::string::String, serde_json::Value>) -> b
 }
 
 pub async fn cmd_analyze_deployment(args: DeploymentAnalysisArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset = resolve_asset(&client, &args.asset)?;
     let asset_key = asset
@@ -70,9 +65,7 @@ pub async fn cmd_analyze_deployment(args: DeploymentAnalysisArgs) -> Result<()> 
 }
 
 pub async fn cmd_analyze_deletion(args: DeletionAnalysisArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset_key = resolve_asset(&client, &args.asset)?
         .get("assetKey")
@@ -152,9 +145,7 @@ pub async fn run_build(
 }
 
 pub async fn cmd_internal_build(args: BuildArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset = resolve_asset(&client, &args.asset)?;
     let asset_key = asset
@@ -182,9 +173,7 @@ pub async fn cmd_internal_build(args: BuildArgs) -> Result<()> {
 }
 
 pub async fn cmd_internal_publish(args: PublishArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset = resolve_asset(&client, &args.asset)?;
     let asset_key = asset
@@ -276,9 +265,7 @@ pub async fn cmd_internal_deploy(args: InternalDeployArgs) -> Result<()> {
         return Err(anyhow::anyhow!("internal-deploy requires --build-key"));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset = resolve_asset(&client, &args.asset)?;
     let asset_key = asset
@@ -309,9 +296,7 @@ pub async fn cmd_internal_deploy(args: InternalDeployArgs) -> Result<()> {
 }
 
 pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset = resolve_asset(&client, &args.asset)?;
     let asset_key = asset
@@ -330,10 +315,7 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
         ));
     }
 
-    output.stderr(&format!(
-        "Building {} revision {}...",
-        args.asset, revision
-    ));
+    output.stderr(&format!("Building {} revision {}...", args.asset, revision));
     let (build_key, _) = run_build(
         &client,
         &args.build_type,
@@ -346,10 +328,7 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
     .await?;
     output.stderr(&format!("Build completed (buildKey: {})", build_key));
 
-    output.stderr(&format!(
-        "Deploying {} to {}...",
-        args.asset, args.env
-    ));
+    output.stderr(&format!("Deploying {} to {}...", args.asset, args.env));
     let (_, deploy_result) = run_deployment_operation(
         &client,
         "Deploy",
@@ -370,9 +349,7 @@ pub async fn cmd_deploy(args: DeploymentOperationArgs) -> Result<()> {
 }
 
 pub async fn cmd_undeploy(args: DeploymentOperationArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset_key = resolve_asset(&client, &args.asset)?
         .get("assetKey")
@@ -401,9 +378,7 @@ pub async fn cmd_undeploy(args: DeploymentOperationArgs) -> Result<()> {
 }
 
 pub async fn cmd_delete_asset(args: DeleteAssetArgs) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset_key = resolve_asset(&client, &args.asset)?
         .get("assetKey")

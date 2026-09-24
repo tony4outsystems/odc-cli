@@ -17,7 +17,7 @@ impl Settings {
     ///
     /// # Validation
     ///
-    /// - `tenant_url` must be a valid URL
+    /// - `tenant_url` must be a valid `https://` URL
     /// - `client_id` must not be empty
     /// - `client_secret` must not be empty
     ///
@@ -26,7 +26,13 @@ impl Settings {
     /// Settings if all fields are valid, or error if validation fails.
     pub fn new(tenant_url: String, client_id: String, client_secret: String) -> Result<Self> {
         // Validate URL format
-        url::Url::parse(&tenant_url).map_err(|e| anyhow!("Invalid tenant_url: {}", e))?;
+        let url = url::Url::parse(&tenant_url).map_err(|e| anyhow!("Invalid tenant_url: {}", e))?;
+        if url.scheme() != "https" {
+            return Err(anyhow!(
+                "Invalid tenant_url: must use https:// (got {}://)",
+                url.scheme()
+            ));
+        }
 
         // Validate non-empty fields
         if client_id.is_empty() {
@@ -128,8 +134,12 @@ fn load_environment_with_paths(
     Ok(env_vars)
 }
 
-fn config_path(home: Option<PathBuf>) -> Result<PathBuf> {
-    let home_dir = home.unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
+/// Path to `~/.odc/config.json` (or under `home` when given, for tests).
+pub fn config_path(home: Option<PathBuf>) -> Result<PathBuf> {
+    let home_dir = match home {
+        Some(h) => h,
+        None => dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?,
+    };
     Ok(home_dir.join(".odc").join("config.json"))
 }
 
@@ -251,6 +261,14 @@ fn find_quoted_end(value: &str, quote: char) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_new_rejects_plain_http_tenant_url() {
+        let err =
+            Settings::new("http://example.com".into(), "id".into(), "secret".into()).unwrap_err();
+        assert!(err.to_string().contains("https"));
+        assert!(Settings::new("https://example.com".into(), "id".into(), "secret".into()).is_ok());
+    }
 
     #[test]
     fn test_tenant_origin_trim() {

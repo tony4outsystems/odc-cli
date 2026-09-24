@@ -41,14 +41,14 @@ An **Environment** is a target deployment stage *within* a tenant (e.g., Develop
 A **Role** is a named set of permissions that is **always attached to both an app and an environment**. There is no such thing as a role that spans all environments — each role object has exactly one `assetKey` (the app) and one `environmentKey` (the environment).
 
 - **Structure**: Tenant → Environment + App → Role (the role is defined at the intersection of an app deployment in an environment)
-- **Implication**: The same logical role name (e.g., "Editor") exists as distinct role objects for each environment the app is deployed to. `list-roles --app MyApp` may return multiple "Editor" roles, one per environment.
+- **Implication**: The same logical role name (e.g., "Editor") exists as distinct role objects for each environment the app is deployed to. `list-roles MyApp` may return multiple "Editor" roles, one per environment.
 - **Assignment**: Roles are assigned to users or groups at the tenant level, but the assignment targets a specific role object (which already encodes its app + environment)
 - **Resolution in `grant-role <ASSET> <ENV> <ROLE> <USER>`**:
   - `<ENV>` is **required as a positional argument** — narrows role lookup to a single environment, eliminating ambiguity
   - `<ASSET>` filters roles to a specific app
   - `<ROLE>` is matched by name within that app+environment; if a GUID key, it's validated to belong to that environment
   - Underlying API: `POST /users/{key}/application-roles/{roleKey}` (environment is already encoded in the resolved role key)
-- **Listing**: Use `list-roles --app MyApp` to see all roles across all environments, or `list-roles --app MyApp --env Production` to filter to one environment
+- **Listing**: Use `list-roles MyApp` to see all roles across all environments, or `list-roles MyApp --env Production` to filter to one environment
 
 ### Users
 

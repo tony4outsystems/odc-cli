@@ -3,16 +3,19 @@
 use super::args::*;
 use super::shared::*;
 use crate::client::Client;
-use crate::settings;
 use anyhow::Result;
 use serde_json::{Map, Value};
-use std::sync::Arc;
 
 /// Resolve a role name/key to its key, filtered by app (name/key) and environment (name/key).
 /// The `env_filter` is required — roles are always environment-scoped, so an environment must
 /// always be provided to avoid ambiguity.
 /// If `role_input` is a GUID, it is validated to belong to the resolved environment.
-fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str, env_filter: &str) -> Result<String> {
+fn resolve_role_key(
+    client: &Client,
+    role_input: &str,
+    app_filter: &str,
+    env_filter: &str,
+) -> Result<String> {
     // Resolve env to key (required)
     let environments = client.list_environments()?;
     let env_key = crate::resolve::resolve(env_filter, "environment", &environments, "key")?;
@@ -34,7 +37,9 @@ fn resolve_role_key(client: &Client, role_input: &str, app_filter: &str, env_fil
 
     // If role_input is a GUID key, validate it belongs to the given environment
     if crate::resolve::is_guid(role_input) {
-        let found = roles.iter().any(|r| r.get("key").and_then(|v| v.as_str()) == Some(role_input));
+        let found = roles
+            .iter()
+            .any(|r| r.get("key").and_then(|v| v.as_str()) == Some(role_input));
         if !found {
             return Err(anyhow::anyhow!(
                 "Role key {} does not belong to environment {}",
@@ -131,9 +136,7 @@ fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<St
 pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "list-roles", "an app name or key")?;
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
@@ -170,9 +173,7 @@ pub async fn cmd_list_role_assignments(
 ) -> Result<()> {
     require_positional(positionals, "list-role-assignments", "an app name or key")?;
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
 
@@ -289,9 +290,7 @@ pub async fn cmd_grant_role(args: RoleGrantArgs, positionals: &[String]) -> Resu
         return Err(anyhow::anyhow!("grant-role requires a user and a role"));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let user = resolve_user(&client, &positionals[0])?;
     let user_key = user
@@ -311,9 +310,7 @@ pub async fn cmd_revoke_role(args: RoleRevokeArgs, positionals: &[String]) -> Re
         return Err(anyhow::anyhow!("revoke-role requires a user and a role"));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let user = resolve_user(&client, &positionals[0])?;
     let user_key = user
@@ -338,9 +335,7 @@ pub async fn cmd_grant_group_role(args: GroupRoleGrantArgs, positionals: &[Strin
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0])?;
     let group_key = group
@@ -368,9 +363,7 @@ pub async fn cmd_revoke_group_role(
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0])?;
     let group_key = group

@@ -394,7 +394,7 @@ fn merge_producer_tree(
 pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
     let settings = crate::settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone()));
+    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
     let env_key = resolve_env(&client, &options.env)?;
@@ -472,7 +472,7 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
 pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
     let settings = crate::settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone()));
+    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
     let apps_list = client.list_assets()?;
@@ -524,7 +524,7 @@ pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
 pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
     let settings = crate::settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone()));
+    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
 
     let file_apps = parse_apps_file(Path::new(apps_file))?;
     let apps_list = client.list_assets()?;
@@ -561,7 +561,7 @@ pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
 pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
     let settings = crate::settings::load_settings()?;
     let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone()));
+    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
 
     let env_key = resolve_env(&client, &options.env)?;
     let deployed = client.list_deployed_assets()?;

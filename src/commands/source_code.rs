@@ -2,10 +2,7 @@
 
 use super::args::*;
 use super::shared::resolve_asset;
-use crate::client::Client;
-use crate::settings;
 use anyhow::Result;
-use std::sync::Arc;
 
 pub async fn cmd_download_source_code(
     args: DownloadSourceCodeArgs,
@@ -17,9 +14,7 @@ pub async fn cmd_download_source_code(
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let app_key = &positionals[0];
     let asset = resolve_asset(&client, app_key)?;
@@ -54,9 +49,7 @@ pub async fn cmd_upload_source_code(
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let bytes = std::fs::read(&positionals[0])
         .map_err(|e| anyhow::anyhow!("Failed to read {}: {}", positionals[0], e))?;

@@ -1,7 +1,6 @@
 pub mod cli;
 pub mod client;
 pub mod commands; // Now a module directory with submodules organized by domain
-pub mod error;
 pub mod inspection;
 pub mod login;
 pub mod mentor;
@@ -9,7 +8,8 @@ pub mod mermaid;
 pub mod output;
 pub mod resolve;
 pub mod settings;
-pub mod testutil;
+#[cfg(test)]
+mod testutil;
 pub mod transport;
 pub mod value;
 pub mod workflows;

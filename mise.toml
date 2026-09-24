@@ -12,7 +12,10 @@ outputs = ["demo.gif"]
 run = 'PATH="$PWD/target/release:$PATH" vhs scripts/demo/demo.tape --output demo.gif'
 
 [tasks.mermaid-graph]
-description = "Generate mermaid-graph.png"
-sources = ["eGovPortal-producers-graph.mmd"]
+description = "Generate mermaid-graph.png (requires tenant credentials)"
+depends = ["build"]
 outputs = ["mermaid-graph.png"]
-run = "npx @mermaid-js/mermaid-cli -i eGovPortal-producers-graph.mmd -o mermaid-graph.png"
+run = [
+  "target/release/odc producer-graph eGovPortal --output eGovPortal-producers-graph.mmd",
+  "npx @mermaid-js/mermaid-cli -i eGovPortal-producers-graph.mmd -o mermaid-graph.png",
+]

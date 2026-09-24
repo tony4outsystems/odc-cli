@@ -28,9 +28,9 @@ pub struct MentorClient {
 }
 
 impl MentorClient {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings) -> anyhow::Result<Self> {
         use crate::transport::ReqwestTransport;
-        Self::with_transport(settings, ReqwestTransport::new())
+        Ok(Self::with_transport(settings, ReqwestTransport::new()?))
     }
 
     /// `transport` is shared with the internal auth `Client` (used only for its

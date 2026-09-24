@@ -255,11 +255,11 @@ See [Pagination](#pagination) for `--offset`/`--limit`.
 List all revisions of an asset, or retrieve one specific revision.
 
 ```bash
-odc list-revisions --asset <asset-name-or-key>
-odc get-revision --asset <asset-name-or-key> --revision <revision>
+odc list-revisions <asset-name-or-key>
+odc get-revision <asset-name-or-key> --revision <revision>
 ```
 
-Both commands also accept the asset as a positional argument. `get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
+`get-revision` requires a positive revision number. `list-revisions` supports `--offset`/`--limit`; see [Pagination](#pagination).
 
 #### download-source-code
 
@@ -409,31 +409,31 @@ odc update-user <user-key-or-email> --name "Jane Doe" --is-active true --photo-u
 List application roles defined for an asset, optionally scoped to an environment.
 
 ```bash
-odc list-roles <asset-name-or-key> [environment-name-or-key]
+odc list-roles <asset-name-or-key> [--env <environment-name-or-key>]
 ```
 
-- First positional: asset name or key (required)
-- Second positional: environment name, key, or unambiguous partial name (optional)
+- Positional: asset name or key (required)
+- `--env` — environment name, key, or unambiguous partial name (optional)
 
 #### list-role-assignments
 
 List, for each application role of an asset, the users and/or groups assigned to it. Optionally scoped to an environment.
 
 ```bash
-odc list-role-assignments <asset-name-or-key> [environment-name-or-key] [--type User|Group]
+odc list-role-assignments <asset-name-or-key> [--env <environment-name-or-key>] [--type User|Group]
 ```
 
-- First positional: asset name or key (required)
-- Second positional: environment name, key, or unambiguous partial name (optional)
+- Positional: asset name or key (required)
+- `--env` — environment name, key, or unambiguous partial name (optional)
 - `--type` — filter to assignments of this type: `User` or `Group` (both shown by default)
 
 #### grant-role / revoke-role
 
-Grant or revoke an application role for a user. The asset disambiguates which asset's role to use when the same role name exists on multiple assets.
+Grant or revoke an application role for a user. A role belongs to one asset in one environment, so both are required to identify it.
 
 ```bash
-odc grant-role <user-key-or-email> <role-name-or-key> --asset <asset-name-or-key>
-odc revoke-role <user-key-or-email> <role-name-or-key> --asset <asset-name-or-key>
+odc grant-role <asset-name-or-key> <environment> <role-name-or-key> <user-key-or-email>
+odc revoke-role <asset-name-or-key> <environment> <role-name-or-key> <user-key-or-email>
 ```
 
 The API client needs the **User management > Manage end-user access** permission.
@@ -515,7 +515,7 @@ odc producer-graph eGovPortal --output my-app-graph.mmd
 
 ## Pagination
 
-`list-assets`, `list-deployed-assets`, and `list-revisions` list results from API endpoints that
+`list-assets`, `list-deployed-assets`, `list-portfolios`, and `list-revisions` list results from API endpoints that
 page their results. By default each of these commands fetches every page and returns the
 combined result, so no flags are needed for the common case.
 
@@ -524,7 +524,7 @@ combined result, so no flags are needed for the common case.
 
 ```bash
 odc list-assets --offset 100 --limit 50
-odc list-revisions --app MyApp --offset 0 --limit 20 --json
+odc list-revisions MyApp --offset 0 --limit 20 --json
 ```
 
 ### Shared polling and parallel options

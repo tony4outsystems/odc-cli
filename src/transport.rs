@@ -29,18 +29,13 @@ pub struct ReqwestTransport {
 }
 
 impl ReqwestTransport {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let client = reqwest::Client::builder()
-            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(120))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
-        Self { client }
-    }
-}
-
-impl Default for ReqwestTransport {
-    fn default() -> Self {
-        Self::new()
+            .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
+        Ok(Self { client })
     }
 }
 

@@ -10,26 +10,16 @@
 
 use crate::cli::Options;
 use crate::client::Client;
-use crate::output::Output;
+use crate::output::{ColorMode, Output};
 use anyhow::Result;
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
-/// Initialize a client with settings and output configured from `options` in one call.
-///
-/// This replaces the common pattern:
-/// ```ignore
-/// let settings = settings::load_settings()?;
-/// let output = Arc::new(Output::new(options.json, options.color));
-/// let client = Client::new(settings, output.clone());
-/// ```
-///
-/// # Returns
-/// A tuple of `(output, client)` ready for use in command handlers.
-pub fn make_client(options: &Options) -> Result<(Arc<Output>, Client)> {
+/// Load settings and build the output and API client every command handler needs.
+pub fn make_client(json: bool, color: ColorMode) -> Result<(Arc<Output>, Client)> {
     let settings = crate::settings::load_settings()?;
-    let output = Arc::new(Output::new(options.json, options.color));
-    let client = Client::new(settings, output.clone());
+    let output = Arc::new(Output::new(json, color));
+    let client = Client::new(settings, output.clone())?;
     Ok((output, client))
 }
 

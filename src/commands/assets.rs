@@ -2,18 +2,12 @@
 
 use super::args::{GetAssetArgs, ListAssetsArgs, ListDeployedAssetsArgs};
 use super::shared::*;
-use crate::client::Client;
-use crate::output::Output;
-use crate::settings;
 use anyhow::Result;
 use serde_json::Value;
-use std::sync::Arc;
 
 /// List assets with optional filtering by name/key and/or asset type.
 pub async fn cmd_list_assets(args: ListAssetsArgs, positionals: &[String]) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     // Create a minimal Options struct just for fetch_listing compatibility
     let options = crate::cli::Options {
@@ -32,7 +26,9 @@ pub async fn cmd_list_assets(args: ListAssetsArgs, positionals: &[String]) -> Re
 
     listing.items = filter_by_substring(
         listing.items,
-        args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)),
+        args.filter
+            .as_deref()
+            .or_else(|| positionals.first().map(String::as_str)),
         &["name", "assetKey"],
     );
 
@@ -51,9 +47,7 @@ pub async fn cmd_list_deployed_assets(
     args: ListDeployedAssetsArgs,
     positionals: &[String],
 ) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let environments = client.list_environments()?;
 
@@ -89,7 +83,11 @@ pub async fn cmd_list_deployed_assets(
         || client.list_deployed_assets(),
     )?;
 
-    let search = args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)).unwrap_or("");
+    let search = args
+        .filter
+        .as_deref()
+        .or_else(|| positionals.first().map(String::as_str))
+        .unwrap_or("");
     let mut rows = crate::inspection::deployed_asset_rows(&listing.items, &env_key, search);
     for row in &mut rows {
         if let Some(Value::String(key)) = row.get("environmentKey").cloned() {
@@ -108,9 +106,7 @@ pub async fn cmd_get_asset(args: GetAssetArgs, positionals: &[String]) -> Result
         return Err(anyhow::anyhow!("get-asset requires an asset name or key"));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let asset_key = &positionals[0];
     let asset = resolve_asset(&client, asset_key)?;

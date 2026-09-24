@@ -59,15 +59,18 @@ struct AuthState {
 
 impl Client {
     /// Create a new client with production transport
-    pub fn new(settings: Settings, output: std::sync::Arc<crate::output::Output>) -> Self {
+    pub fn new(
+        settings: Settings,
+        output: std::sync::Arc<crate::output::Output>,
+    ) -> anyhow::Result<Self> {
         use crate::transport::ReqwestTransport;
-        Self {
+        Ok(Self {
             settings,
             output,
-            transport: Box::new(ReqwestTransport::new()),
+            transport: Box::new(ReqwestTransport::new()?),
             auth_mutex: Mutex::new(AuthState::default()),
             assets_cache: Mutex::new(None),
-        }
+        })
     }
 
     /// Create a client with a custom transport (for testing)
@@ -140,10 +143,7 @@ impl Client {
             return Err(anyhow::anyhow!("token_endpoint not found in discovery"));
         }
 
-        let body = format!(
-            "grant_type=client_credentials&client_id={}&client_secret={}",
-            self.settings.client_id, self.settings.client_secret
-        );
+        let body = token_request_body(&self.settings.client_id, &self.settings.client_secret);
 
         let resp = self.call_raw(
             "POST",
@@ -864,8 +864,26 @@ impl Client {
     }
 }
 
+/// Form-encode the client-credentials token request body.
+fn token_request_body(client_id: &str, client_secret: &str) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("grant_type", "client_credentials")
+        .append_pair("client_id", client_id)
+        .append_pair("client_secret", client_secret)
+        .finish()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_token_request_body_is_form_encoded() {
+        let body = super::token_request_body("my id", "a&b+c=d%");
+        assert_eq!(
+            body,
+            "grant_type=client_credentials&client_id=my+id&client_secret=a%26b%2Bc%3Dd%25"
+        );
+    }
+
     use super::*;
 
     #[test]
@@ -879,7 +897,7 @@ mod tests {
             false,
             crate::output::ColorMode::Never,
         ));
-        let _client = Client::new(settings, output);
+        let _client = Client::new(settings, output).unwrap();
     }
 
     fn test_settings() -> Settings {

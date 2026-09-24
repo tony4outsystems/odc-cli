@@ -27,7 +27,7 @@ fn mentor_client(
 ) -> Result<(MentorClient, Arc<Output>)> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
-    Ok((MentorClient::new(settings), output))
+    Ok((MentorClient::new(settings)?, output))
 }
 
 pub async fn cmd_mentor_start_session(args: MentorSessionArgs) -> Result<()> {
@@ -81,17 +81,24 @@ pub async fn cmd_mentor_load_asset(
 
 pub async fn cmd_mentor(args: MentorArgs) -> Result<()> {
     match &args.prompt {
-        Some(prompt) => cmd_mentor_single_shot(args.app_name, prompt.clone(), args.json, args.color).await,
+        Some(prompt) => {
+            cmd_mentor_single_shot(args.app_name, prompt.clone(), args.json, args.color).await
+        }
         None => cmd_mentor_interactive(args.app_name, args.json, args.color).await,
     }
 }
 
-async fn cmd_mentor_single_shot(app_name: String, prompt: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
+async fn cmd_mentor_single_shot(
+    app_name: String,
+    prompt: String,
+    json: bool,
+    color: crate::output::ColorMode,
+) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
 
     // Resolve the app name/key to an actual asset (shows "did you mean" on mismatch)
-    let api_client = Client::new(settings.clone(), output.clone());
+    let api_client = Client::new(settings.clone(), output.clone())?;
     let asset = resolve_asset(&api_client, &app_name)?;
     let asset_key = asset
         .get("assetKey")
@@ -104,7 +111,7 @@ async fn cmd_mentor_single_shot(app_name: String, prompt: String, json: bool, co
         .unwrap_or(&asset_key)
         .to_string();
 
-    let mentor = MentorClient::new(settings);
+    let mentor = MentorClient::new(settings)?;
 
     // 1. Start a session
     output.stderr("Starting Mentor session...");
@@ -138,7 +145,7 @@ async fn cmd_mentor_single_shot(app_name: String, prompt: String, json: bool, co
     output.stderr(&format!("Prompt sent, run ID: {}", run_id));
 
     // 4. Poll until completion and get result
-    let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output)?;
+    let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output).await?;
 
     output.stderr("Prompt completed");
 
@@ -173,7 +180,7 @@ async fn cmd_mentor_single_shot(app_name: String, prompt: String, json: bool, co
 
 /// Helper function to poll a mentor run until completion, handling events and text streaming.
 /// Returns the final run result.
-fn poll_mentor_run(
+async fn poll_mentor_run(
     mentor: &MentorClient,
     session_id: &str,
     run_id: &str,
@@ -191,7 +198,7 @@ fn poll_mentor_run(
     let mut final_run_result = json!({});
 
     while !run_finished && poll_count < max_polls {
-        std::thread::sleep(std::time::Duration::from_secs(10));
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         poll_count += 1;
 
         let mut run_args = Map::new();
@@ -320,12 +327,16 @@ fn select_publish_option() -> Result<bool> {
     }
 }
 
-async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::output::ColorMode) -> Result<()> {
+async fn cmd_mentor_interactive(
+    app_name: String,
+    json: bool,
+    color: crate::output::ColorMode,
+) -> Result<()> {
     let settings = settings::load_settings()?;
     let output = Arc::new(Output::new(json, color));
 
     // Resolve the app name/key to an actual asset
-    let api_client = Client::new(settings.clone(), output.clone());
+    let api_client = Client::new(settings.clone(), output.clone())?;
     let asset = resolve_asset(&api_client, &app_name)?;
     let asset_key = asset
         .get("assetKey")
@@ -338,7 +349,7 @@ async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::outp
         .unwrap_or(&asset_key)
         .to_string();
 
-    let mentor = MentorClient::new(settings);
+    let mentor = MentorClient::new(settings)?;
 
     // 1. Start a session
     output.stderr("Starting Mentor session...");
@@ -386,7 +397,8 @@ async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::outp
                 let mut prompt_args = Map::new();
                 prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
                 prompt_args.insert("message".to_string(), json!(input));
-                let prompt_result = mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
+                let prompt_result =
+                    mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
                 let run_id = prompt_result
                     .get("runId")
                     .and_then(|v| v.as_str())
@@ -395,7 +407,8 @@ async fn cmd_mentor_interactive(app_name: String, json: bool, color: crate::outp
                 output.stderr(&format!("Prompt sent, run ID: {}", run_id));
 
                 // Poll until completion
-                let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output)?;
+                let final_run_result =
+                    poll_mentor_run(&mentor, &session_id, &run_id, &output).await?;
 
                 // Check if changes were applied
                 let change_applied = final_run_result

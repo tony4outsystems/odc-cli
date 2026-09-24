@@ -8,8 +8,7 @@ use url::Url;
 
 /// Get the path to the config file
 pub fn config_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
-    Ok(home.join(".odc").join("config.json"))
+    crate::settings::config_path(None)
 }
 
 /// Prompt for and read the client secret from stdin
@@ -34,28 +33,15 @@ pub fn prompt_secret() -> Result<String> {
 pub fn login(tenant_url: &str, client_id: &str) -> Result<()> {
     // Validate tenant URL
     let url = Url::parse(tenant_url)?;
-
-    if url.host().is_none() {
+    if url.scheme() != "https"
+        || url.host().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return Err(anyhow!(
-            "tenant URL must be an absolute HTTP or HTTPS URL without credentials, query, or fragment"
-        ));
-    }
-
-    if url.scheme() != "https" && url.scheme() != "http" {
-        return Err(anyhow!(
-            "tenant URL must be an absolute HTTP or HTTPS URL without credentials, query, or fragment"
-        ));
-    }
-
-    if !url.username().is_empty() || url.password().is_some() {
-        return Err(anyhow!(
-            "tenant URL must be an absolute HTTP or HTTPS URL without credentials, query, or fragment"
-        ));
-    }
-
-    if url.query().is_some() || url.fragment().is_some() {
-        return Err(anyhow!(
-            "tenant URL must be an absolute HTTP or HTTPS URL without credentials, query, or fragment"
+            "tenant URL must be an absolute HTTPS URL without credentials, query, or fragment"
         ));
     }
 
@@ -109,6 +95,11 @@ fn save_settings(settings: &Settings) -> Result<PathBuf> {
 
     // Write to temp file and rename atomically
     let temp_file = tempfile::NamedTempFile::new_in(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(temp_file.path(), fs::Permissions::from_mode(0o600))?;
+    }
     let mut file = temp_file.as_file();
     file.write_all(data.as_bytes())?;
     file.flush()?;

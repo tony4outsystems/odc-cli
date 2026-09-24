@@ -6,38 +6,33 @@ During development, use `cargo run -- ...`.
 
 ## Architecture
 
-The Rust codebase is organized into 12 modules:
+The Rust codebase is organized as follows:
 
 | Module | Purpose |
 |--------|---------|
 | `main.rs` | Entry point and error handling (exit code 1 on failure) |
 | `lib.rs` | Argument parsing and command dispatch |
-| `cli.rs` | Command table (30 commands in 6 help groups), option flags, and help text |
-| `commands.rs` | Command handlers for all 30 commands |
+| `cli.rs` | clap command definitions, categorized help text, and conversion to typed args |
+| `commands/` | Command handlers, one module per domain (`assets`, `deployment`, `roles`, `users`, `mentor`, ...); `args.rs` holds the typed argument structs and `shared.rs` the common helpers (`make_client`, listing/pagination, asset/env resolution) |
 | `client.rs` | HTTP client for ODC API with discovery, token caching, and pagination |
-| `transport.rs` | HTTP abstraction layer using `reqwest` with async/sync bridging |
+| `mentor.rs` | Client for the Mentor MCP endpoint |
+| `transport.rs` | HTTP abstraction layer using `reqwest` with async/sync bridging, timeouts |
 | `value.rs` | JSON helpers for number fidelity and value extraction |
 | `output.rs` | Pretty-printing engine with color codes and table alignment |
-| `settings.rs` | Configuration loading from `.env` with variable expansion |
-| `login.rs` | OAuth2 client credentials flow and config persistence |
+| `settings.rs` | Configuration loading from env, `.env` (with variable expansion), or `~/.odc/config.json` |
+| `login.rs` | Interactive `login` and config persistence |
 | `resolve.rs` | Name-to-GUID resolution with partial matching and suggestions |
-| `workflows.rs`, `inspection.rs`, `mermaid.rs`, `upload.rs` | Command-specific logic and helpers |
+| `workflows.rs`, `inspection.rs`, `mermaid.rs` | Batch workflows, asset inspection, and dependency graphs |
 
 ## Testing
 
-The codebase includes 42 unit tests covering:
-- JSON value parsing and formatting
-- Output formatting and field ordering
-- Settings loading and `.env` expansion
-- OAuth2 discovery and token flow
-- App/environment resolution and API pagination
-- Mermaid diagram generation
+Run tests with `cargo test --lib`. Unit tests live next to the code in `#[cfg(test)]` modules. HTTP is mocked through the `Transport` trait (`testutil::test_transport` + `testutil::json_response`); the API client, Mentor client, and inspection logic are tested this way. Command handlers in `commands/` are not yet covered by tests.
 
-Run tests with `cargo test`. All tests use the `Transport` trait for mocking HTTP responses, allowing end-to-end command testing without network calls.
+CI (`.github/workflows/rust.yml`) runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --lib` on Linux, macOS, and Windows.
 
 ## Releasing
 
-Push a version tag to build and publish binaries for Windows, macOS, and Linux, each for `amd64` and `arm64`:
+Push a version tag to build and publish binaries for Linux (x86_64), macOS (arm64), and Windows (x86_64):
 
 ```bash
 git tag v0.1.2

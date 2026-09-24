@@ -1108,14 +1108,12 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::MentorArgs {
         match self {
-            Commands::Mentor { app_name, prompt } => {
-                crate::commands::args::MentorArgs {
-                    json,
-                    color,
-                    app_name: app_name.clone(),
-                    prompt: prompt.clone(),
-                }
-            }
+            Commands::Mentor { app_name, prompt } => crate::commands::args::MentorArgs {
+                json,
+                color,
+                app_name: app_name.clone(),
+                prompt: prompt.clone(),
+            },
             _ => panic!("Expected Mentor command"),
         }
     }
@@ -1376,9 +1374,11 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::ListPortfoliosArgs {
         match self {
-            Commands::ListPortfolios { asset, .. } => {
-                crate::commands::args::ListPortfoliosArgs { json, color, filter: asset.clone() }
-            }
+            Commands::ListPortfolios { asset, .. } => crate::commands::args::ListPortfoliosArgs {
+                json,
+                color,
+                filter: asset.clone(),
+            },
             _ => panic!("Expected ListPortfolios command"),
         }
     }
@@ -1579,7 +1579,12 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::RoleGrantArgs {
         match self {
-            Commands::GrantRole { asset, env, role, user } => crate::commands::args::RoleGrantArgs {
+            Commands::GrantRole {
+                asset,
+                env,
+                role,
+                user,
+            } => crate::commands::args::RoleGrantArgs {
                 json,
                 color,
                 role: role.clone(),
@@ -1597,7 +1602,12 @@ impl Commands {
         color: crate::output::ColorMode,
     ) -> crate::commands::args::RoleRevokeArgs {
         match self {
-            Commands::RevokeRole { asset, env, role, user } => crate::commands::args::RoleRevokeArgs {
+            Commands::RevokeRole {
+                asset,
+                env,
+                role,
+                user,
+            } => crate::commands::args::RoleRevokeArgs {
                 json,
                 color,
                 role: role.clone(),
@@ -1884,7 +1894,8 @@ mod tests {
 
     #[test]
     fn test_parses_list_assets_with_filter_and_pagination() {
-        let cli = Cli::try_parse_from(["odc", "list-assets", "--asset", "eGov", "--offset", "10"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "list-assets", "--asset", "eGov", "--offset", "10"])
+            .unwrap();
         match cli.command {
             Commands::ListAssets {
                 asset: filter,
@@ -1904,7 +1915,8 @@ mod tests {
     #[test]
     fn test_list_portfolios_requires_flag() {
         // --asset flag is required for portfolios filter
-        let cli = Cli::try_parse_from(["odc", "list-portfolios", "--asset", "MyPortfolio"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["odc", "list-portfolios", "--asset", "MyPortfolio"]).unwrap();
         match cli.command {
             Commands::ListPortfolios { asset, .. } => {
                 assert_eq!(asset, Some("MyPortfolio".to_string()));
@@ -1915,7 +1927,15 @@ mod tests {
 
     #[test]
     fn test_list_deployed_assets_with_filter_and_env() {
-        let cli = Cli::try_parse_from(["odc", "list-deployed-assets", "--asset", "MyAsset", "--env", "dev"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "odc",
+            "list-deployed-assets",
+            "--asset",
+            "MyAsset",
+            "--env",
+            "dev",
+        ])
+        .unwrap();
         match cli.command {
             Commands::ListDeployedAssets { asset, env, .. } => {
                 assert_eq!(asset, Some("MyAsset".to_string()));
@@ -1925,7 +1945,6 @@ mod tests {
         }
     }
 
-    #[test]
     #[test]
     fn test_list_roles_without_env() {
         // env is optional for list-roles
@@ -1965,7 +1984,16 @@ mod tests {
 
     #[test]
     fn test_list_role_assignments_with_optional_env_and_type() {
-        let cli = Cli::try_parse_from(["odc", "list-role-assignments", "MyApp", "--env", "dev", "--type", "User"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "odc",
+            "list-role-assignments",
+            "MyApp",
+            "--env",
+            "dev",
+            "--type",
+            "User",
+        ])
+        .unwrap();
         match cli.command {
             Commands::ListRoleAssignments { asset, env, r#type } => {
                 assert_eq!(asset, "MyApp");
@@ -1978,7 +2006,8 @@ mod tests {
 
     #[test]
     fn test_list_groups_with_optional_filter_and_env() {
-        let cli = Cli::try_parse_from(["odc", "list-groups", "--group", "MyGroup", "--env", "dev"]).unwrap();
+        let cli = Cli::try_parse_from(["odc", "list-groups", "--group", "MyGroup", "--env", "dev"])
+            .unwrap();
         match cli.command {
             Commands::ListGroups { group, env } => {
                 assert_eq!(group, Some("MyGroup".to_string()));
@@ -2007,7 +2036,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn test_grant_role_missing_user_is_rejected() {
         let result = Cli::try_parse_from(["odc", "grant-role", "MyApp", "dev", "Admin"]);
         assert!(result.is_err());
@@ -2015,9 +2043,22 @@ mod tests {
 
     #[test]
     fn test_grant_role_complete() {
-        let cli = Cli::try_parse_from(["odc", "grant-role", "MyApp", "dev", "Admin", "user@example.com"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "odc",
+            "grant-role",
+            "MyApp",
+            "dev",
+            "Admin",
+            "user@example.com",
+        ])
+        .unwrap();
         match cli.command {
-            Commands::GrantRole { asset, env, role, user } => {
+            Commands::GrantRole {
+                asset,
+                env,
+                role,
+                user,
+            } => {
                 assert_eq!(asset, "MyApp");
                 assert_eq!(env, "dev");
                 assert_eq!(role, "Admin");

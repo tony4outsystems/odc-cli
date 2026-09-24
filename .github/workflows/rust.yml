@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main, 'migrate-to-*' ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:

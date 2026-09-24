@@ -1,18 +1,5 @@
 .env
 .env.*
-__pycache__/
-*.py[cod]
-.venv/
-.ruff_cache/
-.pytest_cache/
-output/*
-/bin/
-/coverage.out
-/dist/
-
-
-# Added by cargo
-
-/target
 /target/
+/dist/
 *.mmd

@@ -2,11 +2,8 @@
 
 use super::args::*;
 use super::shared::*;
-use crate::client::Client;
-use crate::settings;
 use anyhow::Result;
 use serde_json::Value;
-use std::sync::Arc;
 
 pub async fn cmd_latest_revision(args: LatestRevisionArgs, positionals: &[String]) -> Result<()> {
     if positionals.is_empty() {
@@ -15,9 +12,7 @@ pub async fn cmd_latest_revision(args: LatestRevisionArgs, positionals: &[String
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let app_key = &positionals[0];
 
@@ -36,9 +31,7 @@ pub async fn cmd_list_revisions(args: ListRevisionsArgs, positionals: &[String])
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let app_key = &positionals[0];
 
@@ -66,9 +59,7 @@ pub async fn cmd_get_revision(args: GetRevisionArgs, positionals: &[String]) -> 
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let app_key = &positionals[0];
 
@@ -85,9 +76,7 @@ pub async fn cmd_producer_graph(args: ProducerGraphArgs, positionals: &[String])
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let app_key = &positionals[0];
     let asset = resolve_asset(&client, app_key)?;

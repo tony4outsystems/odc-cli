@@ -3,10 +3,8 @@
 use super::args::*;
 use super::shared::*;
 use crate::client::Client;
-use crate::settings;
 use anyhow::Result;
 use serde_json::{Map, Value};
-use std::sync::Arc;
 
 /// Resolve a user by key (GUID), exact email, or name/email search — following the same
 /// exact-match/unambiguous-partial-match/"did you mean" contract as `resolve_app`/`resolve_env`.
@@ -66,9 +64,7 @@ pub async fn cmd_get_user(args: GetUserArgs, positionals: &[String]) -> Result<(
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let identifier = &positionals[0];
 
@@ -105,9 +101,7 @@ pub async fn cmd_update_user(args: UpdateUserArgs, positionals: &[String]) -> Re
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let user = resolve_user(&client, &positionals[0])?;
     let user_key = user
@@ -128,9 +122,7 @@ pub async fn cmd_update_user(args: UpdateUserArgs, positionals: &[String]) -> Re
 }
 
 pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let env_key = if let Some(ref env_input) = args.env {
         if env_input.is_empty() {
@@ -141,7 +133,11 @@ pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Re
     } else {
         String::new()
     };
-    let filter = args.filter.as_deref().or_else(|| positionals.first().map(String::as_str)).unwrap_or("");
+    let filter = args
+        .filter
+        .as_deref()
+        .or_else(|| positionals.first().map(String::as_str))
+        .unwrap_or("");
     let mut groups = client.list_groups(filter, &env_key)?;
 
     // For table output, always populate "environment" field
@@ -174,9 +170,7 @@ pub async fn cmd_list_groups(args: ListGroupsArgs, positionals: &[String]) -> Re
 pub async fn cmd_get_group(args: GetGroupArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "get-group", "a group name or key")?;
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0], "")?;
     output.print_result(&Value::Object(group))
@@ -185,9 +179,7 @@ pub async fn cmd_get_group(args: GetGroupArgs, positionals: &[String]) -> Result
 pub async fn cmd_update_group(args: UpdateGroupArgs, positionals: &[String]) -> Result<()> {
     require_positional(positionals, "update-group", "a group name or key")?;
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0], "")?;
     let group_key = group
@@ -216,9 +208,7 @@ pub async fn cmd_list_group_members(
 ) -> Result<()> {
     require_positional(positionals, "list-group-members", "a group name or key")?;
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0], "")?;
     let group_key = group
@@ -256,9 +246,7 @@ pub async fn cmd_add_user_to_group(args: UserGroupArgs, positionals: &[String]) 
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0], "")?;
     let group_key = group
@@ -288,9 +276,7 @@ pub async fn cmd_remove_user_from_group(args: UserGroupArgs, positionals: &[Stri
         ));
     }
 
-    let settings = settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(args.json, args.color));
-    let client = Client::new(settings, output.clone());
+    let (output, client) = super::shared::make_client(args.json, args.color)?;
 
     let group = resolve_group(&client, &positionals[0], "")?;
     let group_key = group
