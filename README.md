@@ -171,13 +171,13 @@ Internal (Advanced):
   internal-deploy                 Deploy an existing build to an environment
 
 Mentor:
-  mentor-prompt                   Send a prompt to Mentor and wait for completion, auto-publishing the result
+  mentor                          Send a prompt to Mentor and wait for completion, auto-publishing the result; or start interactive mode if no prompt is given
 
 Mentor (Advanced):
   mentor-start-session            Start a new Mentor session; prints the sessionId used for follow-up commands
-  mentor-create-asset             Create a new asset in a Mentor session, so `mentor-prompt` can edit it
-  mentor-load-asset               Load an existing asset into a Mentor session, so `mentor-prompt` can edit it
-  mentor-prompt-raw               Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run` (low-level)
+  mentor-create-asset             Create a new asset in a Mentor session, so `mentor` can edit it
+  mentor-load-asset               Load an existing asset into a Mentor session, so `mentor` can edit it
+  mentor-prompt                   Send a prompt to a Mentor session; returns a runId to poll with `mentor-get-run` (low-level)
   mentor-get-run                  Poll a Mentor run's progress events and status
   mentor-get-event                Fetch the full body of a truncated Mentor run event
   mentor-cancel-prompt            Cancel the in-flight prompt for a Mentor session
@@ -506,25 +506,12 @@ rev 6 / WebApplication" ]
     app_8107c0b6da90 --> app_d179d8af026e
 ```
 
-Use `--output` to save the diagram to a file for embedding in documentation or sharing:
+Use `--output` to save the diagram to a file:
 
 ```bash
 odc producer-graph eGovPortal --output my-app-graph.mmd
 ```
 
-Generate a PNG image from the Mermaid diagram:
-
-```bash
-npx @mermaid-js/mermaid-cli -i my-app-graph.mmd -o my-app-graph.png
-```
-
-Or use the `mermaid-graph` mise task:
-
-```bash
-mise run mermaid-graph
-```
-
-![Producer dependency graph](mermaid-graph.png)
 
 ## Pagination
 
