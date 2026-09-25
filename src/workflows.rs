@@ -20,14 +20,17 @@
 //! Batch operations run multiple apps concurrently (configurable via `--max-parallel`).
 //! Each app runs through: resolve → build → deploy/undeploy/delete.
 
-use crate::cli::Options;
+use crate::commands::args::{
+    BatchDeleteArgs, BatchDeployArgs, BatchUndeployArgs, DangerousBatchUndeployAllArgs,
+};
+use crate::commands::context::Ctx;
 use crate::commands::shared::{resolve_asset_in, resolve_env, resolve_revision};
+use crate::value::JsonMapExt;
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -233,8 +236,6 @@ pub async fn wait_for(
     }
 }
 
-type BoxFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
-
 /// Run multiple items concurrently with error handling.
 ///
 /// Executes `make_task(item)` for each item, with at most `max_parallel` tasks running concurrently.
@@ -243,7 +244,11 @@ type BoxFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 /// - If `continue_on_error` is true: continues running remaining items and collects errors
 ///
 /// Used for batch deploy, batch undeploy, and batch delete operations.
-async fn run_concurrent<T, F>(
+///
+/// `make_task` returns a plain (unboxed) future directly — an `async move { ... }` block — rather
+/// than a `Pin<Box<dyn Future>>`, since `tokio::task::JoinSet::spawn` only needs the future to be
+/// `Send + 'static`, not boxed.
+async fn run_concurrent<T, F, Fut>(
     mut items: Vec<T>,
     max_parallel: usize,
     continue_on_error: bool,
@@ -251,7 +256,8 @@ async fn run_concurrent<T, F>(
 ) -> Result<()>
 where
     T: Send + 'static,
-    F: Fn(T) -> BoxFuture + Send + Sync + 'static,
+    F: Fn(T) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<()>> + Send + 'static,
 {
     let make_task = Arc::new(make_task);
     let chunk_size = max_parallel.max(1);
@@ -309,9 +315,7 @@ fn resolve_file_apps(
     for file_app in file_apps {
         let app = resolve_asset_in(&apps_list, &file_app.key)?;
         let asset_key = app
-            .get("assetKey")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
+            .require_str("assetKey", &format!("App {}", file_app.key))?
             .to_string();
         let revision = resolve_revision(client, app, &asset_key, file_app.revision)?;
 
@@ -391,18 +395,16 @@ fn merge_producer_tree(
 /// producer dependencies are resolved via the producer graph, deduplicated, and deployed
 /// first (see `merge_producer_tree`/`dependency_levels`); `--skip-dependencies` deploys only
 /// the listed apps. Apps within a level run up to `--max-parallel` at a time.
-pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
-    let settings = crate::settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
+pub async fn batch_deploy(ctx: &Ctx, args: &BatchDeployArgs) -> Result<()> {
+    let client = Arc::new(ctx.client()?);
 
-    let file_apps = parse_apps_file(Path::new(apps_file))?;
-    let env_key = resolve_env(&client, &options.env)?;
+    let file_apps = parse_apps_file(Path::new(&args.assets_file))?;
+    let env_key = resolve_env(&client, &args.env)?;
 
     let mut revisions = resolve_file_apps(&client, &file_apps, resolve_revision)?;
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
-    if !options.skip_dependencies {
+    if !args.skip_dependencies {
         let roots: Vec<(String, i32)> = revisions.iter().map(|(k, v)| (k.clone(), *v)).collect();
         for (asset_key, revision) in roots {
             let producers = client.get_producer_graph(&asset_key, revision, 0, "Deployable", "")?;
@@ -421,26 +423,26 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
 
     for level in levels {
         let client = client.clone();
-        let options = options.clone();
+        let build_type = args.build_type.clone();
+        let poll = args.poll.clone();
         let env_key = env_key.clone();
         run_concurrent(
             level,
-            options.max_parallel,
-            options.continue_on_error,
+            args.parallel.max_parallel,
+            args.parallel.continue_on_error,
             move |app: App| {
                 let client = client.clone();
-                let options = options.clone();
+                let build_type = build_type.clone();
+                let poll = poll.clone();
                 let env_key = env_key.clone();
-                Box::pin(async move {
+                async move {
                     let revision = app
                         .revision
                         .ok_or_else(|| anyhow!("Missing resolved revision for {}", app.key))?;
                     let (build_key, _) = crate::commands::deployment::run_build(
                         &client,
-                        &options.build_type,
-                        options.interval.as_secs(),
-                        options.timeout.as_secs(),
-                        options.no_wait,
+                        &build_type,
+                        &poll,
                         &app.key,
                         revision,
                     )
@@ -452,118 +454,107 @@ pub async fn batch_deploy(options: &Options, apps_file: &str) -> Result<()> {
                         &env_key,
                         Some(revision),
                         Some(build_key.as_str()),
-                        options.interval.as_secs(),
-                        options.timeout.as_secs(),
-                        options.no_wait,
+                        &poll,
                     )
                     .await?;
                     Ok(())
-                }) as BoxFuture
+                }
             },
         )
         .await?;
     }
 
-    output.println_locked("Batch deploy finished");
+    ctx.output.println_locked("Batch deploy finished");
     Ok(())
 }
 
+/// Resolve every listed app to its asset key against an already-fetched asset list. Shared by
+/// `batch_undeploy` and `batch_delete`, which (unlike `batch_deploy`) don't need each app's
+/// resolved revision, just its key.
+fn resolve_file_asset_keys(
+    apps_list: &[Map<String, Value>],
+    file_apps: &[App],
+) -> Result<Vec<String>> {
+    file_apps
+        .iter()
+        .map(|file_app| {
+            let asset_key = resolve_asset_in(apps_list, &file_app.key)?
+                .require_str("assetKey", &format!("App {}", file_app.key))?
+                .to_string();
+            Ok(asset_key)
+        })
+        .collect()
+}
+
 /// Undeploy every app listed in `apps_file` from `--env`, up to `--max-parallel` at a time.
-pub async fn batch_undeploy(options: &Options, apps_file: &str) -> Result<()> {
-    let settings = crate::settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
+pub async fn batch_undeploy(ctx: &Ctx, args: &BatchUndeployArgs) -> Result<()> {
+    let client = Arc::new(ctx.client()?);
 
-    let file_apps = parse_apps_file(Path::new(apps_file))?;
+    let file_apps = parse_apps_file(Path::new(&args.assets_file))?;
     let apps_list = client.list_assets()?;
-    let env_key = resolve_env(&client, &options.env)?;
+    let env_key = resolve_env(&client, &args.env)?;
 
-    let mut asset_keys = Vec::new();
-    for file_app in &file_apps {
-        let asset_key = resolve_asset_in(&apps_list, &file_app.key)?
-            .get("assetKey")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
-            .to_string();
-        asset_keys.push(asset_key);
-    }
+    let asset_keys = resolve_file_asset_keys(&apps_list, &file_apps)?;
 
-    let options = options.clone();
+    let poll = args.poll.clone();
     run_concurrent(
         asset_keys,
-        options.max_parallel,
-        options.continue_on_error,
+        args.parallel.max_parallel,
+        args.parallel.continue_on_error,
         move |asset_key: String| {
             let client = client.clone();
-            let options = options.clone();
+            let poll = poll.clone();
             let env_key = env_key.clone();
-            Box::pin(async move {
+            async move {
                 crate::commands::deployment::run_deployment_operation(
-                    &client,
-                    "Undeploy",
-                    &asset_key,
-                    &env_key,
-                    None,
-                    None,
-                    options.interval.as_secs(),
-                    options.timeout.as_secs(),
-                    options.no_wait,
+                    &client, "Undeploy", &asset_key, &env_key, None, None, &poll,
                 )
                 .await?;
                 Ok(())
-            }) as BoxFuture
+            }
         },
     )
     .await?;
 
-    output.println_locked("Batch undeploy finished");
+    ctx.output.println_locked("Batch undeploy finished");
     Ok(())
 }
 
 /// Delete every app listed in `apps_file`, up to `--max-parallel` at a time.
-pub async fn batch_delete(options: &Options, apps_file: &str) -> Result<()> {
-    let settings = crate::settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
+pub async fn batch_delete(ctx: &Ctx, args: &BatchDeleteArgs) -> Result<()> {
+    let client = Arc::new(ctx.client()?);
 
-    let file_apps = parse_apps_file(Path::new(apps_file))?;
+    let file_apps = parse_apps_file(Path::new(&args.assets_file))?;
     let apps_list = client.list_assets()?;
 
-    let mut asset_keys = Vec::new();
-    for file_app in &file_apps {
-        let asset_key = resolve_asset_in(&apps_list, &file_app.key)?
-            .get("assetKey")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("App {} has no assetKey field", file_app.key))?
-            .to_string();
-        asset_keys.push(asset_key);
-    }
+    let asset_keys = resolve_file_asset_keys(&apps_list, &file_apps)?;
 
     run_concurrent(
         asset_keys,
-        options.max_parallel,
-        options.continue_on_error,
+        args.parallel.max_parallel,
+        args.parallel.continue_on_error,
         move |asset_key: String| {
             let client = client.clone();
-            Box::pin(async move {
+            async move {
                 client.delete_asset(&asset_key)?;
                 Ok(())
-            }) as BoxFuture
+            }
         },
     )
     .await?;
 
-    output.println_locked("Batch delete finished");
+    ctx.output.println_locked("Batch delete finished");
     Ok(())
 }
 
 /// Undeploy every app currently deployed to `--env`, up to `--max-parallel` at a time.
-pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
-    let settings = crate::settings::load_settings()?;
-    let output = Arc::new(crate::output::Output::new(options.json, options.color));
-    let client = Arc::new(crate::client::Client::new(settings, output.clone())?);
+pub async fn dangerous_batch_undeploy_all(
+    ctx: &Ctx,
+    args: &DangerousBatchUndeployAllArgs,
+) -> Result<()> {
+    let client = Arc::new(ctx.client()?);
 
-    let env_key = resolve_env(&client, &options.env)?;
+    let env_key = resolve_env(&client, &args.env)?;
     let deployed = client.list_deployed_assets()?;
     let rows = crate::inspection::deployed_asset_rows(&deployed, &env_key, "");
 
@@ -572,35 +563,28 @@ pub async fn dangerous_batch_undeploy_all(options: &Options) -> Result<()> {
         .filter_map(|row| row.get("key").and_then(|v| v.as_str()).map(str::to_string))
         .collect();
 
-    let options = options.clone();
+    let poll = args.poll.clone();
     run_concurrent(
         asset_keys,
-        options.max_parallel,
-        options.continue_on_error,
+        args.parallel.max_parallel,
+        args.parallel.continue_on_error,
         move |asset_key: String| {
             let client = client.clone();
-            let options = options.clone();
+            let poll = poll.clone();
             let env_key = env_key.clone();
-            Box::pin(async move {
+            async move {
                 crate::commands::deployment::run_deployment_operation(
-                    &client,
-                    "Undeploy",
-                    &asset_key,
-                    &env_key,
-                    None,
-                    None,
-                    options.interval.as_secs(),
-                    options.timeout.as_secs(),
-                    options.no_wait,
+                    &client, "Undeploy", &asset_key, &env_key, None, None, &poll,
                 )
                 .await?;
                 Ok(())
-            }) as BoxFuture
+            }
         },
     )
     .await?;
 
-    output.println_locked("Undeployed every app from the environment");
+    ctx.output
+        .println_locked("Undeployed every app from the environment");
     Ok(())
 }
 
@@ -760,10 +744,10 @@ mod tests {
 
         run_concurrent(items, 2, false, move |_| {
             let counter = counter_clone.clone();
-            Box::pin(async move {
+            async move {
                 counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 Ok(())
-            }) as BoxFuture
+            }
         })
         .await?;
 
@@ -774,14 +758,12 @@ mod tests {
     #[tokio::test]
     async fn test_run_concurrent_stops_on_first_error_by_default() {
         let items = vec![1, 2, 3];
-        let result = run_concurrent(items, 1, false, |n: i32| {
-            Box::pin(async move {
-                if n == 2 {
-                    Err(anyhow!("boom"))
-                } else {
-                    Ok(())
-                }
-            }) as BoxFuture
+        let result = run_concurrent(items, 1, false, |n: i32| async move {
+            if n == 2 {
+                Err(anyhow!("boom"))
+            } else {
+                Ok(())
+            }
         })
         .await;
 
@@ -791,14 +773,12 @@ mod tests {
     #[tokio::test]
     async fn test_run_concurrent_continues_on_error() -> Result<()> {
         let items = vec![1, 2, 3];
-        let result = run_concurrent(items, 3, true, |n: i32| {
-            Box::pin(async move {
-                if n == 2 {
-                    Err(anyhow!("boom"))
-                } else {
-                    Ok(())
-                }
-            }) as BoxFuture
+        let result = run_concurrent(items, 3, true, |n: i32| async move {
+            if n == 2 {
+                Err(anyhow!("boom"))
+            } else {
+                Ok(())
+            }
         })
         .await;
 

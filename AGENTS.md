@@ -1,7 +1,7 @@
-- Do not use the `outsystems` MCP server or any `odc` MCP servers for tasks in this repo by default. Use the OutSystems ODC CLI (`odc`) in this project. Run it using `cargo run -- <args>`. Read help from the CLI using arg `-h` to understand how to use it.
-- authentication is configured via `.env` file instead of requiring `login` command:
-  - Create a `.env` file with: `TENANT_URL`, `CLIENT_ID`, `CLIENT_SECRET`
-  - The CLI will automatically read these environment variables
+- Do not use the `outsystems` MCP server or any `odc` MCP servers for tasks in this repo by default. Use the OutSystems ODC CLI (`odc`) in this project. Run it using `mise exec -- cargo run -- <args>` (or `cargo run -- <args>` inside an activated mise shell). Read help from the CLI using arg `-h` to understand how to use it.
+- authentication is configured via a `.env` file loaded by mise (see `mise.toml`'s `[env] _.file`), instead of requiring the `login` command:
+  - Create a `.env` file with: `ODC_TENANT_URL`, `ODC_CLIENT_ID`, `ODC_CLIENT_SECRET`
+  - The CLI reads these from the process environment; mise loads `.env` into it
   - No need to run `cargo run -- login` during development
 - If needed, read README.md.
 - Add commands to the project as needed.
@@ -14,10 +14,10 @@ Understanding these core concepts is essential for building and using ODC CLI co
 
 A **Tenant** is the top-level organizational unit in OutSystems ODC. It represents a single customer's isolated instance.
 
-- **Authentication scope**: All CLI commands authenticate to a single tenant via command login or credentials in `.env`
+- **Authentication scope**: All CLI commands authenticate to a single tenant via command login or credentials in the environment (loaded from `.env` by mise)
 - **Multi-tenant access**: A user with multiple tenants would need separate CLI sessions or `.env` files for each
 - **Operations**: Most operations (listing assets, users, groups, roles) are tenant-wide
-- **In CLI commands**: Tenant context is implicit—it comes from `TENANT_URL`, `CLIENT_ID`, `CLIENT_SECRET` in `.env`
+- **In CLI commands**: Tenant context is implicit—it comes from `ODC_TENANT_URL`, `ODC_CLIENT_ID`, `ODC_CLIENT_SECRET` in the environment
 
 ### Environment
 

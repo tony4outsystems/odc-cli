@@ -1,10 +1,10 @@
 # Regenerating the README demo
 
-The demo runs the real `odc` CLI against a real tenant (through your `.env`) — it is not a fake/canned recording.
+The demo runs the real `odc` CLI against a real tenant (through environment variables loaded from `.env` by mise) — it is not a fake/canned recording.
 
 ## Prerequisites
 
-- `.env` file configured with `TENANT_URL`, `CLIENT_ID`, `CLIENT_SECRET`
+- `.env` file configured with `ODC_TENANT_URL`, `ODC_CLIENT_ID`, `ODC_CLIENT_SECRET` (loaded into the environment by mise; the CLI itself does not read `.env`)
 - `odc` CLI built and available in PATH
 - `vhs` (VHS CLI) installed; the task installs it automatically via `brew install charmbracelet/tap/vhs` if needed
 

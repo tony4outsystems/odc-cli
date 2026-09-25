@@ -19,7 +19,7 @@ The Rust codebase is organized as follows:
 | `transport.rs` | HTTP abstraction layer using `reqwest` with async/sync bridging, timeouts |
 | `value.rs` | JSON helpers for number fidelity and value extraction |
 | `output.rs` | Pretty-printing engine with color codes and table alignment |
-| `settings.rs` | Configuration loading from env, `.env` (with variable expansion), or `~/.odc/config.json` |
+| `settings.rs` | Configuration loading from the process environment (each variable falling back independently to `~/.odc/config.json`) |
 | `login.rs` | Interactive `login` and config persistence |
 | `resolve.rs` | Name-to-GUID resolution with partial matching and suggestions |
 | `workflows.rs`, `inspection.rs`, `mermaid.rs` | Batch workflows, asset inspection, and dependency graphs |

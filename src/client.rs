@@ -105,15 +105,7 @@ impl Client {
             tenant_origin
         );
         let resp = self.call_raw("GET", &url, Vec::new(), None)?;
-
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "Discovery failed with {}: {}",
-                resp.status,
-                body_str
-            ));
-        }
+        resp.ensure_success("Discovery")?;
 
         let body_str = String::from_utf8(resp.body)?;
         let discovery: Map<String, Value> = serde_json::from_str(&body_str)?;
@@ -155,14 +147,7 @@ impl Client {
             Some(body.into_bytes()),
         )?;
 
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "Token request failed with {}: {}",
-                resp.status,
-                body_str
-            ));
-        }
+        resp.ensure_success("Token request")?;
 
         let body_str = String::from_utf8(resp.body)?;
         let token_resp: Value = serde_json::from_str(&body_str)?;
@@ -211,17 +196,7 @@ impl Client {
 
         let body_bytes = body.map(|v| serde_json::to_vec(&v)).transpose()?;
         let resp = self.call_raw(method, &url, headers, body_bytes)?;
-
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "{} {} failed with {}: {}",
-                method,
-                path,
-                resp.status,
-                body_str
-            ));
-        }
+        resp.ensure_success(&format!("{} {}", method, path))?;
 
         if resp.body.is_empty() {
             return Ok(json!({}));
@@ -482,15 +457,7 @@ impl Client {
     /// Download the raw bytes at `url` (a pre-signed storage URL; no API token is sent).
     pub fn download_file_bytes(&self, url: &str) -> anyhow::Result<Vec<u8>> {
         let resp = self.call_raw("GET", url, Vec::new(), None)?;
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "GET {} failed with {}: {}",
-                url,
-                resp.status,
-                body_str
-            ));
-        }
+        resp.ensure_success(&format!("GET {}", url))?;
         Ok(resp.body)
     }
 
@@ -510,15 +477,7 @@ impl Client {
             "application/octet-stream".to_string(),
         )];
         let resp = self.call_raw("PUT", url, headers, Some(bytes))?;
-        if resp.status >= 400 {
-            let body_str = String::from_utf8(resp.body).unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "PUT {} failed with {}: {}",
-                url,
-                resp.status,
-                body_str
-            ));
-        }
+        resp.ensure_success(&format!("PUT {}", url))?;
         Ok(())
     }
 

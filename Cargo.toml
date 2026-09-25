@@ -23,7 +23,7 @@ tempfile = "3"
 tabwriter = "1"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
 dirs = "5"
-strum_macros = "0.27"
+strum = { version = "0.27", features = ["derive"] }
 termimad = "0.30"
 
 [profile.release]

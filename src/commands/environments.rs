@@ -1,14 +1,14 @@
 //! Environment listing commands.
 
-use super::args::ListEnvironmentsArgs;
+use super::context::Ctx;
 use anyhow::Result;
 use serde_json::Value;
 
-pub async fn cmd_list_environments(args: ListEnvironmentsArgs) -> Result<()> {
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
+pub async fn cmd_list_environments(ctx: &Ctx) -> Result<()> {
+    let client = ctx.client()?;
 
     let envs = client.list_environments()?;
     let result: Vec<_> = envs.into_iter().map(Value::Object).collect();
-    output.print_result(&Value::Array(result))?;
+    ctx.output.print_result(&Value::Array(result))?;
     Ok(())
 }

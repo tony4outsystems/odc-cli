@@ -6,23 +6,14 @@
 //! - Enriching sparse data (e.g., resolving environment keys to names)
 
 use crate::client::Client;
-use crate::commands::shared::resolve_asset;
+use crate::commands::shared::resolve_asset_key;
 use crate::value::compact_map;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
-/// Resolve `app_identifier` (name, key, or unambiguous substring) to its `assetKey`.
-fn asset_key_of(client: &Client, app_identifier: &str) -> Result<String> {
-    resolve_asset(client, app_identifier)?
-        .get("assetKey")
-        .and_then(|v| v.as_str())
-        .map(str::to_string)
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_identifier))
-}
-
 /// List all revisions of an app, following pagination until exhausted.
 pub fn list_revisions(client: &Client, app_identifier: &str) -> Result<Vec<Map<String, Value>>> {
-    let asset_key = asset_key_of(client, app_identifier)?;
+    let (_, asset_key) = resolve_asset_key(client, app_identifier)?;
     client.list_revisions(&asset_key)
 }
 
@@ -32,7 +23,7 @@ pub fn get_revision(
     app_identifier: &str,
     revision: i32,
 ) -> Result<Map<String, Value>> {
-    let asset_key = asset_key_of(client, app_identifier)?;
+    let (_, asset_key) = resolve_asset_key(client, app_identifier)?;
     client
         .list_revisions(&asset_key)?
         .into_iter()
@@ -59,7 +50,7 @@ pub fn download_source_code(
     revision: i32,
     output: &str,
 ) -> Result<(String, u64)> {
-    let asset_key = asset_key_of(client, app_identifier)?;
+    let (_, asset_key) = resolve_asset_key(client, app_identifier)?;
     let url = client.get_source_code_url(&asset_key, revision)?;
     let bytes = client.download_file_bytes(&url)?;
 

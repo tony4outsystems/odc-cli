@@ -1,8 +1,10 @@
 //! Role management commands.
 
 use super::args::*;
+use super::context::Ctx;
 use super::shared::*;
 use crate::client::Client;
+use crate::value::JsonMapExt;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
@@ -24,12 +26,8 @@ fn resolve_role_key(
 
     // Filter by app
     if !app_filter.is_empty() {
-        let asset_key = resolve_asset(client, app_filter)?
-            .get("assetKey")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app_filter))?
-            .to_string();
-        roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
+        let (_, asset_key) = resolve_asset_key(client, app_filter)?;
+        roles.retain(|r| r.key_eq("assetKey", &asset_key));
     }
 
     // Filter by environment
@@ -96,11 +94,7 @@ fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>>
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
 /// `list-role-assignments`.
 fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<String, Value>>> {
-    let asset_key = resolve_asset(client, app)?
-        .get("assetKey")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset {} has no assetKey field", app))?
-        .to_string();
+    let (_, asset_key) = resolve_asset_key(client, app)?;
 
     let environments = client.list_environments()?;
 
@@ -117,10 +111,9 @@ fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<St
         .collect();
 
     let mut roles = client.list_application_roles("")?;
-    roles.retain(|r| r.get("assetKey").and_then(|v| v.as_str()) == Some(asset_key.as_str()));
+    roles.retain(|r| r.key_eq("assetKey", &asset_key));
     if !env_key.is_empty() {
-        roles
-            .retain(|r| r.get("environmentKey").and_then(|v| v.as_str()) == Some(env_key.as_str()));
+        roles.retain(|r| r.key_eq("environmentKey", &env_key));
     }
 
     for role in &mut roles {
@@ -133,29 +126,18 @@ fn resolve_app_roles(client: &Client, app: &str, env: &str) -> Result<Vec<Map<St
     Ok(roles)
 }
 
-pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Result<()> {
-    require_positional(positionals, "list-roles", "an app name or key")?;
+pub async fn cmd_list_roles(ctx: &Ctx, args: &ListRolesArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+    let mut roles = resolve_app_roles(&client, &args.asset, args.env.as_deref().unwrap_or(""))?;
 
     // For table output, always populate "environment" field
     // Either with resolved name (default) or raw key (with -n flag)
-    if !args.json {
-        for role in roles.iter_mut() {
-            if let Some(Value::String(env_key)) = role.get("environmentKey") {
-                let env_value = if args.no_resolve {
-                    env_key.clone()
-                } else {
-                    resolve_environment_key(&client, env_key)?
-                };
-                role.insert("environment".to_string(), Value::String(env_value));
-            }
-        }
+    if !ctx.json() {
+        annotate_env_names(&client, &mut roles, ctx.no_resolve)?;
     }
 
-    let items = if args.json {
+    let items = if ctx.json() {
         roles
     } else {
         roles
@@ -164,32 +146,18 @@ pub async fn cmd_list_roles(args: ListRolesArgs, positionals: &[String]) -> Resu
             .collect()
     };
     let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
-    output.print_result(&Value::Array(results))
+    ctx.output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_list_role_assignments(
-    args: ListRoleAssignmentsArgs,
-    positionals: &[String],
-) -> Result<()> {
-    require_positional(positionals, "list-role-assignments", "an app name or key")?;
+pub async fn cmd_list_role_assignments(ctx: &Ctx, args: &ListRoleAssignmentsArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let mut roles = resolve_app_roles(&client, &positionals[0], &args.env)?;
+    let mut roles = resolve_app_roles(&client, &args.asset, args.env.as_deref().unwrap_or(""))?;
 
     // For table output, always populate "environment" field
     // Either with resolved name (default) or raw key (with -n flag)
-    if !args.json {
-        for role in roles.iter_mut() {
-            if let Some(Value::String(env_key)) = role.get("environmentKey") {
-                let env_value = if args.no_resolve {
-                    env_key.clone()
-                } else {
-                    resolve_environment_key(&client, env_key)?
-                };
-                role.insert("environment".to_string(), Value::String(env_value));
-            }
-        }
+    if !ctx.json() {
+        annotate_env_names(&client, &mut roles, ctx.no_resolve)?;
     }
 
     let want_users = true; // For now, always fetch both
@@ -274,7 +242,7 @@ pub async fn cmd_list_role_assignments(
         }
     }
 
-    let items = if args.json {
+    let items = if ctx.json() {
         rows
     } else {
         rows.iter()
@@ -282,101 +250,77 @@ pub async fn cmd_list_role_assignments(
             .collect()
     };
     let results: Vec<Value> = items.into_iter().map(Value::Object).collect();
-    output.print_result(&Value::Array(results))
+    ctx.output.print_result(&Value::Array(results))
 }
 
-pub async fn cmd_grant_role(args: RoleGrantArgs, positionals: &[String]) -> Result<()> {
-    if positionals.len() < 2 {
-        return Err(anyhow::anyhow!("grant-role requires a user and a role"));
-    }
+pub async fn cmd_grant_role(ctx: &Ctx, args: &GrantRoleArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let user = resolve_user(&client, &positionals[0])?;
+    let user = resolve_user(&client, &args.user)?;
     let user_key = user
         .get("key")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.grant_role(&user_key, &role_key)?;
-    output.println_locked(&format!("Granted role {} to {}", args.role, positionals[0]));
+    ctx.output
+        .println_locked(&format!("Granted role {} to {}", args.role, args.user));
     Ok(())
 }
 
-pub async fn cmd_revoke_role(args: RoleRevokeArgs, positionals: &[String]) -> Result<()> {
-    if positionals.len() < 2 {
-        return Err(anyhow::anyhow!("revoke-role requires a user and a role"));
-    }
+pub async fn cmd_revoke_role(ctx: &Ctx, args: &RevokeRoleArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let user = resolve_user(&client, &positionals[0])?;
+    let user = resolve_user(&client, &args.user)?;
     let user_key = user
         .get("key")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", positionals[0]))?
+        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.revoke_role(&user_key, &role_key)?;
-    output.println_locked(&format!(
-        "Revoked role {} from {}",
-        args.role, positionals[0]
-    ));
+    ctx.output
+        .println_locked(&format!("Revoked role {} from {}", args.role, args.user));
     Ok(())
 }
 
-pub async fn cmd_grant_group_role(args: GroupRoleGrantArgs, positionals: &[String]) -> Result<()> {
-    if positionals.len() < 2 {
-        return Err(anyhow::anyhow!(
-            "grant-group-role requires a group and a role"
-        ));
-    }
+pub async fn cmd_grant_group_role(ctx: &Ctx, args: &GrantGroupRoleArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let group = resolve_group(&client, &positionals[0])?;
+    let group = resolve_group(&client, &args.group)?;
     let group_key = group
         .get("key")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.patch_group_application_roles(&group_key, &[role_key], &[])?;
-    output.println_locked(&format!(
+    ctx.output.println_locked(&format!(
         "Granted role {} to group {}",
-        args.role, positionals[0]
+        args.role, args.group
     ));
     Ok(())
 }
 
-pub async fn cmd_revoke_group_role(
-    args: GroupRoleRevokeArgs,
-    positionals: &[String],
-) -> Result<()> {
-    if positionals.len() < 2 {
-        return Err(anyhow::anyhow!(
-            "revoke-group-role requires a group and a role"
-        ));
-    }
+pub async fn cmd_revoke_group_role(ctx: &Ctx, args: &RevokeGroupRoleArgs) -> Result<()> {
+    let client = ctx.client()?;
 
-    let (output, client) = super::shared::make_client(args.json, args.color)?;
-
-    let group = resolve_group(&client, &positionals[0])?;
+    let group = resolve_group(&client, &args.group)?;
     let group_key = group
         .get("key")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", positionals[0]))?
+        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
     client.patch_group_application_roles(&group_key, &[], &[role_key])?;
-    output.println_locked(&format!(
+    ctx.output.println_locked(&format!(
         "Revoked role {} from group {}",
-        args.role, positionals[0]
+        args.role, args.group
     ));
     Ok(())
 }

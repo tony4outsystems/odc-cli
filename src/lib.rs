@@ -33,20 +33,16 @@ pub async fn run(args: &[String]) -> Result<()> {
             Err(err) => err.exit(),
         };
 
-    if let Commands::Completion { shell } = cli.command {
+    if let Commands::Completion(args) = cli.command {
         let mut app = Cli::command();
-        clap_complete::generate(shell, &mut app, "odc", &mut std::io::stdout());
+        clap_complete::generate(args.shell, &mut app, "odc", &mut std::io::stdout());
         return Ok(());
     }
 
     // Handle login specially (doesn't need auth)
-    if let Commands::Login {
-        tenant_url,
-        client_id,
-    } = &cli.command
-    {
-        return login::login(tenant_url, client_id);
+    if let Commands::Login(login_args) = &cli.command {
+        return login::login(&login_args.tenant_url, &login_args.client_id);
     }
 
-    commands::execute(&cli.command, cli.json, cli.color, cli.no_resolve).await
+    commands::execute(&cli).await
 }

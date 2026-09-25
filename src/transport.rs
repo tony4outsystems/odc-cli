@@ -18,6 +18,26 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
+impl HttpResponse {
+    /// Error out on a >=400 status, with the same `"{label} failed with {status}: {body}"`
+    /// wording used at every call site in `client.rs` (e.g. `label` = `"Discovery"`,
+    /// `"Token request"`, or `"{method} {path}"`).
+    pub fn ensure_success(&self, label: &str) -> Result<()> {
+        if self.status >= 400 {
+            // Matches the pre-refactor behavior of every call site: an invalid-UTF-8 body
+            // becomes an empty string rather than lossily-decoded replacement characters.
+            let body_str = String::from_utf8(self.body.clone()).unwrap_or_default();
+            return Err(anyhow::anyhow!(
+                "{} failed with {}: {}",
+                label,
+                self.status,
+                body_str
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Transport trait for making HTTP requests
 pub trait Transport: Send + Sync {
     fn send(&self, req: HttpRequest) -> Result<HttpResponse>;

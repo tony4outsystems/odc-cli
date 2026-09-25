@@ -24,8 +24,11 @@ use std::io::{self, IsTerminal, Write};
 use std::sync::Mutex;
 use tabwriter::TabWriter;
 
-/// Terminal color mode preference
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Terminal color mode preference.
+///
+/// Derives `clap::ValueEnum` so `--color` parsing (and its `auto`/`always`/`never` possible
+/// values) comes straight from clap instead of a hand-written parser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum ColorMode {
     /// Use colors if stdout is a terminal and NO_COLOR is not set
     Auto,

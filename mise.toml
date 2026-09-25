@@ -1,3 +1,9 @@
+[env]
+# The CLI itself no longer reads .env (settings.rs only checks the process environment and
+# ~/.odc/config.json). Load it here instead so `mise exec -- cargo run -- ...` and mise tasks
+# still pick up project-local credentials. Safe to keep even when .env doesn't exist.
+_.file = { path = ".env", redact = true }
+
 [tasks.build]
 description = 'Build release'
 sources = ['Cargo.toml', 'src/**/*.rs']

@@ -47,11 +47,13 @@ odc login https://<your-tenant>.outsystems.dev <client-id>
 
 The command interactively prompts for the client secret with input hidden, then saves all three values in `~/.odc/config.json`. The file contains the secret in plain text and has owner-only read/write permissions (`0600`). Running `login` again replaces the saved configuration; it saves credentials without validating them against the server. Never pass the client secret as a CLI argument.
 
-Auth is loaded from the nearest `.env` file in the current directory or a parent directory. If no `.env` is found, the CLI uses `~/.odc/config.json` instead. Existing environment variables take precedence over either file. An incomplete `.env` does not fall back to the saved configuration. Required environment variables when using `.env`:
+Auth is loaded from the process environment; each of the three variables falls back independently to `~/.odc/config.json` if unset. Required environment variables:
 
 - `ODC_TENANT_URL`
 - `ODC_CLIENT_ID`
 - `ODC_CLIENT_SECRET`
+
+The CLI itself does not read a `.env` file — export these variables yourself, or use a tool like [mise](https://mise.jdx.dev) or [direnv](https://direnv.net) to load a project-local `.env` into your shell. This repo's `mise.toml` already loads `.env` via `[env] _.file`, so `mise exec -- odc ...` (or an activated mise shell) picks it up automatically.
 
 Asset and environment are not read from `.env` — pass `--asset`/`--env` explicitly to each command that needs them. Either accepts a name or a key. Asset names require an exact, case-insensitive match; environment names also accept a unique partial match. Ambiguous names produce suggestions and stop the command.
 
@@ -60,7 +62,7 @@ Asset and environment are not read from `.env` — pass `--asset`/`--env` explic
 1. Sign in to your organization's ODC Portal (e.g. `https://<your-tenant>.outsystems.dev/`). That URL is `ODC_TENANT_URL`.
 2. Go to **Management > API Clients** (or navigate directly to `https://<your-tenant>.outsystems.dev/usersaccess/apiclients`).
 3. Create a new **API Client**, grant it the permissions the commands you'll run need (e.g. **Application management** for build/publish/deploy, **User management** for `get-user`/`update-user`/`grant-role`/`revoke-role`), and save it.
-4. Run `odc login <tenant-url> <client-id>` and enter the generated **Client Secret**, or copy the **Client ID** and **Client Secret** into `.env` as `ODC_CLIENT_ID` and `ODC_CLIENT_SECRET` — the secret is only shown once, so store it now. Copy [.env.example](.env.example) to `.env` as a starting point.
+4. Run `odc login <tenant-url> <client-id>` and enter the generated **Client Secret**, or copy the **Client ID** and **Client Secret** into a `.env` file as `ODC_CLIENT_ID` and `ODC_CLIENT_SECRET` (loaded via mise/direnv, see above) — the secret is only shown once, so store it now.
 5. Run `odc discover` to check the tenant URL; it fetches OIDC metadata without needing an app or environment.
 
 ## Quick start

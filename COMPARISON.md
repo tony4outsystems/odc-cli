@@ -10,7 +10,7 @@ A detailed comparison between the `odc` CLI tool and the `outsystems-mcp` server
 | **Output Mode** | Compact by default, `--json` for detailed | Always verbose JSON responses |
 | **Token Efficiency** | ✅ High (reduced output, built-in polling) | ⚠️ Lower (full JSON always streamed, polling requires repeated calls) |
 | **Polling** | ✅ Built-in, deterministic | ⚠️ Agent-driven, non-deterministic |
-| **Setup** | `.env` file with credentials | Configured via Claude Code MCP settings |
+| **Setup** | Environment variables (optionally via `.env` + mise) | Configured via Claude Code MCP settings |
 | **Installation** | Homebrew, binary, or `cargo install` | Via Claude Code MCP integration |
 | **Use Cases** | Scripts, CI/CD, direct commands, agents | Agent-based automation only |
 | **Cost per Operation** | Lower | Higher |
@@ -165,9 +165,9 @@ MCP: {operationId: "abc123", status: "complete"}
 
 ### ODC CLI
 
-**Credential management**: `.env` file (project-local or global)
+**Credential management**: environment variables, optionally loaded from a project-local `.env` via mise/direnv
 ```bash
-# .env file
+# .env file (loaded into the environment by mise, not read directly by the CLI)
 ODC_TENANT_URL=https://tenant.outsystems.dev
 ODC_CLIENT_ID=your-client-id
 ODC_CLIENT_SECRET=your-client-secret
@@ -183,7 +183,7 @@ brew install tony4outsystems/tap/odc-cli
 cargo install --path .
 ```
 
-**No login command needed** — CLI auto-reads `.env` or `~/.odc/config.json`
+**No login command needed** — CLI reads `ODC_*` environment variables or `~/.odc/config.json`
 
 ### OutSystems MCP
 
@@ -318,7 +318,7 @@ Agent: Deploy App3
 | **Output** | Compact default, `--json` optional | Always verbose JSON |
 | **Polling** | Built-in, deterministic | Agent-driven, repeated calls |
 | **Token Efficiency** | High | Lower |
-| **Setup** | Simple `.env` file | MCP configuration |
+| **Setup** | Environment variables (`.env` + mise) | MCP configuration |
 | **Installation** | Local binary/Homebrew | None (server-hosted) |
 | **Best For** | Scripts, CI/CD, agents | Browser-only use cases |
 | **Worst For** | (None notable) | CI/CD, high-frequency ops |

@@ -1,11 +1,10 @@
 //! Mentor (AI) integration commands.
 
 use super::args::*;
+use super::context::Ctx;
 use super::shared::resolve_asset;
-use crate::client::Client;
 use crate::mentor::MentorClient;
 use crate::output::Output;
-use crate::settings;
 use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::io::{self, Write};
@@ -21,85 +20,29 @@ fn flush_text_buf(buf: &mut String) {
     buf.clear();
 }
 
-fn mentor_client(
-    json: bool,
-    color: crate::output::ColorMode,
-) -> Result<(MentorClient, Arc<Output>)> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(json, color));
-    Ok((MentorClient::new(settings)?, output))
-}
-
-pub async fn cmd_mentor_start_session(args: MentorSessionArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
-    let result = client.call_tool("mentor_start_session", json!({}))?;
-    output.print_result(&result)
-}
-
-pub async fn cmd_mentor_create_asset(args: MentorCreateAssetArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
-
-    let mut tool_args = Map::new();
-    tool_args.insert("sessionId".to_string(), json!(args.session_id));
-    tool_args.insert("assetType".to_string(), json!(args.asset_type));
-    tool_args.insert("name".to_string(), json!(args.name));
-    tool_args.insert("portfolioKey".to_string(), json!(args.portfolio_key));
-    if let Some(description) = args.description {
-        if !description.is_empty() {
-            tool_args.insert("description".to_string(), json!(description));
+/// Insert `field` into `args` as `value` if `value` is non-empty, matching the
+/// `if let Some(x) = ... { if !x.is_empty() { ... } }` pattern repeated across the
+/// `mentor-create-asset`/`mentor-publish` tool-arg builders.
+fn insert_opt_nonempty(args: &mut Map<String, Value>, field: &str, value: &Option<String>) {
+    if let Some(value) = value {
+        if !value.is_empty() {
+            args.insert(field.to_string(), json!(value));
         }
     }
-    if let Some(template_asset_key) = args.template_asset_key {
-        if !template_asset_key.is_empty() {
-            tool_args.insert("templateAssetKey".to_string(), json!(template_asset_key));
-        }
-    }
-
-    let result = client.call_tool("mentor_create_asset", Value::Object(tool_args))?;
-    output.print_result(&result)
 }
 
-pub async fn cmd_mentor_load_asset(
-    args: MentorLoadAssetArgs,
-    positionals: &[String],
-) -> Result<()> {
-    if positionals.is_empty() {
-        return Err(anyhow::anyhow!("mentor-load-asset requires an asset key"));
-    }
-    let (client, output) = mentor_client(args.json, args.color)?;
+/// Resolve `app_name` to an asset, start a Mentor session, and load the asset into it. Shared
+/// by `cmd_mentor_single_shot` and `cmd_mentor_interactive` (steps 1-2 of the `mentor` flow).
+/// Returns the session id and the asset's (key, name) for status messages.
+async fn open_session_with_asset(
+    ctx: &Ctx,
+    mentor: &MentorClient,
+    app_name: &str,
+) -> Result<(String, String, String)> {
+    let output = &ctx.output;
 
-    let mut tool_args = Map::new();
-    tool_args.insert("sessionId".to_string(), json!(args.session_id));
-    tool_args.insert("assetKey".to_string(), json!(positionals[0]));
-    if let Some(revision) = args.revision {
-        tool_args.insert("revision".to_string(), json!(revision));
-    }
-
-    let result = client.call_tool("mentor_load_asset", Value::Object(tool_args))?;
-    output.print_result(&result)
-}
-
-pub async fn cmd_mentor(args: MentorArgs) -> Result<()> {
-    match &args.prompt {
-        Some(prompt) => {
-            cmd_mentor_single_shot(args.app_name, prompt.clone(), args.json, args.color).await
-        }
-        None => cmd_mentor_interactive(args.app_name, args.json, args.color).await,
-    }
-}
-
-async fn cmd_mentor_single_shot(
-    app_name: String,
-    prompt: String,
-    json: bool,
-    color: crate::output::ColorMode,
-) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(json, color));
-
-    // Resolve the app name/key to an actual asset (shows "did you mean" on mismatch)
-    let api_client = Client::new(settings.clone(), output.clone())?;
-    let asset = resolve_asset(&api_client, &app_name)?;
+    let api_client = ctx.client()?;
+    let asset = resolve_asset(&api_client, app_name)?;
     let asset_key = asset
         .get("assetKey")
         .and_then(|v| v.as_str())
@@ -111,9 +54,6 @@ async fn cmd_mentor_single_shot(
         .unwrap_or(&asset_key)
         .to_string();
 
-    let mentor = MentorClient::new(settings)?;
-
-    // 1. Start a session
     output.stderr("Starting Mentor session...");
     let session_result = mentor.call_tool("mentor_start_session", json!({}))?;
     let session_id = session_result
@@ -123,7 +63,6 @@ async fn cmd_mentor_single_shot(
         .to_string();
     output.stderr(&format!("Session started: {}", session_id));
 
-    // 2. Load the asset into the session
     output.stderr(&format!("Loading app: {} ({})", asset_name, asset_key));
     let mut load_args = Map::new();
     load_args.insert("sessionId".to_string(), json!(session_id.clone()));
@@ -131,11 +70,24 @@ async fn cmd_mentor_single_shot(
     let _load_result = mentor.call_tool("mentor_load_asset", Value::Object(load_args))?;
     output.stderr("App loaded successfully");
 
-    // 3. Send the prompt
+    Ok((session_id, asset_key, asset_name))
+}
+
+/// Send `message` to `session_id` and poll until the run completes. Shared by
+/// `cmd_mentor_single_shot` and `cmd_mentor_interactive` (step 3 of the `mentor` flow).
+/// Returns the final run result.
+async fn send_prompt_and_wait(
+    ctx: &Ctx,
+    mentor: &MentorClient,
+    session_id: &str,
+    message: &str,
+) -> Result<Value> {
+    let output = &ctx.output;
+
     output.stderr("Sending prompt...");
     let mut prompt_args = Map::new();
-    prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
-    prompt_args.insert("message".to_string(), json!(prompt));
+    prompt_args.insert("sessionId".to_string(), json!(session_id));
+    prompt_args.insert("message".to_string(), json!(message));
     let prompt_result = mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
     let run_id = prompt_result
         .get("runId")
@@ -144,8 +96,61 @@ async fn cmd_mentor_single_shot(
         .to_string();
     output.stderr(&format!("Prompt sent, run ID: {}", run_id));
 
-    // 4. Poll until completion and get result
-    let final_run_result = poll_mentor_run(&mentor, &session_id, &run_id, &output).await?;
+    poll_mentor_run(mentor, session_id, &run_id, output).await
+}
+
+pub async fn cmd_mentor_start_session(ctx: &Ctx) -> Result<()> {
+    let client = ctx.mentor()?;
+    let result = client.call_tool("mentor_start_session", json!({}))?;
+    ctx.output.print_result(&result)
+}
+
+pub async fn cmd_mentor_create_asset(ctx: &Ctx, args: &MentorCreateAssetArgs) -> Result<()> {
+    let client = ctx.mentor()?;
+
+    let mut tool_args = Map::new();
+    tool_args.insert("sessionId".to_string(), json!(args.session_id));
+    tool_args.insert("assetType".to_string(), json!(args.asset_type.as_str()));
+    tool_args.insert("name".to_string(), json!(args.name));
+    tool_args.insert("portfolioKey".to_string(), json!(args.portfolio_key));
+    insert_opt_nonempty(&mut tool_args, "description", &args.description);
+    insert_opt_nonempty(&mut tool_args, "templateAssetKey", &args.template_asset_key);
+
+    let result = client.call_tool("mentor_create_asset", Value::Object(tool_args))?;
+    ctx.output.print_result(&result)
+}
+
+pub async fn cmd_mentor_load_asset(ctx: &Ctx, args: &MentorLoadAssetArgs) -> Result<()> {
+    let client = ctx.mentor()?;
+
+    let mut tool_args = Map::new();
+    tool_args.insert("sessionId".to_string(), json!(args.session_id));
+    tool_args.insert("assetKey".to_string(), json!(args.asset_key));
+    if let Some(revision) = args.revision {
+        tool_args.insert("revision".to_string(), json!(revision));
+    }
+
+    let result = client.call_tool("mentor_load_asset", Value::Object(tool_args))?;
+    ctx.output.print_result(&result)
+}
+
+pub async fn cmd_mentor(ctx: &Ctx, args: &MentorArgs) -> Result<()> {
+    match &args.prompt {
+        Some(prompt) => cmd_mentor_single_shot(ctx, &args.app_name, prompt).await,
+        None => cmd_mentor_interactive(ctx, &args.app_name).await,
+    }
+}
+
+async fn cmd_mentor_single_shot(ctx: &Ctx, app_name: &str, prompt: &str) -> Result<()> {
+    let output = &ctx.output;
+    let mentor = ctx.mentor()?;
+
+    // 1-2. Resolve the app, start a session, and load it in
+    let (session_id, _asset_key, _asset_name) =
+        open_session_with_asset(ctx, &mentor, app_name).await?;
+
+    // 3-4. Send the prompt and poll until completion
+    let final_run_result = send_prompt_and_wait(ctx, &mentor, &session_id, prompt).await?;
 
     output.stderr("Prompt completed");
 
@@ -327,47 +332,13 @@ fn select_publish_option() -> Result<bool> {
     }
 }
 
-async fn cmd_mentor_interactive(
-    app_name: String,
-    json: bool,
-    color: crate::output::ColorMode,
-) -> Result<()> {
-    let settings = settings::load_settings()?;
-    let output = Arc::new(Output::new(json, color));
+async fn cmd_mentor_interactive(ctx: &Ctx, app_name: &str) -> Result<()> {
+    let output = &ctx.output;
+    let mentor = ctx.mentor()?;
 
-    // Resolve the app name/key to an actual asset
-    let api_client = Client::new(settings.clone(), output.clone())?;
-    let asset = resolve_asset(&api_client, &app_name)?;
-    let asset_key = asset
-        .get("assetKey")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Asset has no assetKey"))?
-        .to_string();
-    let asset_name = asset
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&asset_key)
-        .to_string();
-
-    let mentor = MentorClient::new(settings)?;
-
-    // 1. Start a session
-    output.stderr("Starting Mentor session...");
-    let session_result = mentor.call_tool("mentor_start_session", json!({}))?;
-    let session_id = session_result
-        .get("sessionId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Failed to get sessionId from mentor_start_session"))?
-        .to_string();
-    output.stderr(&format!("Session started: {}", session_id));
-
-    // 2. Load the asset into the session
-    output.stderr(&format!("Loading app: {} ({})", asset_name, asset_key));
-    let mut load_args = Map::new();
-    load_args.insert("sessionId".to_string(), json!(session_id.clone()));
-    load_args.insert("assetKey".to_string(), json!(asset_key.clone()));
-    let _load_result = mentor.call_tool("mentor_load_asset", Value::Object(load_args))?;
-    output.stderr("App loaded successfully");
+    // 1-2. Resolve the app, start a session, and load it in
+    let (session_id, _asset_key, _asset_name) =
+        open_session_with_asset(ctx, &mentor, app_name).await?;
     output.stderr("Entering interactive mode. Type your prompts below (Enter to send, Shift+Enter for new line).");
     output.stderr("Press Ctrl+D to exit.\n");
 
@@ -392,23 +363,9 @@ async fn cmd_mentor_interactive(
                     continue;
                 }
 
-                // Send the prompt
-                output.stderr("Sending prompt...");
-                let mut prompt_args = Map::new();
-                prompt_args.insert("sessionId".to_string(), json!(session_id.clone()));
-                prompt_args.insert("message".to_string(), json!(input));
-                let prompt_result =
-                    mentor.call_tool("mentor_prompt", Value::Object(prompt_args))?;
-                let run_id = prompt_result
-                    .get("runId")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("Failed to get runId from mentor_prompt"))?
-                    .to_string();
-                output.stderr(&format!("Prompt sent, run ID: {}", run_id));
-
-                // Poll until completion
+                // Send the prompt and poll until completion
                 let final_run_result =
-                    poll_mentor_run(&mentor, &session_id, &run_id, &output).await?;
+                    send_prompt_and_wait(ctx, &mentor, &session_id, input).await?;
 
                 // Check if changes were applied
                 let change_applied = final_run_result
@@ -452,8 +409,8 @@ async fn cmd_mentor_interactive(
     Ok(())
 }
 
-pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_prompt(ctx: &Ctx, args: &MentorPromptArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let mut tool_args = Map::new();
     tool_args.insert("sessionId".to_string(), json!(args.session_id));
@@ -463,11 +420,11 @@ pub async fn cmd_mentor_prompt(args: MentorPromptArgs) -> Result<()> {
     }
 
     let result = client.call_tool("mentor_prompt", Value::Object(tool_args))?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_get_run(args: MentorGetRunArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_get_run(ctx: &Ctx, args: &MentorGetRunArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let mut tool_args = Map::new();
     tool_args.insert("sessionId".to_string(), json!(args.session_id));
@@ -477,11 +434,11 @@ pub async fn cmd_mentor_get_run(args: MentorGetRunArgs) -> Result<()> {
     }
 
     let result = client.call_tool("mentor_get_run", Value::Object(tool_args))?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_get_event(args: MentorGetEventArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_get_event(ctx: &Ctx, args: &MentorGetEventArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let tool_args = json!({
         "sessionId": args.session_id,
@@ -490,30 +447,30 @@ pub async fn cmd_mentor_get_event(args: MentorGetEventArgs) -> Result<()> {
     });
 
     let result = client.call_tool("mentor_get_event", tool_args)?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_cancel_prompt(args: MentorSessionArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_cancel_prompt(ctx: &Ctx, args: &MentorCancelPromptArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let tool_args = json!({
         "sessionId": args.session_id,
-        "runId": args.run_id.as_ref().unwrap_or(&String::new()),
+        "runId": args.run_id,
     });
 
     let result = client.call_tool("mentor_cancel_prompt", tool_args)?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_close_session(args: MentorSessionArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_close_session(ctx: &Ctx, args: &MentorCloseSessionArgs) -> Result<()> {
+    let client = ctx.mentor()?;
     let tool_args = json!({ "sessionId": args.session_id });
     let result = client.call_tool("mentor_close_session", tool_args)?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_request_upload(args: MentorRequestUploadArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_request_upload(ctx: &Ctx, args: &MentorRequestUploadArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let tool_args = json!({
         "sessionId": args.session_id,
@@ -522,20 +479,16 @@ pub async fn cmd_mentor_request_upload(args: MentorRequestUploadArgs) -> Result<
     });
 
     let result = client.call_tool("mentor_request_upload", tool_args)?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }
 
-pub async fn cmd_mentor_publish(args: MentorPublishArgs) -> Result<()> {
-    let (client, output) = mentor_client(args.json, args.color)?;
+pub async fn cmd_mentor_publish(ctx: &Ctx, args: &MentorPublishArgs) -> Result<()> {
+    let client = ctx.mentor()?;
 
     let mut tool_args = Map::new();
     tool_args.insert("sessionId".to_string(), json!(args.session_id));
-    if let Some(comment) = args.comment {
-        if !comment.is_empty() {
-            tool_args.insert("comment".to_string(), json!(comment));
-        }
-    }
+    insert_opt_nonempty(&mut tool_args, "comment", &args.comment);
 
     let result = client.call_tool("mentor_publish", Value::Object(tool_args))?;
-    output.print_result(&result)
+    ctx.output.print_result(&result)
 }

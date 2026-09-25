@@ -1,27 +1,18 @@
 //! Shared utilities for command execution.
 //!
 //! This module provides common patterns used across multiple commands:
-//! - [`make_client()`]: initialize client, settings, and output in one call
 //! - [`Listing`]: paginated listing results
 //! - [`fetch_listing()`]: fetch a single page or all results
 //! - [`filter_by_substring()`]: filter items by text search
 //! - [`print_listing()`]: output paginated or full results
 //! - Table column definitions for various entity types
+//!
+//! Client/output construction lives on `commands::context::Ctx` (`ctx.client()`), not here.
 
-use crate::cli::Options;
 use crate::client::Client;
-use crate::output::{ColorMode, Output};
+use crate::value::JsonMapExt;
 use anyhow::Result;
 use serde_json::{Map, Value};
-use std::sync::Arc;
-
-/// Load settings and build the output and API client every command handler needs.
-pub fn make_client(json: bool, color: ColorMode) -> Result<(Arc<Output>, Client)> {
-    let settings = crate::settings::load_settings()?;
-    let output = Arc::new(Output::new(json, color));
-    let client = Client::new(settings, output.clone())?;
-    Ok((output, client))
-}
 
 /// The result of a listing command: either a single page (with pagination metadata) or
 /// every page already combined.
@@ -31,19 +22,20 @@ pub struct Listing {
     pub page: Option<(i64, i64, Option<i64>)>,
 }
 
-/// Fetch a listing that supports offset-based pagination: a single page when
-/// `options.offset` is set, or every page combined otherwise.
+/// Fetch a listing that supports offset-based pagination: a single page when `offset` is set,
+/// or every page combined otherwise.
 pub fn fetch_listing(
-    options: &Options,
+    offset: Option<i64>,
+    limit: i64,
     page_fn: impl FnOnce(i64, i64) -> Result<(Vec<Map<String, Value>>, Option<i64>)>,
     all_fn: impl FnOnce() -> Result<Vec<Map<String, Value>>>,
 ) -> Result<Listing> {
-    match options.offset {
+    match offset {
         Some(offset) => {
-            let (items, next_offset) = page_fn(offset, options.limit)?;
+            let (items, next_offset) = page_fn(offset, limit)?;
             Ok(Listing {
                 items,
-                page: Some((offset, options.limit, next_offset)),
+                page: Some((offset, limit, next_offset)),
             })
         }
         None => Ok(Listing {
@@ -116,17 +108,9 @@ pub fn print_listing(
     }
 }
 
-/// Return an error naming `what` if `positionals` is empty.
-pub fn require_positional(positionals: &[String], command: &str, what: &str) -> Result<()> {
-    if positionals.is_empty() {
-        return Err(anyhow::anyhow!("{} requires {}", command, what));
-    }
-    Ok(())
-}
-
 /// Read a string status field off a result map.
 pub fn status_str<'a>(map: &'a Map<String, Value>, field: &str) -> &'a str {
-    map.get(field).and_then(|v| v.as_str()).unwrap_or("")
+    map.str_or_empty(field)
 }
 
 /// Find an asset by exact `assetKey` or exact `name`. The asset-repository API identifies an
@@ -167,6 +151,22 @@ pub fn resolve_asset(client: &Client, identifier: &str) -> Result<Map<String, Va
     }
     let candidates = client.find_assets_by_name(identifier)?;
     resolve_asset_in(&candidates, identifier).cloned()
+}
+
+/// Resolve a user-supplied asset name/key to the asset it refers to and its `assetKey`,
+/// erroring with `"Asset {identifier} has no assetKey field"` if the resolved asset is somehow
+/// missing one. Replaces the `resolve_asset(...)... .get("assetKey")... .ok_or_else(...)`
+/// pattern repeated across `commands/deployment.rs`, `commands/revisions.rs`,
+/// `commands/roles.rs`, and `inspection.rs`.
+pub fn resolve_asset_key(
+    client: &Client,
+    identifier: &str,
+) -> Result<(Map<String, Value>, String)> {
+    let asset = resolve_asset(client, identifier)?;
+    let asset_key = asset
+        .require_str("assetKey", &format!("Asset {}", identifier))?
+        .to_string();
+    Ok((asset, asset_key))
 }
 
 /// Resolve the revision to act on: an explicit `--revision`, else the app's current revision,
@@ -219,6 +219,29 @@ pub fn resolve_environment_key(client: &Client, env_key: &str) -> Result<String>
 
     // Graceful fallback: return the original key if not found
     Ok(env_key.to_string())
+}
+
+/// Populate an `"environment"` field on each row from its `"environmentKey"`, resolving to the
+/// human-readable name unless `no_resolve` is set (in which case the raw key is copied as-is).
+/// Rows without an `environmentKey` string field are left untouched. Used for table output only
+/// (`--json` output always carries `environmentKey` as-is and doesn't need this); shared by
+/// `list-roles`, `list-role-assignments`, and `list-groups`.
+pub fn annotate_env_names(
+    client: &Client,
+    rows: &mut [Map<String, Value>],
+    no_resolve: bool,
+) -> Result<()> {
+    for row in rows.iter_mut() {
+        if let Some(Value::String(env_key)) = row.get("environmentKey") {
+            let env_value = if no_resolve {
+                env_key.clone()
+            } else {
+                resolve_environment_key(client, env_key)?
+            };
+            row.insert("environment".to_string(), Value::String(env_value));
+        }
+    }
+    Ok(())
 }
 
 // Table column definitions for various entity types

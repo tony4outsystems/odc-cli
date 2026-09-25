@@ -6,55 +6,42 @@ pub fn str(v: &Value) -> String {
     v.as_str().unwrap_or("").to_string()
 }
 
-/// Extract an integer from a value, accepting integers, string numbers, and floats
-/// Returns (value, ok)
-pub fn integer(v: &Value) -> (i64, bool) {
-    match v {
-        Value::Number(n) => {
-            // Try to parse as i64
-            if let Some(i) = n.as_i64() {
-                (i, true)
-            } else if let Ok(s) = n.to_string().parse::<i64>() {
-                (s, true)
-            } else {
-                (0, false)
-            }
-        }
-        Value::String(s) => {
-            if let Ok(i) = s.parse::<i64>() {
-                (i, true)
-            } else {
-                (0, false)
-            }
-        }
-        _ => (0, false),
+/// Convenience accessors for `Map<String, Value>`, replacing the repeated
+/// `.get(field).and_then(|v| v.as_str())...` chains scattered across `client.rs` and
+/// `commands/*.rs`.
+pub trait JsonMapExt {
+    /// The field's value as a `&str`, or `None` if missing or not a string.
+    fn str_field(&self, key: &str) -> Option<&str>;
+
+    /// The field's value as a `&str`, or `""` if missing or not a string. Equivalent to the old
+    /// `commands::shared::status_str`.
+    fn str_or_empty(&self, key: &str) -> &str;
+
+    /// The field's value as a `&str`, or an error naming `what` and `key` (matching the
+    /// `"{what} has no {key} field"` wording used throughout `commands/*.rs`) if missing.
+    fn require_str<'a>(&'a self, key: &str, what: &str) -> Result<&'a str>;
+
+    /// Whether the field is present and equals `value` as a string.
+    fn key_eq(&self, key: &str, value: &str) -> bool;
+}
+
+impl JsonMapExt for serde_json::Map<String, Value> {
+    fn str_field(&self, key: &str) -> Option<&str> {
+        self.get(key).and_then(|v| v.as_str())
     }
-}
 
-/// Get a string field from a map, returning empty string if not found or not a string.
-pub fn get_string(map: &serde_json::Map<String, Value>, key: &str) -> String {
-    map.get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string()
-}
+    fn str_or_empty(&self, key: &str) -> &str {
+        self.str_field(key).unwrap_or("")
+    }
 
-/// Get an optional i64 field from a map.
-pub fn get_i64(map: &serde_json::Map<String, Value>, key: &str) -> Option<i64> {
-    map.get(key).and_then(|v| v.as_i64())
-}
+    fn require_str<'a>(&'a self, key: &str, what: &str) -> Result<&'a str> {
+        self.str_field(key)
+            .ok_or_else(|| anyhow!("{} has no {} field", what, key))
+    }
 
-/// Get an optional boolean field from a map.
-pub fn get_bool(map: &serde_json::Map<String, Value>, key: &str) -> Option<bool> {
-    map.get(key).and_then(|v| v.as_bool())
-}
-
-/// Get an array field from a map, returning empty vector if not found or not an array.
-pub fn get_array(map: &serde_json::Map<String, Value>, key: &str) -> Vec<Value> {
-    map.get(key)
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default()
+    fn key_eq(&self, key: &str, value: &str) -> bool {
+        self.str_field(key) == Some(value)
+    }
 }
 
 /// Extract an array of objects from a value
@@ -67,19 +54,6 @@ pub fn objects(v: &Value) -> Vec<serde_json::Map<String, Value>> {
         Value::Object(obj) => vec![obj.clone()],
         _ => vec![],
     }
-}
-
-/// Return the first non-nil, non-empty value from a list
-pub fn first(values: &[&Value]) -> Option<Value> {
-    for v in values {
-        if !v.is_null() {
-            match v {
-                Value::String(s) if s.is_empty() => continue,
-                _ => return Some((*v).clone()),
-            }
-        }
-    }
-    None
 }
 
 /// Keep only specified fields from a map if they are non-nil and non-empty
@@ -108,16 +82,6 @@ pub fn require_string(value: &Value, label: &str) -> Result<String> {
         Value::String(s) if !s.is_empty() => Ok(s.clone()),
         _ => Err(anyhow!("{} is required", label)),
     }
-}
-
-/// Check if any entry in a summary has "failed" status
-pub fn has_failed(summary: &[serde_json::Map<String, Value>]) -> bool {
-    for entry in summary {
-        if entry.get("status").and_then(|v| v.as_str()) == Some("failed") {
-            return true;
-        }
-    }
-    false
 }
 
 /// Format a value like Go's %v format specifier for maps
@@ -149,38 +113,6 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_integer_from_number() {
-        let v = json!(42);
-        let (n, ok) = integer(&v);
-        assert!(ok);
-        assert_eq!(n, 42);
-    }
-
-    #[test]
-    fn test_integer_from_string() {
-        let v = json!("123");
-        let (n, ok) = integer(&v);
-        assert!(ok);
-        assert_eq!(n, 123);
-    }
-
-    #[test]
-    fn test_integer_from_invalid() {
-        let v = json!("not a number");
-        let (_n, ok) = integer(&v);
-        assert!(!ok);
-    }
-
-    #[test]
-    fn test_first_with_values() {
-        let v1 = json!(null);
-        let v2 = json!("hello");
-        let v3 = json!("world");
-        let result = first(&[&v1, &v2, &v3]);
-        assert_eq!(result, Some(json!("hello")));
-    }
-
-    #[test]
     fn test_compact_map() {
         let mut map = serde_json::Map::new();
         map.insert("name".to_string(), json!("Alice"));
@@ -195,15 +127,44 @@ mod tests {
     }
 
     #[test]
-    fn test_has_failed() {
-        let mut map1 = serde_json::Map::new();
-        map1.insert("status".to_string(), json!("success"));
+    fn test_json_map_ext_str_field() {
+        let mut map = serde_json::Map::new();
+        map.insert("name".to_string(), json!("Alice"));
+        map.insert("age".to_string(), json!(30));
 
-        let mut map2 = serde_json::Map::new();
-        map2.insert("status".to_string(), json!("failed"));
+        assert_eq!(map.str_field("name"), Some("Alice"));
+        assert_eq!(map.str_field("age"), None); // not a string
+        assert_eq!(map.str_field("missing"), None);
+    }
 
-        assert!(!has_failed(&[map1.clone()]));
-        assert!(has_failed(&[map1, map2]));
+    #[test]
+    fn test_json_map_ext_str_or_empty() {
+        let mut map = serde_json::Map::new();
+        map.insert("name".to_string(), json!("Alice"));
+
+        assert_eq!(map.str_or_empty("name"), "Alice");
+        assert_eq!(map.str_or_empty("missing"), "");
+    }
+
+    #[test]
+    fn test_json_map_ext_require_str() {
+        let mut map = serde_json::Map::new();
+        map.insert("assetKey".to_string(), json!("guid-1"));
+
+        assert_eq!(map.require_str("assetKey", "Asset").unwrap(), "guid-1");
+
+        let err = map.require_str("missingKey", "Asset").unwrap_err();
+        assert_eq!(err.to_string(), "Asset has no missingKey field");
+    }
+
+    #[test]
+    fn test_json_map_ext_key_eq() {
+        let mut map = serde_json::Map::new();
+        map.insert("status".to_string(), json!("Finished"));
+
+        assert!(map.key_eq("status", "Finished"));
+        assert!(!map.key_eq("status", "Failed"));
+        assert!(!map.key_eq("missing", "Finished"));
     }
 
     #[test]
