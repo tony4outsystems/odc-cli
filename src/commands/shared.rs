@@ -244,6 +244,57 @@ pub fn annotate_env_names(
     Ok(())
 }
 
+/// Resolve a user by key (GUID), exact email, or name/email search — following the same
+/// exact-match/unambiguous-partial-match/"did you mean" contract as `resolve_asset`/`resolve_env`.
+pub fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
+    if crate::resolve::is_guid(identifier) {
+        return client.get_user(identifier);
+    }
+
+    let candidates = client.search_users(identifier)?;
+
+    if identifier.contains('@') {
+        if let Some(exact) = candidates.iter().find(|u| {
+            u.get("email")
+                .and_then(|v| v.as_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case(identifier))
+        }) {
+            return Ok(exact.clone());
+        }
+    }
+
+    let key = crate::resolve::resolve(identifier, "user", &candidates, "key")?;
+    candidates
+        .into_iter()
+        .find(|u| u.key_eq("key", &key))
+        .ok_or_else(|| anyhow::anyhow!("User not found: {}", identifier))
+}
+
+/// Resolve a group by key (GUID) or name (exact/unambiguous substring), optionally
+/// disambiguated by environment (name/key), following the same contract as `resolve_asset`.
+pub fn resolve_group(
+    client: &Client,
+    identifier: &str,
+    env_filter: &str,
+) -> Result<Map<String, Value>> {
+    if crate::resolve::is_guid(identifier) {
+        return client.get_group(identifier);
+    }
+
+    let env_key = if env_filter.is_empty() {
+        String::new()
+    } else {
+        resolve_env(client, env_filter)?
+    };
+
+    let candidates = client.list_groups(identifier, &env_key)?;
+    let key = crate::resolve::resolve(identifier, "group", &candidates, "key")?;
+    candidates
+        .into_iter()
+        .find(|g| g.key_eq("key", &key))
+        .ok_or_else(|| anyhow::anyhow!("Group not found: {}", identifier))
+}
+
 // Table column definitions for various entity types
 
 pub const PORTFOLIO_TABLE_COLUMNS: &[&str] = &["name", "key", "id"];

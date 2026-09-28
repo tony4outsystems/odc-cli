@@ -51,45 +51,6 @@ fn resolve_role_key(
     crate::resolve::resolve_role(role_input, &roles)
 }
 
-/// Resolve a group by key (GUID) or name (exact/unambiguous substring).
-fn resolve_group(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
-    if crate::resolve::is_guid(identifier) {
-        return client.get_group(identifier);
-    }
-
-    let candidates = client.list_groups(identifier, "")?;
-    let key = crate::resolve::resolve(identifier, "group", &candidates, "key")?;
-    candidates
-        .into_iter()
-        .find(|g| g.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
-        .ok_or_else(|| anyhow::anyhow!("Group not found: {}", identifier))
-}
-
-/// Resolve a user by key (GUID) or email.
-fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
-    if crate::resolve::is_guid(identifier) {
-        return client.get_user(identifier);
-    }
-
-    let candidates = client.search_users(identifier)?;
-
-    if identifier.contains('@') {
-        if let Some(exact) = candidates.iter().find(|u| {
-            u.get("email")
-                .and_then(|v| v.as_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case(identifier))
-        }) {
-            return Ok(exact.clone());
-        }
-    }
-
-    let key = crate::resolve::resolve(identifier, "user", &candidates, "key")?;
-    candidates
-        .into_iter()
-        .find(|u| u.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
-        .ok_or_else(|| anyhow::anyhow!("User not found: {}", identifier))
-}
-
 /// Resolve an app's application roles, optionally narrowed to one environment, with each
 /// role's `environment` name filled in from its `environmentKey`. Shared by `list-roles` and
 /// `list-role-assignments`.
@@ -258,9 +219,7 @@ pub async fn cmd_grant_role(ctx: &Ctx, args: &GrantRoleArgs) -> Result<()> {
 
     let user = resolve_user(&client, &args.user)?;
     let user_key = user
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
+        .require_str("key", &format!("User {}", args.user))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
@@ -275,9 +234,7 @@ pub async fn cmd_revoke_role(ctx: &Ctx, args: &RevokeRoleArgs) -> Result<()> {
 
     let user = resolve_user(&client, &args.user)?;
     let user_key = user
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
+        .require_str("key", &format!("User {}", args.user))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
@@ -290,11 +247,9 @@ pub async fn cmd_revoke_role(ctx: &Ctx, args: &RevokeRoleArgs) -> Result<()> {
 pub async fn cmd_grant_group_role(ctx: &Ctx, args: &GrantGroupRoleArgs) -> Result<()> {
     let client = ctx.client()?;
 
-    let group = resolve_group(&client, &args.group)?;
+    let group = resolve_group(&client, &args.group, "")?;
     let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
+        .require_str("key", &format!("Group {}", args.group))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 
@@ -309,11 +264,9 @@ pub async fn cmd_grant_group_role(ctx: &Ctx, args: &GrantGroupRoleArgs) -> Resul
 pub async fn cmd_revoke_group_role(ctx: &Ctx, args: &RevokeGroupRoleArgs) -> Result<()> {
     let client = ctx.client()?;
 
-    let group = resolve_group(&client, &args.group)?;
+    let group = resolve_group(&client, &args.group, "")?;
     let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
+        .require_str("key", &format!("Group {}", args.group))?
         .to_string();
     let role_key = resolve_role_key(&client, &args.role, &args.asset, &args.env)?;
 

@@ -3,60 +3,9 @@
 use super::args::*;
 use super::context::Ctx;
 use super::shared::*;
-use crate::client::Client;
+use crate::value::JsonMapExt;
 use anyhow::Result;
 use serde_json::{Map, Value};
-
-/// Resolve a user by key (GUID), exact email, or name/email search — following the same
-/// exact-match/unambiguous-partial-match/"did you mean" contract as `resolve_app`/`resolve_env`.
-fn resolve_user(client: &Client, identifier: &str) -> Result<Map<String, Value>> {
-    if crate::resolve::is_guid(identifier) {
-        return client.get_user(identifier);
-    }
-
-    let candidates = client.search_users(identifier)?;
-
-    if identifier.contains('@') {
-        if let Some(exact) = candidates.iter().find(|u| {
-            u.get("email")
-                .and_then(|v| v.as_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case(identifier))
-        }) {
-            return Ok(exact.clone());
-        }
-    }
-
-    let key = crate::resolve::resolve(identifier, "user", &candidates, "key")?;
-    candidates
-        .into_iter()
-        .find(|u| u.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
-        .ok_or_else(|| anyhow::anyhow!("User not found: {}", identifier))
-}
-
-/// Resolve a group by key (GUID) or name (exact/unambiguous substring), optionally
-/// disambiguated by environment (name/key), following the same contract as `resolve_app`.
-fn resolve_group(
-    client: &Client,
-    identifier: &str,
-    env_filter: &str,
-) -> Result<Map<String, Value>> {
-    if crate::resolve::is_guid(identifier) {
-        return client.get_group(identifier);
-    }
-
-    let env_key = if env_filter.is_empty() {
-        String::new()
-    } else {
-        resolve_env(client, env_filter)?
-    };
-
-    let candidates = client.list_groups(identifier, &env_key)?;
-    let key = crate::resolve::resolve(identifier, "group", &candidates, "key")?;
-    candidates
-        .into_iter()
-        .find(|g| g.get("key").and_then(|v| v.as_str()) == Some(key.as_str()))
-        .ok_or_else(|| anyhow::anyhow!("Group not found: {}", identifier))
-}
 
 pub async fn cmd_get_user(ctx: &Ctx, args: &GetUserArgs) -> Result<()> {
     let client = ctx.client()?;
@@ -107,10 +56,7 @@ pub async fn cmd_update_user(ctx: &Ctx, args: &UpdateUserArgs) -> Result<()> {
     let client = ctx.client()?;
 
     let user = resolve_user(&client, &args.user)?;
-    let user_key = user
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?;
+    let user_key = user.require_str("key", &format!("User {}", args.user))?;
 
     let (given_name, surname) = args.name.as_deref().map(split_name).unwrap_or((None, None));
 
@@ -171,9 +117,7 @@ pub async fn cmd_update_group(ctx: &Ctx, args: &UpdateGroupArgs) -> Result<()> {
 
     let group = resolve_group(&client, &args.group, "")?;
     let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
+        .require_str("key", &format!("Group {}", args.group))?
         .to_string();
 
     let mut updates = Map::new();
@@ -194,10 +138,7 @@ pub async fn cmd_list_group_members(ctx: &Ctx, args: &ListGroupMembersArgs) -> R
     let client = ctx.client()?;
 
     let group = resolve_group(&client, &args.group, "")?;
-    let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?;
+    let group_key = group.require_str("key", &format!("Group {}", args.group))?;
     let members = client.list_group_users(group_key)?;
 
     let items = if ctx.json() {
@@ -227,15 +168,11 @@ pub async fn cmd_add_user_to_group(ctx: &Ctx, args: &AddUserToGroupArgs) -> Resu
 
     let group = resolve_group(&client, &args.group, "")?;
     let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
+        .require_str("key", &format!("Group {}", args.group))?
         .to_string();
     let user = resolve_user(&client, &args.user)?;
     let user_key = user
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
+        .require_str("key", &format!("User {}", args.user))?
         .to_string();
 
     client.patch_group_users(&group_key, &[user_key], &[])?;
@@ -249,15 +186,11 @@ pub async fn cmd_remove_user_from_group(ctx: &Ctx, args: &RemoveUserFromGroupArg
 
     let group = resolve_group(&client, &args.group, "")?;
     let group_key = group
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Group {} has no key field", args.group))?
+        .require_str("key", &format!("Group {}", args.group))?
         .to_string();
     let user = resolve_user(&client, &args.user)?;
     let user_key = user
-        .get("key")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("User {} has no key field", args.user))?
+        .require_str("key", &format!("User {}", args.user))?
         .to_string();
 
     client.patch_group_users(&group_key, &[], &[user_key])?;

@@ -49,6 +49,7 @@ pub struct Client {
     transport: Box<dyn Transport>,
     auth_mutex: Mutex<AuthState>,
     assets_cache: Mutex<Option<Vec<Map<String, Value>>>>,
+    environments_cache: Mutex<Option<Vec<Map<String, Value>>>>,
 }
 
 #[derive(Default)]
@@ -70,6 +71,7 @@ impl Client {
             transport: Box::new(ReqwestTransport::new()?),
             auth_mutex: Mutex::new(AuthState::default()),
             assets_cache: Mutex::new(None),
+            environments_cache: Mutex::new(None),
         })
     }
 
@@ -88,6 +90,7 @@ impl Client {
             transport: Box::new(transport),
             auth_mutex: Mutex::new(AuthState::default()),
             assets_cache: Mutex::new(None),
+            environments_cache: Mutex::new(None),
         }
     }
 
@@ -303,11 +306,10 @@ impl Client {
         &self,
         name_contains: &str,
     ) -> anyhow::Result<Vec<Map<String, Value>>> {
-        let encoded = percent_encoding::utf8_percent_encode(
-            name_contains,
-            percent_encoding::NON_ALPHANUMERIC,
+        let path = with_query(
+            "/api/asset-repository/v1/assets",
+            &[("nameContains", Some(name_contains))],
         );
-        let path = format!("/api/asset-repository/v1/assets?nameContains={}", encoded);
         self.fetch_all_pages(&path)
     }
 
@@ -357,8 +359,17 @@ impl Client {
         self.fetch_all_pages("/api/portfolios/v2/portfolios")
     }
 
-    /// List environments in the tenant
+    /// List environments in the tenant, cached for the lifetime of the client (environments
+    /// don't change within a single command run, and callers like `resolve_environment_key`
+    /// otherwise call this once per row).
     pub fn list_environments(&self) -> anyhow::Result<Vec<Map<String, Value>>> {
+        {
+            let cache = self.environments_cache.lock().unwrap();
+            if let Some(environments) = &*cache {
+                return Ok(environments.clone());
+            }
+        }
+
         let resp = self.call("GET", "/api/portfolios/v2/environments")?;
 
         let items = match resp {
@@ -372,16 +383,20 @@ impl Client {
             }
         };
 
-        match items {
-            Value::Array(items) => Ok(items
+        let environments = match items {
+            Value::Array(items) => items
                 .into_iter()
                 .filter_map(|item| match item {
                     Value::Object(map) => Some(map),
                     _ => None,
                 })
-                .collect()),
-            _ => Err(anyhow::anyhow!("Expected array from /environments results")),
-        }
+                .collect(),
+            _ => return Err(anyhow::anyhow!("Expected array from /environments results")),
+        };
+
+        let mut cache = self.environments_cache.lock().unwrap();
+        *cache = Some(environments);
+        Ok(cache.clone().unwrap())
     }
 
     /// Fetch a single page of deployed assets starting at `offset`, up to `limit` results.
@@ -504,11 +519,9 @@ impl Client {
     /// Search users whose name, email, or username contains `query` (case-insensitive,
     /// server-side), following pagination until exhausted.
     pub fn search_users(&self, query: &str) -> anyhow::Result<Vec<Map<String, Value>>> {
-        let encoded =
-            percent_encoding::utf8_percent_encode(query, percent_encoding::NON_ALPHANUMERIC);
-        let path = format!(
-            "/api/identity/v1/users?nameOrEmailOrUsernameContains={}",
-            encoded
+        let path = with_query(
+            "/api/identity/v1/users",
+            &[("nameOrEmailOrUsernameContains", Some(query))],
         );
         self.fetch_all_pages(&path)
     }
@@ -529,13 +542,9 @@ impl Client {
         &self,
         name_contains: &str,
     ) -> anyhow::Result<Vec<Map<String, Value>>> {
-        let encoded = percent_encoding::utf8_percent_encode(
-            name_contains,
-            percent_encoding::NON_ALPHANUMERIC,
-        );
-        let path = format!(
-            "/api/identity/v1/application-roles?nameContains={}",
-            encoded
+        let path = with_query(
+            "/api/identity/v1/application-roles",
+            &[("nameContains", Some(name_contains))],
         );
         self.fetch_all_pages(&path)
     }
@@ -576,18 +585,19 @@ impl Client {
         name_contains: &str,
         environment_key: &str,
     ) -> anyhow::Result<Vec<Map<String, Value>>> {
-        let mut query = Vec::new();
-        if !name_contains.is_empty() {
-            let encoded = percent_encoding::utf8_percent_encode(
-                name_contains,
-                percent_encoding::NON_ALPHANUMERIC,
-            );
-            query.push(format!("nameContains={}", encoded));
-        }
+        let mut path = with_query(
+            "/api/identity/v1/groups",
+            &[(
+                "nameContains",
+                (!name_contains.is_empty()).then_some(name_contains),
+            )],
+        );
+        // environmentKey is a GUID, not free text, so it's appended raw (unencoded) rather
+        // than through `with_query`'s percent-encoding.
         if !environment_key.is_empty() {
-            query.push(format!("environmentKey={}", environment_key));
+            let separator = if path.contains('?') { '&' } else { '?' };
+            path.push_str(&format!("{}environmentKey={}", separator, environment_key));
         }
-        let path = format!("/api/identity/v1/groups?{}", query.join("&"));
         self.fetch_all_pages(&path)
     }
 
@@ -820,6 +830,30 @@ impl Client {
             Value::Object(map) => Ok(map),
             _ => Err(anyhow::anyhow!("Expected object from {}", path)),
         }
+    }
+}
+
+/// Build `path?k1=v1&k2=v2`, percent-encoding each present value. A `None` value omits that
+/// param entirely; `Some("")` still includes it (matching endpoints that always send the param).
+/// Returns `path` unchanged if every param is `None`.
+fn with_query(path: &str, params: &[(&str, Option<&str>)]) -> String {
+    let query: Vec<String> = params
+        .iter()
+        .filter_map(|(key, value)| {
+            value.map(|v| {
+                format!(
+                    "{}={}",
+                    key,
+                    percent_encoding::utf8_percent_encode(v, percent_encoding::NON_ALPHANUMERIC)
+                )
+            })
+        })
+        .collect();
+
+    if query.is_empty() {
+        path.to_string()
+    } else {
+        format!("{}?{}", path, query.join("&"))
     }
 }
 
@@ -1121,6 +1155,59 @@ mod tests {
 
         assert_eq!(envs.len(), 1);
         assert_eq!(envs[0].get("name").unwrap(), "Development");
+    }
+
+    #[test]
+    fn test_list_environments_is_cached_across_calls() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let environments_requests = Arc::new(AtomicUsize::new(0));
+        let counter = environments_requests.clone();
+        let transport = crate::testutil::test_transport(move |req: HttpRequest| {
+            let url = req.url.as_str();
+            if url.contains("openid-configuration") {
+                return crate::testutil::json_response(
+                    200,
+                    json!({"token_endpoint": "https://example.com/oauth/token"}),
+                );
+            }
+            if url.contains("/oauth/token") {
+                return crate::testutil::json_response(200, json!({"access_token": "test-token"}));
+            }
+            if url.contains("/environments") {
+                counter.fetch_add(1, Ordering::SeqCst);
+                return crate::testutil::json_response(
+                    200,
+                    json!({"results": [{"key": "env1", "name": "Development"}]}),
+                );
+            }
+            crate::testutil::json_response(404, json!({"error": "not found"}))
+        });
+        let client = Client::with_transport(test_settings(), test_output(), transport);
+
+        client.list_environments().unwrap();
+        client.list_environments().unwrap();
+
+        assert_eq!(environments_requests.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn test_with_query_omits_none_params() {
+        let path = with_query("/api/x", &[("a", Some("1")), ("b", None)]);
+        assert_eq!(path, "/api/x?a=1");
+    }
+
+    #[test]
+    fn test_with_query_returns_bare_path_when_all_none() {
+        let path = with_query("/api/x", &[("a", None)]);
+        assert_eq!(path, "/api/x");
+    }
+
+    #[test]
+    fn test_with_query_percent_encodes_values() {
+        let path = with_query("/api/x", &[("nameContains", Some("a b&c"))]);
+        assert_eq!(path, "/api/x?nameContains=a%20b%26c");
     }
 
     #[test]

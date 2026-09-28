@@ -157,29 +157,32 @@ pub async fn cmd_internal_build(ctx: &Ctx, args: &InternalBuildArgs) -> Result<(
     }
 }
 
-pub async fn cmd_internal_publish(ctx: &Ctx, args: &InternalPublishArgs) -> Result<()> {
-    let client = ctx.client()?;
-
-    let (asset, asset_key) = resolve_asset_key(&client, &args.asset)?;
-    let env_key = resolve_env(&client, &args.env)?;
-    let revision = resolve_revision(&client, &asset, &asset_key, args.revision)?;
-
-    let started = client.start_publish(&asset_key, revision, &env_key)?;
+/// Start a publish for `asset_key`/`revision` to `env_key` and, unless `poll.no_wait`, poll
+/// until it finishes, erroring out on `FinishedWithError`. Mirrors `run_build` and
+/// `run_deployment_operation`.
+async fn run_publish(
+    client: &Client,
+    poll: &PollArgs,
+    asset_key: &str,
+    revision: i32,
+    env_key: &str,
+) -> Result<(String, Option<Map<String, serde_json::Value>>)> {
+    let started = client.start_publish(asset_key, revision, env_key)?;
     let operation_key = started
         .str_field("key")
         .ok_or_else(|| anyhow::anyhow!("Publish response has no key"))?
         .to_string();
 
-    if args.poll.no_wait {
-        return ctx.output.print_result(&serde_json::Value::Object(started));
+    if poll.no_wait {
+        return Ok((operation_key, Some(started)));
     }
 
     let result = crate::workflows::wait_for(
         "publish",
         || client.get_publish(&operation_key),
         operation_is_terminal,
-        Duration::from_secs(args.poll.poll_interval),
-        Duration::from_secs(args.poll.timeout),
+        Duration::from_secs(poll.poll_interval),
+        Duration::from_secs(poll.timeout),
     )
     .await?;
 
@@ -190,7 +193,20 @@ pub async fn cmd_internal_publish(ctx: &Ctx, args: &InternalPublishArgs) -> Resu
         ));
     }
 
-    ctx.output.print_result(&serde_json::Value::Object(result))
+    Ok((operation_key, Some(result)))
+}
+
+pub async fn cmd_internal_publish(ctx: &Ctx, args: &InternalPublishArgs) -> Result<()> {
+    let client = ctx.client()?;
+
+    let (asset, asset_key) = resolve_asset_key(&client, &args.asset)?;
+    let env_key = resolve_env(&client, &args.env)?;
+    let revision = resolve_revision(&client, &asset, &asset_key, args.revision)?;
+
+    let (_, result) = run_publish(&client, &args.poll, &asset_key, revision, &env_key).await?;
+
+    ctx.output
+        .print_result(&serde_json::Value::Object(result.unwrap_or_default()))
 }
 
 /// Start a deployment operation (`Deploy`/`Undeploy`) and, unless `poll.no_wait`, poll until it
