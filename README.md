@@ -202,6 +202,20 @@ To enable shell completion, generate the script for your shell and source or ins
 
 In the usage examples below, arguments in `[brackets]` are optional (with a default or a resolved fallback); everything else is required.
 
+### Portfolios
+
+#### list-portfolios
+
+List portfolios in the tenant.
+
+```bash
+odc list-portfolios [--asset <name-or-key-substring>]
+```
+
+`--asset` filters to portfolios whose name or key contains it (case-insensitive).
+
+See [Pagination](#pagination) for `--offset`/`--limit`.
+
 ### Inspection
 
 #### discover
