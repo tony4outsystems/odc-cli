@@ -121,6 +121,11 @@ pub async fn cmd_update_group(ctx: &Ctx, args: &UpdateGroupArgs) -> Result<()> {
         .to_string();
 
     let mut updates = Map::new();
+    if let Some(name) = &args.name {
+        if !name.is_empty() {
+            updates.insert("name".to_string(), Value::String(name.clone()));
+        }
+    }
     if let Some(desc) = &args.description {
         if !desc.is_empty() {
             updates.insert("description".to_string(), Value::String(desc.clone()));

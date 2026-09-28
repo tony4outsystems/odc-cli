@@ -9,7 +9,7 @@ async fn main() {
             process::exit(0);
         }
         Err(e) => {
-            eprintln!("error: {}", e);
+            eprintln!("error: {:#}", e);
             process::exit(1);
         }
     }

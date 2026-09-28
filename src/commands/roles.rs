@@ -121,8 +121,8 @@ pub async fn cmd_list_role_assignments(ctx: &Ctx, args: &ListRoleAssignmentsArgs
         annotate_env_names(&client, &mut roles, ctx.no_resolve)?;
     }
 
-    let want_users = true; // For now, always fetch both
-    let want_groups = true;
+    let want_users = !matches!(args.r#type, Some(crate::cli::AssigneeType::Group));
+    let want_groups = !matches!(args.r#type, Some(crate::cli::AssigneeType::User));
 
     let mut rows: Vec<Map<String, Value>> = Vec::new();
 

@@ -260,28 +260,31 @@ where
     Fut: Future<Output = Result<()>> + Send + 'static,
 {
     let make_task = Arc::new(make_task);
-    let chunk_size = max_parallel.max(1);
+    let max_parallel = max_parallel.max(1);
     let mut failures: Vec<String> = Vec::new();
+    let mut items = items.drain(..);
+    let mut set = tokio::task::JoinSet::new();
 
-    while !items.is_empty() {
-        let chunk: Vec<T> = items.drain(..chunk_size.min(items.len())).collect();
-        let mut set = tokio::task::JoinSet::new();
-        for item in chunk {
+    for item in items.by_ref().take(max_parallel) {
+        let make_task = make_task.clone();
+        set.spawn(async move { make_task(item).await });
+    }
+
+    while let Some(joined) = set.join_next().await {
+        if let Some(item) = items.next() {
             let make_task = make_task.clone();
             set.spawn(async move { make_task(item).await });
         }
 
-        while let Some(joined) = set.join_next().await {
-            let result = match joined {
-                Ok(result) => result,
-                Err(join_err) => Err(anyhow!(join_err.to_string())),
-            };
-            if let Err(e) = result {
-                if continue_on_error {
-                    failures.push(e.to_string());
-                } else {
-                    return Err(e);
-                }
+        let result = match joined {
+            Ok(result) => result,
+            Err(join_err) => Err(anyhow!(join_err.to_string())),
+        };
+        if let Err(e) = result {
+            if continue_on_error {
+                failures.push(e.to_string());
+            } else {
+                return Err(e);
             }
         }
     }

@@ -17,11 +17,13 @@ pub async fn cmd_discover(ctx: &Ctx) -> Result<()> {
 pub async fn cmd_list_portfolios(ctx: &Ctx, args: &ListPortfoliosArgs) -> Result<()> {
     let client = ctx.client()?;
 
-    // NB: --offset/--limit are accepted by clap but, matching pre-refactor behavior, not yet
-    // wired up here (list-portfolios always fetches every page). Logged as a known follow-up.
-    let listing = client.list_portfolios()?;
-    let items = filter_by_substring(listing, args.asset.as_deref(), &["name", "key"]);
+    let mut listing = fetch_listing(
+        args.offset,
+        args.limit,
+        |offset, limit| client.list_portfolios_page(offset, limit),
+        || client.list_portfolios(),
+    )?;
+    listing.items = filter_by_substring(listing.items, args.asset.as_deref(), &["name", "key"]);
 
-    let result = Listing { items, page: None };
-    print_listing(&ctx.output, result, PORTFOLIO_TABLE_COLUMNS)
+    print_listing(&ctx.output, listing, PORTFOLIO_TABLE_COLUMNS)
 }
