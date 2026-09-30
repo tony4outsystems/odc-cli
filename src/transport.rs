@@ -53,6 +53,7 @@ impl ReqwestTransport {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
             .timeout(std::time::Duration::from_secs(120))
+            .no_proxy()
             .build()
             .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
         Ok(Self { client })
